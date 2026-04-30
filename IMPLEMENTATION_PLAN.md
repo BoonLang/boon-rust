@@ -502,6 +502,8 @@ cargo xtask verify native-wgpu --app-window
 cargo xtask verify browser-wgpu --browser firefox
 cargo xtask bench todo_mvc --backend all --todos 100
 cargo xtask bench cells --backend all --rows 100 --cols 26
+cargo xtask bootstrap
+cargo xtask bootstrap --check
 cargo xtask shaders
 cargo xtask generate
 cargo xtask examples list
@@ -519,6 +521,7 @@ slotmap = 1.1.1
 wesl = 0.3.2
 wgpu = 29.0.1
 wgsl_bindgen = 0.22.2
+web-ext npm package = 10.1.0
 ```
 
 Initial toolchain facts for this machine:
@@ -531,9 +534,41 @@ npm = 10.9.4
 firefox = 149.0
 ```
 
-`web-ext` is required for the Firefox extension harness but is not assumed to be
-installed. `cargo xtask doctor firefox-webgpu` must report `npm install -g web-ext`
-if `web-ext` is missing.
+### Tool bootstrap policy
+
+Unattended verification must install missing tools instead of stopping for manual
+setup whenever installation can be done safely from the repository.
+
+Implement:
+
+```bash
+cargo xtask bootstrap
+cargo xtask bootstrap --check
+```
+
+`cargo xtask verify all` must run `cargo xtask bootstrap` first unless an explicit
+`--no-bootstrap` flag is passed.
+
+Bootstrap requirements:
+
+- install Rust targets needed by the plan, including `wasm32-unknown-unknown`,
+  by running `rustup target add ...` when `rustup` is available,
+- install repo-local npm tools under `.boon-local/tools/`; do not require or use
+  global npm packages,
+- install `web-ext@10.1.0` with `npm --prefix .boon-local/tools install web-ext@10.1.0`
+  if the repo-local copy is missing or has the wrong version,
+- invoke `.boon-local/tools/node_modules/.bin/web-ext` from xtask commands,
+- create/update `.boon-local/firefox-profile/user.js`,
+- build the Firefox native messaging host,
+- install or refresh the Firefox native messaging manifest automatically when it
+  is missing or stale,
+- create all required `.boon-local/` directories idempotently.
+
+If a missing prerequisite requires system package manager privileges, such as
+installing stable Firefox or GPU drivers, bootstrap must attempt the supported
+platform installer when it can do so non-interactively. If privileges or platform
+support are unavailable, it must fail before tests start with the exact command
+the maintainer can run. Do not skip browser or GPU gates silently.
 
 ---
 
@@ -1692,7 +1727,9 @@ Native messaging requirements:
 - allow only `boon-rust-test@boonlang.local`,
 - use Firefox's native JSON-over-stdio message framing,
 - make `cargo xtask firefox install-native-host` install/update the manifest in the Firefox-required location,
-- make `cargo xtask doctor firefox-webgpu` detect missing or stale native host manifests and print the exact fix command.
+- make `cargo xtask doctor firefox-webgpu` detect missing or stale native host
+  manifests and repair them by invoking the same installer path used by
+  `cargo xtask firefox install-native-host`.
 
 Use an isolated Firefox profile:
 
@@ -1708,7 +1745,8 @@ with:
 user_pref("dom.webgpu.enabled", true);
 ```
 
-Use `web-ext run --firefox-profile <repo>/.boon-local/firefox-profile --keep-profile-changes`
+Use the repo-local `web-ext` executable from `.boon-local/tools/node_modules/.bin/`
+with `run --firefox-profile <repo>/.boon-local/firefox-profile --keep-profile-changes`
 so the extension/profile state remains stable between test passes.
 `cargo xtask firefox reset-profile` may delete only `.boon-local/firefox-profile/`.
 
@@ -1926,17 +1964,100 @@ cargo xtask verify native-wgpu --app-window
 cargo xtask verify browser-wgpu --browser firefox
 cargo xtask bench todo_mvc --backend all --todos 100
 cargo xtask bench cells --backend all --rows 100 --cols 26
+cargo xtask bootstrap
+cargo xtask bootstrap --check
 cargo xtask examples list
 cargo xtask doctor firefox-webgpu
 cargo xtask firefox install-native-host
 cargo xtask firefox reset-profile
 ```
 
+### 12.4 Definition of successful implementation
+
+The implementation is successful only when a clean checkout can run:
+
+```bash
+cargo xtask verify all
+```
+
+with no manual setup beyond having Rust/cargo available. The command must
+bootstrap repo-local tools, generate code/shaders, run all hard gates, and write:
+
+```text
+target/boon-artifacts/success.json
+```
+
+The success report must include:
+
+- git commit,
+- OS/platform,
+- Rust/cargo versions,
+- Firefox version and profile path,
+- WebGPU adapter/device metadata for native and browser backends,
+- exact command list executed by `verify all`,
+- all scenario pass/fail results,
+- all timing summaries,
+- all frame artifact paths and hashes.
+
+No example-specific success may be claimed from semantic state alone. TodoMVC and
+Cells must pass deterministic state, source inventory, timing, replay, and frame
+checks in Ratatui buffer, native headless wgpu, and Firefox WebGPU. The same
+scenarios must also pass Ratatui PTY and native app_window functional/frame
+smoke gates.
+
+### 12.5 Deterministic frame and screenshot checks
+
+Use internal render output, not OS screenshots, as the strict visual oracle.
+
+Canonical capture rules:
+
+- Ratatui captures canonical text buffers at `120x40`.
+- GPU/browser captures internal RGBA frame textures at `1280x720`,
+  device-pixel-ratio `1.0`, fixed scale, and no live animation during capture.
+- Browser captures use `window.__boonTest.captureFrameRgba()`.
+- Native captures use the owned offscreen frame texture before present.
+- All GPU/browser text uses one checked-in deterministic UI font; do not use
+  system font fallback in tests.
+- Each checked frame writes PNG artifact, raw RGBA hash, and semantic view-tree
+  probes.
+- Golden frame hashes are exact for the local hard gate and are keyed by
+  example, scenario, backend, viewport, renderer version, font hash, and platform
+  metadata.
+- A changed frame hash is a test failure until the maintainer intentionally
+  updates the expected artifact.
+
+Required TodoMVC frame checkpoints:
+
+- default initial data is exactly two active todos: `Buy groceries` and `Clean room`,
+- 100-todo scenarios create exactly `Todo 001` through `Todo 100` by deterministic
+  scenario actions before measuring,
+- initial state with the maintained seed todos,
+- after adding `Buy milk` with typing plus Enter,
+- after rejecting whitespace-only input,
+- after editing one todo title to `Buy oat milk`,
+- after toggling one todo,
+- after toggling all 100 todos,
+- after filtering active,
+- after filtering completed,
+- after clearing completed.
+
+Required Cells frame checkpoints:
+
+- initial viewport showing headers, row numbers, and at least A1:C3,
+- editing A1 before commit,
+- after committing A1=`1`, A2=`2`, A3=`3`,
+- after committing B1=`=add(A1, A2)`,
+- after committing B2=`=sum(A1:A3)`,
+- after changing A2 and observing dirty dependent updates,
+- invalid formula error state,
+- cycle error state,
+- viewport moved to include row 100 and column Z.
+
 ---
 
 ## 13. Performance targets
 
-All timing should use source-event-to-complete-frame where possible:
+All timing gates use source-event-to-complete-frame:
 
 ```text
 source event received
@@ -1958,8 +2079,17 @@ For GPU backends:
 - exclude framebuffer readback used only for verification artifacts,
 - record readback time separately.
 
-For app-window mode, also record OS input-to-source latency separately when possible,
+For app-window mode, record OS input-to-source latency when the host exposes it,
 but do not mix compositor/vsync latency into the core compiler/runtime budget.
+
+Benchmark rules:
+
+- run 5 warmup iterations before measuring each scenario,
+- run 30 measured iterations unless the scenario explicitly says otherwise,
+- use fixed viewport sizes from Section 12.5,
+- use deterministic seed `1`,
+- record raw per-iteration timings in `timings.json`,
+- fail the gate on budget misses instead of only reporting them.
 
 ### 13.1 TodoMVC typing
 
@@ -1983,14 +2113,20 @@ p99 <= 16 ms
 no dropped logical characters
 ```
 
+This budget applies to Ratatui buffer, native headless wgpu, and Firefox WebGPU
+internal frame-ready timings. Ratatui PTY and native app_window must record the
+same metric when available and must at minimum pass the functional and frame
+checks.
+
 ### 13.2 TodoMVC checking one item
 
 Target:
 
 ```text
 100 todos loaded
-click one checkbox
+click one checkbox 30 times across deterministic item IDs
 source event -> complete frame <= 5 ms p95
+p99 <= 10 ms
 ```
 
 Expected work:
@@ -2011,7 +2147,9 @@ Target:
 ```text
 100 todos loaded
 click toggle_all
-source event -> complete rerender ideally < 10 ms
+source event -> complete frame <= 10 ms p95
+p99 <= 16 ms
+max <= 25 ms
 ```
 
 Required lowering:
@@ -2049,6 +2187,16 @@ edit plain cell <= 8 ms p95
 edit formula dependency cell <= 10 ms p95
 scroll/move focus <= 8 ms p95
 only dirty/dependent visible cells rerendered
+```
+
+Detailed Cells budgets:
+
+```text
+mount to first frame after shader/font warmup <= 16 ms p95
+edit A1 plain value over 30 measured iterations <= 8 ms p95, <= 16 ms p99
+edit A2 while B1 =add(A1, A2) and B2 =sum(A1:A3) depend on it <= 10 ms p95, <= 16 ms p99
+move selection within visible viewport 30 times <= 8 ms p95, <= 16 ms p99
+move viewport to row 100 / column Z <= 10 ms p95, <= 20 ms p99
 ```
 
 Required behavior:
@@ -2396,7 +2544,8 @@ Deliverables:
 
 Success criteria:
 
-- `cargo xtask doctor firefox-webgpu` passes or reports the exact missing Firefox/WebGPU/native-messaging capability,
+- `cargo xtask doctor firefox-webgpu` passes after bootstrap or fails only for an
+  explicit system/browser/GPU capability that cannot be installed from the repo,
 - `cargo xtask firefox install-native-host` installs or refreshes the native messaging manifest,
 - counter/todo/cells run in browser,
 - Firefox WebExtension tests pass,
@@ -2421,6 +2570,7 @@ Success criteria:
 
 Deliverables:
 
+- unattended bootstrap through `cargo xtask bootstrap`,
 - cargo fmt/clippy/test,
 - shader generation check,
 - Ratatui buffer tests,
@@ -2428,15 +2578,22 @@ Deliverables:
 - native headless wgpu tests,
 - native app_window smoke tests,
 - Firefox WebExtension tests with isolated profile and stable Firefox WebGPU,
+- TodoMVC and Cells timing budget gates,
+- TodoMVC and Cells deterministic frame/hash gates,
+- `target/boon-artifacts/success.json`,
 - artifact upload for failures.
 
 Success criteria:
 
-- `cargo xtask verify all` runs the Ratatui buffer, Ratatui PTY, native headless
+- `cargo xtask verify all` starts from a clean checkout, bootstraps missing
+  repo-local tools, and runs the Ratatui buffer, Ratatui PTY, native headless
   wgpu, native app_window, and Firefox WebGPU gates,
+- TodoMVC and Cells pass the hard timing budgets and deterministic frame/hash
+  checkpoints from Sections 12.4, 12.5, and 13,
 - missing PTY support, missing stable Firefox WebGPU, or missing native app_window
   support is a hard local gate failure,
-- failures include readable traces, frame artifacts, source inventory, and state snapshots.
+- failures include readable traces, frame artifacts, source inventory, state
+  snapshots, and bootstrap/tool logs.
 
 ---
 
@@ -2553,7 +2710,12 @@ When implementing:
 22. Use Rust builder scenarios in `boon_verify`; JSON is only for reports/artifacts/manifests.
 23. Run tests after each meaningful implementation step.
 24. Preserve readable diagnostics and manifests.
-25. If a hard design choice is ambiguous, stop and update this plan instead of inventing implementation policy.
+25. Make `cargo xtask verify all` unattended: bootstrap missing repo-local tools
+    automatically and fail early with exact system-install commands only when a
+    prerequisite cannot be installed without unavailable system privileges.
+26. Treat TodoMVC and Cells timing budgets plus deterministic frame/hash checks
+    as required success gates, not optional benchmarks.
+27. If a hard design choice is ambiguous, stop and update this plan instead of inventing implementation policy.
 
 ---
 
@@ -2574,4 +2736,5 @@ These references explain external crates/tools used by this plan:
 - Firefox WebExtension content scripts: <https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Content_scripts>
 - Firefox WebExtension native messaging: <https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_messaging>
 - Firefox native manifests: <https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_manifests>
+- web-ext npm package 10.1.0: <https://www.npmjs.com/package/web-ext/v/10.1.0>
 - web-ext run and Firefox profiles: <https://extensionworkshop.com/documentation/develop/getting-started-with-web-ext/>
