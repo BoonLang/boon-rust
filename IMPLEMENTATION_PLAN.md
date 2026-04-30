@@ -6,7 +6,7 @@ The goal is a simple, strict, deterministic, fast Boon-to-Rust compiler/runtime 
 
 1. **Ratatui** for terminal apps, CI, AI-debuggable snapshots, and PTY tests.
 2. **Native WebGPU/wgpu** using `app_window`, WESL, `wgsl_bindgen`, and framebuffer readback verification.
-3. **Browser WebGPU/wgpu** using the same generated shaders and Playwright-driven verification in Chromium and Firefox.
+3. **Browser WebGPU/wgpu** using the same generated shaders and Firefox-first verification through a checked-in WebExtension harness.
 
 The current focus examples are:
 
@@ -20,7 +20,7 @@ The current focus examples are:
 - `pong`
 - `arkanoid`
 
-All examples must eventually run and be automatically verified on all three backends.
+All examples must eventually run and be automatically verified on Ratatui, native wgpu, and Firefox browser wgpu. Do not add Chromium tests or Chromium harnesses unless this plan is explicitly updated.
 
 ---
 
@@ -140,7 +140,7 @@ The compiler must error when:
 - A `SOURCE` leaf is bound by more than one live producer.
 - A `SOURCE` leaf receives conflicting structural value shapes.
 - A source record passed to a host function contains unknown `SOURCE` leaves that the host function cannot bind.
-- A source record passed to a host function is missing required source leaves for that host function.
+- A source record passed to a host function contains a `SOURCE` leaf that is not bindable by that host function.
 - A source path is read by logic but cannot be proven to be produced by the host/runtime.
 - A source path is produced by a host binding but is used in a shape-incompatible expression.
 - A dynamic `SOURCE` owner cannot be proven stable.
@@ -169,7 +169,7 @@ Async is allowed at host boundaries only:
 - browser event loop,
 - `app_window` integration,
 - wgpu initialization/submission/readback where needed,
-- Playwright/browser test driver,
+- browser test driver,
 - file/network/device adapters if future examples need them.
 
 Inside a generated Boon app:
@@ -229,6 +229,11 @@ boon-rust/
   docs/
 ```
 
+Preserve these crate names, but keep early internals simple. It is acceptable for
+some crates to start as thin wrappers over internal modules while examples are
+being brought up. Do not spend early phases building elaborate cross-crate
+abstractions before the target examples compile and run.
+
 Crate responsibilities:
 
 ### `boon_syntax`
@@ -250,13 +255,13 @@ Must support:
 - `PASS` / `PASSED`
 - `SOURCE`
 
-Do not simplify the language by dropping constructs from the original examples.
+Do not simplify the language by dropping constructs required by the maintained `examples/<name>/source.bn` programs.
 
 ### `boon_hir`
 
 Typed/validated high-level IR, symbol table, module/file graph, resolved names, lowered `PASS` / `PASSED` environments.
 
-This should preserve enough original structure for diagnostics.
+This should preserve enough source structure for diagnostics.
 
 ### `boon_shape`
 
@@ -284,10 +289,22 @@ Do not introduce user-facing `Bool` or `Pulse`.
 
 Use `TagSet { True, False }` internally for booleans.
 Use `EmptyRecord` internally for press/click/change/blur/focus emissions.
+If keys later need payloads, use structural tagged variants such as
+`Character [text: TEXT]`, not a nominal user-facing `Key` type.
+
+`Unknown` must not survive final validation. Any reachable expression or source
+with unknown shape is a compile error.
+
+`Union` is allowed only when all possible shapes are explicitly known and
+validated. It must not be used to hide incompatible branches.
 
 ### `boon_host_schema`
 
 Structural contracts for runtime/host functions.
+
+All source leaves accepted by element host functions are optional from the element's perspective.
+A host contract declares which source leaves are bindable if present. It does not require an
+element call to supply every possible source leaf.
 
 Examples:
 
@@ -298,15 +315,15 @@ Element/button(element)
   element.focused     -> TagSet { False, True } optional
 
 Element/text_input(element)
-  element.text               -> Text required
-  element.event.change       -> EmptyRecord required
-  element.event.key_down.key -> Key tags required
+  element.text               -> Text optional
+  element.event.change       -> EmptyRecord optional
+  element.event.key_down.key -> Key tags optional
   element.event.blur         -> EmptyRecord optional
   element.event.focus        -> EmptyRecord optional
 
 Element/checkbox(element)
-  element.event.click -> EmptyRecord required
-  element.checked     -> TagSet { False, True } optional or required depending on widget semantics
+  element.event.click -> EmptyRecord optional
+  element.checked     -> TagSet { False, True } optional
   element.hovered     -> TagSet { False, True } optional
 
 Element/label(element)
@@ -317,6 +334,7 @@ Element/label(element)
 The exact contract is maintained in Rust data, not Boon nominal source declarations.
 
 If an element accepts a source record, every `SOURCE` leaf in that record must be accounted for by that host function's source contract. Unknown source fields are errors.
+If app logic reads a source path, that path must still be declared and proven to have exactly one live producer.
 
 ### `boon_source`
 
@@ -449,7 +467,7 @@ Responsibilities:
 
 - initialize wgpu in browser,
 - connect browser/canvas input to source emissions,
-- expose test-only JS API for Playwright,
+- expose test-only JS API for browser harnesses,
 - return state, source inventory, frame hashes/frames, metrics.
 
 ### `boon_examples`
@@ -481,13 +499,40 @@ cargo xtask verify ratatui
 cargo xtask verify ratatui --pty
 cargo xtask verify native-wgpu --headless
 cargo xtask verify native-wgpu --app-window
-cargo xtask verify browser-wgpu --browser chromium
 cargo xtask verify browser-wgpu --browser firefox
 cargo xtask bench todo_mvc --backend all --todos 100
 cargo xtask bench cells --backend all --rows 100 --cols 26
 cargo xtask shaders
 cargo xtask generate
+cargo xtask examples list
+cargo xtask doctor firefox-webgpu
+cargo xtask firefox install-native-host
+cargo xtask firefox reset-profile
 ```
+
+Initial dependency pins:
+
+```text
+app_window = 0.3.3
+glyphon = 0.11.0
+wesl = 0.3.2
+wgpu = 29.0.1
+wgsl_bindgen = 0.22.2
+```
+
+Initial toolchain facts for this machine:
+
+```text
+rustc = 1.95.0
+cargo = 1.95.0
+node = 22.22.0
+npm = 10.9.4
+firefox = 149.0
+```
+
+`web-ext` is required for the Firefox extension harness but is not assumed to be
+installed. `cargo xtask doctor firefox-webgpu` must report `npm install -g web-ext`
+if `web-ext` is missing.
 
 ---
 
@@ -522,6 +567,36 @@ Within one turn:
 - Bulk updates such as TodoMVC `toggle_all` must use the same sampled `store.all_completed` for every todo.
 
 This avoids the fragile bug where `all_completed` changes midway through toggling 100 todos.
+
+### 2.2.1 Source batches and source-state ordering
+
+A host/backend may deliver a `SourceBatch`, not just one isolated source emission.
+
+A `SourceBatch` contains:
+
+- zero or more source state updates, e.g. `input.text = TEXT { abc }`, `button.hovered = True`,
+- zero or more source event emissions, e.g. `input.event.change = []`, `input.event.key_down.key = Enter`.
+
+For each batch:
+
+1. Validate all source paths and owner generations.
+2. Apply source state updates to the app's source-state table.
+3. Dispatch event emissions in deterministic order.
+4. Each event emission creates one Boon turn.
+5. `THEN`/`WHEN` bodies sample source state after step 2 and after previous turns in the same batch have committed.
+
+This keeps `key_down.key` separate from `.text`, while still allowing code to sample
+current text from source state:
+
+```boon
+source.event.key_down.key
+|> WHEN {
+    Enter => source.text |> Text/trim()
+    __ => SKIP
+}
+```
+
+The key event carries only a key tag. The text value is sampled from the source state.
 
 ### 2.3 Generated Rust shape
 
@@ -621,6 +696,8 @@ Human-readable source paths are retained in manifests and traces, not in hot dis
 ### 3.1 Host contracts are structural
 
 Host contracts are Rust-side schema data, not Boon declarations.
+For element functions, every source leaf is optional. The contract is a list of bindable
+leaves and their shapes, not a list of leaves that every call must provide.
 
 Example conceptual contract:
 
@@ -637,9 +714,9 @@ For text input:
 ```rust
 HostContract::new("Element/text_input")
     .source_arg("element")
-    .required("text", Shape::Text)
-    .required("event.change", Shape::EmptyRecord)
-    .required("event.key_down.key", Shape::key_tags())
+    .optional("text", Shape::Text)
+    .optional("event.change", Shape::EmptyRecord)
+    .optional("event.key_down.key", Shape::key_tags())
     .optional("event.blur", Shape::EmptyRecord)
     .optional("event.focus", Shape::EmptyRecord)
     .optional("focused", Shape::tag_set(["False", "True"]));
@@ -650,12 +727,28 @@ For checkbox:
 ```rust
 HostContract::new("Element/checkbox")
     .source_arg("element")
-    .required("event.click", Shape::EmptyRecord)
+    .optional("event.click", Shape::EmptyRecord)
     .optional("checked", Shape::tag_set(["False", "True"]))
     .optional("hovered", Shape::tag_set(["False", "True"]));
 ```
 
 If a host function does not produce a source path, the compiler must not assume it exists.
+
+### 3.1.1 Conditional and lifecycle source binding
+
+A `SOURCE` leaf must have exactly one statically provable binding site or binding
+family.
+
+At runtime, a binding may be conditionally live if the host element is under
+`WHEN`/`WHILE`/list rendering. This is allowed only if:
+
+- every live runtime state has at most one live producer for the source leaf,
+- the compiler can prove the binding site/family exists,
+- the backend refuses source events from non-live or stale producers in test/debug builds,
+- stale dynamic owner generations are rejected.
+
+So `edit_input.event.change` inside an editing branch is valid even when the edit
+input is not currently rendered; it simply cannot produce events while unmounted.
 
 ### 3.2 Button example
 
@@ -864,17 +957,31 @@ todos:
 
 The compiler must optimize known structural patterns.
 
+### 4.1.1 User-facing list operation semantics
+
+The compiler may optimize list operations, but it must preserve these source-level meanings:
+
+- `List/append(item: expr)` appends one item whenever `expr` emits a non-`SKIP` value.
+- `List/remove(item, on: expr)` removes the current item whenever `expr` emits a non-`SKIP` value for that item.
+- `List/retain(item, if: predicate)` is a derived immutable view. Do not use it as a source-of-truth mutation operation.
+- `List/map(item, new: expr)` is a derived keyed projection when the input list has stable item identity.
+- `List/count()` over a stable list returns the current item count and may be maintained incrementally.
+- `SKIP` means no emission/no operation; it is not a value stored in the list.
+
+All optimized lowerings must be checked against the reference interpreter on the
+same input event log.
+
 ### 4.2 Owned list representation
 
 Dynamic lists should not become runtime stream graphs.
 
-Use owned arenas/keyed vectors:
+Use owned arenas/keyed vectors. Use a small custom generational arena or the
+`slotmap` crate; do not depend on an unspecified `SlotVec` type.
 
 ```rust
 struct TodoList {
-    items: SlotVec<TodoId, Todo>,
+    items: GenerationalArena<TodoId, Todo>,
     order: Vec<TodoId>,
-    generations: Vec<u32>,
 }
 
 struct Todo {
@@ -1250,6 +1357,45 @@ pub enum HostPatch {
 
 Keep patches semantic enough for Ratatui and structured enough for GPU lowering.
 
+### 7.1.1 Initial mount and stable render identity
+
+The generated app must emit an initial mount patch batch before handling user input.
+
+Node identity rules:
+
+- static render nodes get deterministic generated `NodeId`s,
+- dynamic list item render nodes are keyed by owner identity plus stable local path,
+- moving/filtering list items must preserve keyed node identity,
+- removing an owner drops its render subtree and source bindings,
+- reusing a removed owner's stale source generation is invalid.
+
+A list filter change should produce keyed moves/inserts/removes, not full teardown
+unless the source semantics require it.
+
+### 7.1.2 Controlled input source-state synchronization
+
+For host elements with source state such as `element.text`, the backend must keep
+the source state and rendered widget state coherent.
+
+When the user edits an input:
+
+```text
+host input value changes
+  -> SourceBatch updates `element.text`
+  -> SourceBatch emits `element.event.change = []`
+```
+
+When Boon renders a new text value for the same input:
+
+```text
+Boon emits SetText/SetInputText patch
+  -> backend updates displayed widget text
+  -> backend updates the associated source-state slot before the next source batch
+```
+
+This prevents stale reads after code such as TodoMVC clearing the new-todo input
+after Enter.
+
 ### 7.2 HostViewIR and RayboxDrawIR
 
 Use two layers:
@@ -1265,21 +1411,46 @@ RayboxDrawIR
 Ratatui consumes HostViewIR.
 Native/browser GPU lower HostViewIR to RayboxDrawIR.
 
-### 7.3 Backend trait
+### 7.3 Core app and backend contracts
 
-Conceptual trait:
+The Boon core/app boundary is synchronous and exact:
 
 ```rust
-pub trait Backend {
-    fn apply_patches(&mut self, patches: &[HostPatch]);
-    fn push_source_emissions(&mut self, out: &mut Vec<SourceEmission>);
+pub trait BoonApp {
+    fn mount(&mut self) -> TurnResult;
+    fn dispatch_batch(&mut self, batch: SourceBatch) -> Vec<TurnResult>;
+    fn snapshot(&self) -> AppSnapshot;
+    fn source_inventory(&self) -> SourceInventory;
+}
+
+pub struct TurnResult {
+    pub turn_id: TurnId,
+    pub patches: Vec<HostPatch>,
+    pub state_delta: StateDelta,
+    pub metrics: TurnMetrics,
+}
+```
+
+Input adapters translate backend/browser/terminal input into `SourceBatch`. Renderers
+apply `HostPatch` and never own Boon semantics.
+
+Renderer contracts:
+
+```rust
+pub trait RenderBackend {
+    fn apply_patches(&mut self, patches: &[HostPatch]) -> anyhow::Result<()>;
     fn render_frame(&mut self) -> anyhow::Result<FrameInfo>;
     fn capture_frame(&mut self) -> anyhow::Result<FrameSnapshot>;
     fn metrics(&self) -> BackendMetrics;
 }
+
+pub trait InputAdapter {
+    fn translate_input(&mut self, input: BackendInput) -> anyhow::Result<Option<SourceBatch>>;
+}
 ```
 
-The exact trait may differ between sync/async frontends, but the Boon core must remain synchronous.
+Host async/event-loop code may wrap these traits, but no async/task/channel model may
+enter the generated Boon app or `boon_runtime`.
 
 ---
 
@@ -1400,7 +1571,7 @@ Raybox frame texture
   -> present to app_window surface
 ```
 
-Native tests should support a headless/offscreen mode:
+Native tests must support a headless/offscreen mode:
 
 ```text
 native_wgpu_headless
@@ -1418,6 +1589,22 @@ native_wgpu_app_window
   still capture internal frame texture before present
 ```
 
+### 9.4 GPU text rendering
+
+Text rendering is required early because TodoMVC and Cells depend on it.
+
+Use `glyphon` for v1 GPU text rendering.
+
+Do not start by hand-writing a complex SDF/MSDF text renderer or custom glyph atlas
+unless the plan is explicitly updated.
+
+Text rendering must support:
+
+- ASCII at minimum for the target examples,
+- stable layout metrics for tests,
+- cell/grid text clipping,
+- deterministic frame output for verification.
+
 ---
 
 ## 10. Browser wgpu backend
@@ -1427,8 +1614,8 @@ Browser GPU rendering uses:
 - Rust wasm,
 - wgpu browser/WebGPU backend,
 - same WESL-generated WGSL roots,
-- same or near-same `wgsl_bindgen` generated Rust modules,
-- Playwright for Chromium and Firefox verification.
+- same `wgsl_bindgen` generated Rust module, compiled with target-specific `cfg` only where unavoidable,
+- Firefox verification through a checked-in WebExtension harness.
 
 ### 10.1 Test API
 
@@ -1449,15 +1636,73 @@ window.__boonTest = {
 
 This API must be compiled only for test/dev builds.
 
-### 10.2 Browser verification
+### 10.2 Firefox WebExtension verification
 
-Use Playwright to drive Chromium and Firefox.
+Do not use Playwright for browser v1. Drive Firefox through a checked-in
+WebExtension harness and native messaging.
+
+Repository layout:
+
+```text
+crates/boon_verify/firefox_extension/
+  manifest.json
+  background.js
+  content.js
+  page_bridge.js
+```
+
+The extension must have a fixed Gecko ID:
+
+```json
+{
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "boon-rust-test@boonlang.local"
+    }
+  }
+}
+```
+
+The Firefox harness flow is:
+
+```text
+xtask starts local wasm test server
+xtask launches Firefox with isolated repo-local profile
+Firefox loads the checked-in WebExtension
+background script connects to boon-firefox-native-host with native messaging
+content script attaches only to the local test server origin
+page bridge talks to window.__boonTest with window.postMessage
+native host receives state, source inventory, frame hashes/frames, metrics, and failures
+xtask stores artifacts
+```
+
+Native messaging requirements:
+
+- build a Cargo native host binary, e.g. `boon-firefox-native-host`,
+- generate the Firefox native messaging manifest from repo state,
+- allow only `boon-rust-test@boonlang.local`,
+- use Firefox's native JSON-over-stdio message framing,
+- make `cargo xtask firefox install-native-host` install/update the manifest in the Firefox-required location,
+- make `cargo xtask doctor firefox-webgpu` detect missing or stale native host manifests and print the exact fix command.
+
+Use an isolated Firefox profile:
+
+```text
+.boon-local/firefox-profile/
+```
+
+`xtask` must always launch Firefox with this profile and must refuse to use the user's normal profile.
+Use `web-ext run --firefox-profile <repo>/.boon-local/firefox-profile --keep-profile-changes`
+so the extension/profile state remains stable between test passes.
+`cargo xtask firefox reset-profile` may delete only `.boon-local/firefox-profile/`.
+
+### 10.3 Browser verification
 
 Browser tests must:
 
 ```text
 serve wasm app
-open page
+open page in Firefox isolated profile first
 wait for wgpu ready
 send scenario actions
 run until idle
@@ -1472,18 +1717,35 @@ Do not rely only on `page.screenshot()` for correctness. Browser screenshots are
 Artifacts:
 
 ```text
-target/boon-artifacts/<example>/browser-chromium/
+target/boon-artifacts/<example>/browser-firefox-extension/
   frame_000.png
   trace.json
   timings.json
-  playwright-trace.zip
-
-target/boon-artifacts/<example>/browser-firefox/
-  frame_000.png
-  trace.json
-  timings.json
-  playwright-trace.zip
+  extension.log
+  native-host.log
 ```
+
+### 10.4 Browser WebGPU platform gates
+
+Browser GPU tests must require real WebGPU (`navigator.gpu`) for the WebGPU
+backend. Do not silently accept a WebGL2 fallback for WebGPU verification.
+
+Stable Firefox is the browser v1 target. `cargo xtask doctor firefox-webgpu` must
+launch the isolated profile with stable Firefox first and prove:
+
+- `dom.webgpu.enabled` is true for that profile,
+- `navigator.gpu` exists,
+- adapter request succeeds,
+- device request succeeds,
+- the WebExtension loads,
+- native messaging connects to `boon-firefox-native-host`.
+
+If CI or the local machine lacks Firefox WebGPU support, the browser gate fails
+with an explicit Firefox WebGPU capability error. Do not use Firefox Nightly,
+Chromium, WebGL2, or any other browser/backend as a substitute.
+
+All browser tests must feature-detect `navigator.gpu` and record the browser,
+version, platform, and WebGPU adapter/device result in artifacts.
 
 ---
 
@@ -1497,6 +1759,18 @@ WESL source
   -> wgsl_bindgen generates Rust bindings
   -> wgpu renderer uses generated modules
 ```
+
+WESL must be fully resolved to plain WGSL before `wgsl_bindgen` runs:
+
+```text
+.wesl roots
+  -> WESL compiler/linker
+  -> generated .wgsl files with no unresolved imports
+  -> wgsl_bindgen
+  -> generated Rust
+```
+
+Do not rely on `wgsl_bindgen` to understand WESL imports. Feed it WGSL.
 
 Do not use Slang initially.
 Do not use `wgsl_to_wgpu`.
@@ -1532,7 +1806,7 @@ Use generated bindings as the only way to create:
 
 ### 11.3 Build structure
 
-Suggested shader layout:
+Shader layout:
 
 ```text
 shaders/
@@ -1550,12 +1824,17 @@ shaders/
     present.wesl
 ```
 
-`build.rs` or `xtask shaders` should:
+`cargo xtask shaders` must:
 
 1. Compile WESL roots to generated WGSL files in `OUT_DIR` or `target/generated-shaders`.
 2. Run `wgsl_bindgen` on the generated WGSL roots.
 3. Generate one Rust module included by `boon_backend_wgpu`.
 4. Fail fast on shader validation errors.
+
+Pin versions of `wesl`, `wgsl_bindgen`, and `wgpu` in `Cargo.toml`/`Cargo.lock`.
+Regenerate shader bindings only through `cargo xtask shaders`, never by hand.
+`build.rs` may include generated bindings or fail if they are stale, but it must not
+be a second shader-generation path with different behavior.
 
 ---
 
@@ -1565,35 +1844,30 @@ shaders/
 
 Do not write separate test logic for each backend.
 
-Define one scenario format, e.g. RON/JSON/YAML or Rust builder.
+Use one scenario format: a Rust builder API in `boon_verify`. Do not add RON,
+YAML, or JSON scenario fixtures for v1. JSON is used only for reports, traces,
+manifests, and artifacts.
 
-Conceptual example:
+Example:
 
-```ron
-ExampleScenario(
-    name: "todo_mvc_add_toggle_clear",
-    example: "todo_mvc",
-    viewport: (120, 40),
-    seed: 1,
-    steps: [
-        ExpectText("What needs to be done?"),
-
-        TypeText(source: "store.sources.new_todo_input", text: "Buy milk"),
-        PressKey(source: "store.sources.new_todo_input.event.key_down.key", key: Enter),
-        RunUntilIdle,
-        ExpectText("Buy milk"),
-        ExpectState(path: "store.todos_count", equals: "3"),
-
-        Click(source: "store.todos[0].sources.checkbox.event.click"),
-        RunUntilIdle,
-        ExpectText("2 items left"),
-
-        Click(source: "store.sources.toggle_all_checkbox.event.click"),
-        RunUntilIdle,
-        ExpectState(path: "store.completed_todos_count", equals: "3"),
-        ExpectFrameBudget(max_ms: 10.0),
-    ],
-)
+```rust
+Scenario::new("todo_mvc_add_toggle_clear")
+    .example("todo_mvc")
+    .viewport(120, 40)
+    .seed(1)
+    .expect_text("What needs to be done?")
+    .type_text("store.sources.new_todo_input", "Buy milk")
+    .press_key("store.sources.new_todo_input.event.key_down.key", KeyTag::Enter)
+    .run_until_idle()
+    .expect_text("Buy milk")
+    .expect_state("store.todos_count", InspectValue::number(3))
+    .click("store.todos[0].sources.checkbox.event.click")
+    .run_until_idle()
+    .expect_text("2 items left")
+    .click("store.sources.toggle_all_checkbox.event.click")
+    .run_until_idle()
+    .expect_state("store.completed_todos_count", InspectValue::number(3))
+    .expect_frame_budget_ms(10.0);
 ```
 
 Backends implement:
@@ -1633,10 +1907,13 @@ cargo xtask verify ratatui
 cargo xtask verify ratatui --pty
 cargo xtask verify native-wgpu --headless
 cargo xtask verify native-wgpu --app-window
-cargo xtask verify browser-wgpu --browser chromium
 cargo xtask verify browser-wgpu --browser firefox
 cargo xtask bench todo_mvc --backend all --todos 100
 cargo xtask bench cells --backend all --rows 100 --cols 26
+cargo xtask examples list
+cargo xtask doctor firefox-webgpu
+cargo xtask firefox install-native-host
+cargo xtask firefox reset-profile
 ```
 
 ---
@@ -1653,6 +1930,20 @@ source event received
   -> backend patch application
   -> final terminal buffer or GPU frame texture ready
 ```
+
+Performance budgets measure source-event-to-frame-ready, not artifact readback.
+
+For GPU backends:
+
+- include Boon turn time,
+- include patch application,
+- include command encoding/submission needed to make the frame ready,
+- exclude PNG encoding,
+- exclude framebuffer readback used only for verification artifacts,
+- record readback time separately.
+
+For app-window mode, also record OS input-to-source latency separately when possible,
+but do not mix compositor/vsync latency into the core compiler/runtime budget.
 
 ### 13.1 TodoMVC typing
 
@@ -1876,6 +2167,37 @@ Verify:
 
 ## 15. Implementation phases
 
+### Phase 0: Golden examples and compatibility fixtures
+
+Deliverables:
+
+- write maintained runnable Boon programs for these targets:
+  - `counter`
+  - `counter_hold`
+  - `interval`
+  - `interval_hold`
+  - `todo_mvc`
+  - `todo_mvc_physical`
+  - `cells`
+  - `pong`
+  - `arkanoid`
+- write the maintained runnable Boon program as `examples/<name>/source.bn`,
+- store maintained expectations as `examples/<name>/expected.*`,
+- adapt/improve examples to pure-data `SOURCE` as needed,
+- use `/home/martinkavik/repos/boon`, `/home/martinkavik/repos/boon-zig`, and `/home/martinkavik/repos/boon-pony` only as inspiration while writing the maintained `source.bn` files,
+- do not copy or preserve legacy example files or legacy example directories in this repo,
+- keep all example business logic in Boon; do not add TodoMVC, Cells, Pong, or Arkanoid logic to runtime or stdlib,
+- add parser fixture tests that snapshot AST/HIR for each `source.bn`,
+- add source inventory snapshots for each `source.bn`,
+- add a rule that the compiler must not silently change Boon semantics to make examples easier.
+
+Success criteria:
+
+- all target examples have `examples/<name>/source.bn`,
+- `cargo xtask examples list` shows them,
+- parser tests fail if example syntax is not supported,
+- source inventory snapshots fail if SOURCE migration changes accidentally.
+
 ### Phase 1: Workspace and minimal compiler skeleton
 
 Deliverables:
@@ -1995,16 +2317,17 @@ Deliverables:
 - static range × range detection,
 - dense cell IDs,
 - cell source families,
-- formula parser/evaluator or integration with existing example formula library,
+- clean Boon implementation of 7GUIs Cells behavior in `examples/cells/source.bn`,
 - dependency graph/dirty recomputation,
 - Ratatui grid rendering.
 
 Success criteria:
 
 - 26×100 grid renders nicely in Ratatui,
-- formula dependencies update correctly,
+- formula dependencies update correctly for the 7GUIs behavior, including numeric cells, references, `=add(A1, A2)`, and `=sum(A1:A3)`,
 - dirty recompute tests pass,
-- no full-grid recompute for ordinary edit.
+- no full-grid recompute for ordinary edit,
+- no Cells-specific formula parser, evaluator, or business rules are added to runtime or stdlib.
 
 ### Phase 9: WESL/wgsl_bindgen/wgpu renderer core
 
@@ -2047,13 +2370,17 @@ Deliverables:
 - wasm/browser runner,
 - browser wgpu initialization,
 - test-only `window.__boonTest`,
-- Playwright tests for Chromium and Firefox,
+- Firefox WebExtension verification harness,
+- native messaging host and manifest installer,
+- isolated repo-local Firefox profile launcher,
 - browser frame hash/readback.
 
 Success criteria:
 
+- `cargo xtask doctor firefox-webgpu` passes or reports the exact missing Firefox/WebGPU/native-messaging capability,
+- `cargo xtask firefox install-native-host` installs or refreshes the native messaging manifest,
 - counter/todo/cells run in browser,
-- Playwright tests pass in Chromium and Firefox,
+- Firefox WebExtension tests pass,
 - browser timing traces generated.
 
 ### Phase 12: Physical TodoMVC, pong, arkanoid
@@ -2081,7 +2408,7 @@ Deliverables:
 - Ratatui buffer tests,
 - optional PTY tests,
 - native headless wgpu tests where CI GPU is available,
-- browser Chromium/Firefox tests where CI supports them,
+- Firefox WebExtension tests with isolated profile where CI supports WebGPU Firefox,
 - artifact upload for failures.
 
 Success criteria:
@@ -2159,9 +2486,11 @@ Snapshot should include:
 - app state,
 - held state,
 - dynamic list item data,
-- source state values if meaningful (`text`, `hovered`, `checked`, etc.),
+- state-like source values if meaningful (`text`, `hovered`, `focused`, `checked`, etc.),
 - fake clock time in tests,
 - generation counters.
+
+Do not snapshot one-shot `[]` event emissions except in event logs.
 
 Snapshot should not include:
 
@@ -2189,10 +2518,18 @@ When implementing:
 10. Use Ratatui for first correctness path.
 11. Use `app_window`, not winit.
 12. Use WESL and `wgsl_bindgen`; do not add Slang initially.
-13. Use framebuffer/readback/test APIs for visual verification, not OS screenshots.
-14. Run tests after each meaningful implementation step.
-15. Preserve readable diagnostics and manifests.
-16. If a hard design choice is ambiguous, choose the simpler deterministic option and document it.
+13. Keep all element source leaves optional; host schemas define bindable leaves, not required leaves.
+14. Verify browser WebGPU through the Firefox WebExtension/native-messaging harness for unattended v1.
+15. `window.__boonTest` must be omitted from release builds and guarded by a test/dev feature flag.
+16. Browser WebGPU tests must require `navigator.gpu`; missing Firefox WebGPU support is a hard browser-gate failure.
+17. Use framebuffer/readback/test APIs for visual verification, not OS screenshots.
+18. Exclude verification readback/PNG encoding from interactive performance budgets and record them separately.
+19. Keep all example business logic in Boon; runtime and stdlib may contain only generic language/runtime primitives.
+20. Use `glyphon` for v1 GPU text.
+21. Use Rust builder scenarios in `boon_verify`; JSON is only for reports/artifacts/manifests.
+22. Run tests after each meaningful implementation step.
+23. Preserve readable diagnostics and manifests.
+24. If a hard design choice is ambiguous, stop and update this plan instead of inventing implementation policy.
 
 ---
 
@@ -2203,10 +2540,13 @@ These references explain external crates/tools used by this plan:
 - Ratatui `TestBackend` / terminal testing: <https://docs.rs/ratatui/latest/ratatui/backend/struct.TestBackend.html>
 - Ratatui snapshot testing guide: <https://ratatui.rs/recipes/testing/snapshots/>
 - portable-pty: <https://docs.rs/portable-pty>
-- app_window: <https://docs.rs/app_window>
-- wgpu: <https://docs.rs/wgpu>
-- WESL Rust crate: <https://docs.rs/wesl/>
+- app_window 0.3.3: <https://docs.rs/app_window/0.3.3>
+- glyphon 0.11.0: <https://docs.rs/glyphon/0.11.0>
+- wgpu 29.0.1: <https://docs.rs/wgpu/29.0.1>
+- WESL Rust crate 0.3.2: <https://docs.rs/wesl/0.3.2>
 - WESL Rust getting started: <https://wesl-lang.dev/docs/Getting-Started-Rust>
-- wgsl_bindgen: <https://docs.rs/wgsl_bindgen>
-- Playwright browsers: <https://playwright.dev/docs/browsers>
-
+- wgsl_bindgen 0.22.2: <https://docs.rs/wgsl_bindgen/0.22.2>
+- Firefox WebExtension content scripts: <https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Content_scripts>
+- Firefox WebExtension native messaging: <https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_messaging>
+- Firefox native manifests: <https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_manifests>
+- web-ext run and Firefox profiles: <https://extensionworkshop.com/documentation/develop/getting-started-with-web-ext/>
