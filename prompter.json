@@ -1,0 +1,16 @@
+{
+  "instance_label": "boon-rust",
+  "port": 4949,
+  "command": [
+    "co"
+  ],
+  "store_prompts": null,
+  "backend": null,
+  "supervisor_prompt": "",
+  "completion_condition": "+completed+",
+  "checking_condition": "+checked+",
+  "completion_command": null,
+  "completion_prompt": null,
+  "protected_patterns": [],
+  "command_timeout_mins": 10
+}
