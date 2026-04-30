@@ -515,6 +515,7 @@ Initial dependency pins:
 ```text
 app_window = 0.3.3
 glyphon = 0.11.0
+slotmap = 1.1.1
 wesl = 0.3.2
 wgpu = 29.0.1
 wgsl_bindgen = 0.22.2
@@ -975,12 +976,13 @@ same input event log.
 
 Dynamic lists should not become runtime stream graphs.
 
-Use owned arenas/keyed vectors. Use a small custom generational arena or the
-`slotmap` crate; do not depend on an unspecified `SlotVec` type.
+Use owned arenas/keyed vectors. Use `slotmap = 1.1.1` for generational owner
+identity; do not implement a custom arena and do not depend on an unspecified
+`SlotVec` type.
 
 ```rust
 struct TodoList {
-    items: GenerationalArena<TodoId, Todo>,
+    items: SlotMap<TodoId, Todo>,
     order: Vec<TodoId>,
 }
 
@@ -1297,7 +1299,14 @@ All three backends must show a nice Excel-like grid:
 - grid lines/borders,
 - formula/value display,
 - deterministic error rendering for invalid formulas/cycles,
-- scrolling or viewport behavior if needed.
+- deterministic windowed viewport.
+
+Viewport rules:
+
+- the logical grid is 26 columns by 100 rows,
+- the initial viewport shows column headers, row numbers, and at least cells A1:C3,
+- row 100 and column Z are reachable through deterministic scenario actions,
+- viewport movement must not rebuild unrelated cell/source identity.
 
 Ratatui should render a usable text grid.
 GPU should render crisp grid lines and text.
@@ -1692,6 +1701,13 @@ Use an isolated Firefox profile:
 ```
 
 `xtask` must always launch Firefox with this profile and must refuse to use the user's normal profile.
+Before launch, `xtask` must create or update `.boon-local/firefox-profile/user.js`
+with:
+
+```js
+user_pref("dom.webgpu.enabled", true);
+```
+
 Use `web-ext run --firefox-profile <repo>/.boon-local/firefox-profile --keep-profile-changes`
 so the extension/profile state remains stable between test passes.
 `cargo xtask firefox reset-profile` may delete only `.boon-local/firefox-profile/`.
@@ -2183,7 +2199,7 @@ Deliverables:
   - `arkanoid`
 - write the maintained runnable Boon program as `examples/<name>/source.bn`,
 - store maintained expectations as `examples/<name>/expected.*`,
-- adapt/improve examples to pure-data `SOURCE` as needed,
+- write clean maintained pure-data `SOURCE` Boon; behavior must satisfy `expected.*`,
 - use `/home/martinkavik/repos/boon`, `/home/martinkavik/repos/boon-zig`, and `/home/martinkavik/repos/boon-pony` only as inspiration while writing the maintained `source.bn` files,
 - do not copy or preserve legacy example files or legacy example directories in this repo,
 - keep all example business logic in Boon; do not add TodoMVC, Cells, Pong, or Arkanoid logic to runtime or stdlib,
@@ -2360,7 +2376,10 @@ Success criteria:
 
 - all simple examples run natively,
 - native headless tests pass,
-- app_window smoke tests pass,
+- app_window smoke tests pass by launching the app_window host, creating a wgpu
+  surface, translating one synthetic input to `SourceBatch`, dispatching through
+  `BoonApp`, rendering one internal frame texture, capturing a nonblank frame hash,
+  and exiting cleanly,
 - no winit fallback added.
 
 ### Phase 11: Browser wgpu backend
@@ -2398,21 +2417,25 @@ Success criteria:
 - all examples run across Ratatui/native/browser,
 - all verification scenarios pass.
 
-### Phase 13: CI and quality gates
+### Phase 13: Local hard quality gates
 
 Deliverables:
 
-- CI workflow,
 - cargo fmt/clippy/test,
 - shader generation check,
 - Ratatui buffer tests,
-- optional PTY tests,
-- native headless wgpu tests where CI GPU is available,
-- Firefox WebExtension tests with isolated profile where CI supports WebGPU Firefox,
+- required PTY tests,
+- native headless wgpu tests,
+- native app_window smoke tests,
+- Firefox WebExtension tests with isolated profile and stable Firefox WebGPU,
 - artifact upload for failures.
 
 Success criteria:
 
+- `cargo xtask verify all` runs the Ratatui buffer, Ratatui PTY, native headless
+  wgpu, native app_window, and Firefox WebGPU gates,
+- missing PTY support, missing stable Firefox WebGPU, or missing native app_window
+  support is a hard local gate failure,
 - failures include readable traces, frame artifacts, source inventory, and state snapshots.
 
 ---
@@ -2526,10 +2549,11 @@ When implementing:
 18. Exclude verification readback/PNG encoding from interactive performance budgets and record them separately.
 19. Keep all example business logic in Boon; runtime and stdlib may contain only generic language/runtime primitives.
 20. Use `glyphon` for v1 GPU text.
-21. Use Rust builder scenarios in `boon_verify`; JSON is only for reports/artifacts/manifests.
-22. Run tests after each meaningful implementation step.
-23. Preserve readable diagnostics and manifests.
-24. If a hard design choice is ambiguous, stop and update this plan instead of inventing implementation policy.
+21. Use `slotmap` for dynamic owner storage.
+22. Use Rust builder scenarios in `boon_verify`; JSON is only for reports/artifacts/manifests.
+23. Run tests after each meaningful implementation step.
+24. Preserve readable diagnostics and manifests.
+25. If a hard design choice is ambiguous, stop and update this plan instead of inventing implementation policy.
 
 ---
 
@@ -2542,6 +2566,7 @@ These references explain external crates/tools used by this plan:
 - portable-pty: <https://docs.rs/portable-pty>
 - app_window 0.3.3: <https://docs.rs/app_window/0.3.3>
 - glyphon 0.11.0: <https://docs.rs/glyphon/0.11.0>
+- slotmap 1.1.1: <https://docs.rs/slotmap/1.1.1>
 - wgpu 29.0.1: <https://docs.rs/wgpu/29.0.1>
 - WESL Rust crate 0.3.2: <https://docs.rs/wesl/0.3.2>
 - WESL Rust getting started: <https://wesl-lang.dev/docs/Getting-Started-Rust>
