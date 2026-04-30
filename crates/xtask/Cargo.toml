@@ -1,0 +1,21 @@
+[package]
+name = "xtask"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "cargo-xtask"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+boon_backend_browser = { path = "../boon_backend_browser" }
+boon_codegen_rust = { path = "../boon_codegen_rust" }
+boon_examples = { path = "../boon_examples" }
+boon_verify = { path = "../boon_verify" }
+serde.workspace = true
+serde_json.workspace = true
+walkdir.workspace = true
+wesl.workspace = true
+wgsl_bindgen.workspace = true

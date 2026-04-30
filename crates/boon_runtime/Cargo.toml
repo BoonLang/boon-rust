@@ -1,0 +1,13 @@
+[package]
+name = "boon_runtime"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+boon_render_ir = { path = "../boon_render_ir" }
+boon_source = { path = "../boon_source" }
+serde.workspace = true
+serde_json.workspace = true
+slotmap.workspace = true

@@ -1,0 +1,23 @@
+[package]
+name = "boon_verify"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "boon-firefox-native-host"
+path = "src/bin/boon_firefox_native_host.rs"
+
+[dependencies]
+anyhow.workspace = true
+boon_backend_app_window = { path = "../boon_backend_app_window" }
+boon_backend_browser = { path = "../boon_backend_browser" }
+boon_backend_ratatui = { path = "../boon_backend_ratatui" }
+boon_backend_wgpu = { path = "../boon_backend_wgpu" }
+boon_examples = { path = "../boon_examples" }
+boon_runtime = { path = "../boon_runtime" }
+hex.workspace = true
+portable-pty.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true

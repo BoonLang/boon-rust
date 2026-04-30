@@ -1,0 +1,21 @@
+store:
+    sources:
+        clock:
+            event:
+                tick: SOURCE
+
+ticks:
+    0 |> HOLD state {
+        store.sources.clock.event.tick
+        |> THEN { state + 1 }
+    }
+
+document:
+    Document/new(
+        root:
+            Element/label(
+                element: store.sources.clock
+                text: ticks |> Text/from_number()
+            )
+    )
+

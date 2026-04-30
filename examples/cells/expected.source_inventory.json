@@ -1,0 +1,125 @@
+{
+  "entries": [
+    {
+      "id": 0,
+      "path": "store.sources.viewport.event.key_down.key",
+      "shape": {
+        "TagSet": [
+          "Enter",
+          "Escape",
+          "Backspace",
+          "Character",
+          "ArrowUp",
+          "ArrowDown",
+          "ArrowLeft",
+          "ArrowRight"
+        ]
+      },
+      "producer": "Element/grid(element.event.key_down.key)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": "Static"
+    },
+    {
+      "id": 1,
+      "path": "cells[*].sources.display.event.double_click",
+      "shape": "EmptyRecord",
+      "producer": "Element/label(element.event.double_click)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": {
+        "DynamicFamily": {
+          "owner_path": "dynamic item"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "path": "cells[*].sources.display.hovered",
+      "shape": {
+        "TagSet": [
+          "False",
+          "True"
+        ]
+      },
+      "producer": "Element/label(element.hovered)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": {
+        "DynamicFamily": {
+          "owner_path": "dynamic item"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "path": "cells[*].sources.editor.text",
+      "shape": "Text",
+      "producer": "Element/text_input(element.text)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": {
+        "DynamicFamily": {
+          "owner_path": "dynamic item"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "path": "cells[*].sources.editor.event.change",
+      "shape": "EmptyRecord",
+      "producer": "Element/text_input(element.event.change)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": {
+        "DynamicFamily": {
+          "owner_path": "dynamic item"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "path": "cells[*].sources.editor.event.key_down.key",
+      "shape": {
+        "TagSet": [
+          "Enter",
+          "Escape",
+          "Backspace",
+          "Character",
+          "ArrowUp",
+          "ArrowDown",
+          "ArrowLeft",
+          "ArrowRight"
+        ]
+      },
+      "producer": "Element/text_input(element.event.key_down.key)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": {
+        "DynamicFamily": {
+          "owner_path": "dynamic item"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "path": "cells[*].sources.editor.event.blur",
+      "shape": "EmptyRecord",
+      "producer": "Element/text_input(element.event.blur)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": {
+        "DynamicFamily": {
+          "owner_path": "dynamic item"
+        }
+      }
+    }
+  ]
+}

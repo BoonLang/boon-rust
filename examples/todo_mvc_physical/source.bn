@@ -1,0 +1,67 @@
+store:
+    sources:
+        new_todo_input:
+            text: SOURCE
+            event:
+                change: SOURCE
+                key_down:
+                    key: SOURCE
+        toggle_all_checkbox:
+            event:
+                click: SOURCE
+        clear_completed_button:
+            event:
+                press: SOURCE
+
+view:
+    physical_debug: True
+
+FUNCTION new_todo(title) {
+    [
+        sources:
+            checkbox:
+                event:
+                    click: SOURCE
+            remove_button:
+                event:
+                    press: SOURCE
+            edit_input:
+                text: SOURCE
+                event:
+                    change: SOURCE
+                    key_down:
+                        key: SOURCE
+                    blur: SOURCE
+        title: title
+    ]
+}
+
+todos:
+    LIST {
+        new_todo(title: TEXT { Buy groceries })
+        new_todo(title: TEXT { Clean room })
+    }
+    |> List/append(item: store.sources.new_todo_input.text |> new_todo(title: PASSED))
+
+document:
+    Document/new(
+        root:
+            Element/panel(
+                children:
+                    LIST {
+                        Element/text_input(element: store.sources.new_todo_input)
+                        Element/checkbox(element: store.sources.toggle_all_checkbox)
+                        Element/button(element: store.sources.clear_completed_button)
+                        todos |> List/map(item, new:
+                            Element/panel(
+                                children:
+                                    LIST {
+                                        Element/checkbox(element: item.sources.checkbox)
+                                        Element/button(element: item.sources.remove_button)
+                                        Element/text_input(element: item.sources.edit_input)
+                                    }
+                            )
+                        )
+                    }
+            )
+    )

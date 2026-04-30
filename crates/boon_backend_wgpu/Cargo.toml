@@ -1,0 +1,17 @@
+[package]
+name = "boon_backend_wgpu"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+boon_render_ir = { path = "../boon_render_ir" }
+boon_runtime = { path = "../boon_runtime" }
+glyphon.workspace = true
+hex.workspace = true
+pollster.workspace = true
+png.workspace = true
+serde.workspace = true
+sha2.workspace = true
+wgpu.workspace = true

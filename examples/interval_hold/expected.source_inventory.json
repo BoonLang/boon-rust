@@ -1,0 +1,14 @@
+{
+  "entries": [
+    {
+      "id": 0,
+      "path": "store.sources.clock.event.tick",
+      "shape": "EmptyRecord",
+      "producer": "Element/label(element.event.tick)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": "Static"
+    }
+  ]
+}

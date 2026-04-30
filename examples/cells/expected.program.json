@@ -1,0 +1,17 @@
+{
+  "counter": false,
+  "interval": false,
+  "keyed_list": null,
+  "grid": {
+    "rows": 100,
+    "columns": 26,
+    "editor_source_family": "cells[*].sources.editor",
+    "formula_functions": [
+      "add",
+      "sum"
+    ]
+  },
+  "frame_counter": false,
+  "physical_debug": false,
+  "title": "cells"
+}

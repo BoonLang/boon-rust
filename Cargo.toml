@@ -1,0 +1,48 @@
+[workspace]
+resolver = "3"
+members = [
+  "crates/boon_syntax",
+  "crates/boon_hir",
+  "crates/boon_shape",
+  "crates/boon_host_schema",
+  "crates/boon_source",
+  "crates/boon_runtime",
+  "crates/boon_compiler",
+  "crates/boon_codegen_rust",
+  "crates/boon_render_ir",
+  "crates/boon_backend_ratatui",
+  "crates/boon_backend_wgpu",
+  "crates/boon_backend_app_window",
+  "crates/boon_backend_browser",
+  "crates/boon_browser_runner",
+  "crates/boon_examples",
+  "crates/boon_verify",
+  "crates/xtask",
+]
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+version = "0.1.0"
+
+[workspace.dependencies]
+anyhow = "1.0.100"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+thiserror = "2.0.17"
+slotmap = "=1.1.1"
+ratatui = "0.29.0"
+portable-pty = "0.8.1"
+png = "0.18.0"
+pollster = "0.4.0"
+sha2 = "0.10.9"
+hex = "0.4.3"
+walkdir = "2.5.0"
+wgpu = "=29.0.1"
+glyphon = "=0.11.0"
+wesl = "=0.3.2"
+wgsl_bindgen = "=0.22.2"
+app_window = "=0.3.3"
+
+[patch.crates-io]
+app_window = { path = "vendor/app_window" }

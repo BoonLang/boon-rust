@@ -1,0 +1,311 @@
+// SPDX-License-Identifier: MPL-2.0
+
+/*!
+Implements the some_executor traits for the main thread executor
+*/
+
+use crate::application::submit_to_main_thread;
+use crate::executor::already_on_main_thread_submit;
+use some_executor::observer::{ExecutorNotified, FinishedObservation, Observer, ObserverNotified};
+use some_executor::task::Task;
+use some_executor::{
+    BoxedSendObserverFuture, BoxedStaticObserver, BoxedStaticObserverFuture, DynExecutor,
+    DynStaticExecutor, LocalExecutorExt, ObjSafeStaticTask, ObjSafeTask, SomeExecutor,
+    SomeExecutorExt, SomeLocalExecutor, SomeStaticExecutor,
+};
+use std::any::Any;
+use std::convert::Infallible;
+use std::future::Future;
+use std::pin::Pin;
+
+/// An executor that runs futures on the application's main thread.
+///
+/// `MainThreadExecutor` implements the `some_executor` traits (`SomeExecutor`,
+/// `SomeLocalExecutor`, and `SomeStaticExecutor`), allowing it to be used with
+/// any code that accepts executor-agnostic task spawning.
+///
+/// This executor integrates with the platform's native event loop, ensuring
+/// futures can yield control back to the OS for smooth operation. All futures
+/// spawned on this executor will run on the main thread, which is required for
+/// UI operations on many platforms.
+///
+/// # Example
+///
+/// ```
+/// # async fn example() {
+/// use app_window::some_executor::MainThreadExecutor;
+/// use some_executor::SomeExecutor;
+///
+/// let mut executor = MainThreadExecutor {};
+///
+/// // Spawn a task on the main thread
+/// // let task = Task::new("my_task".to_string(), async {
+/// //     // This runs on the main thread
+/// //     println!("Hello from main thread!");
+/// // });
+/// // let observer = executor.spawn(task);
+/// # }
+/// ```
+///
+/// # Integration
+///
+/// When [`application::main()`](crate::application::main) is called, a `MainThreadExecutor`
+/// is automatically installed as both the thread-local and thread-static executor, making
+/// it available to any code using the `some_executor` crate's convenience functions.
+#[derive(Debug, Clone)]
+pub struct MainThreadExecutor {}
+
+//Since this executor is globally-scoped, we use 'static for the lifetime
+impl SomeLocalExecutor<'static> for MainThreadExecutor {
+    type ExecutorNotifier = Infallible;
+
+    fn spawn_local<F: Future + 'static, Notifier: ObserverNotified<F::Output>>(
+        &mut self,
+        task: Task<F, Notifier>,
+    ) -> impl Observer<Value = F::Output>
+    where
+        Self: Sized,
+        <F as Future>::Output: Unpin,
+        <F as Future>::Output: 'static,
+    {
+        let (s, o) = task.spawn_local(self);
+        let task_label = s.label().to_string();
+        already_on_main_thread_submit(task_label, async {
+            s.into_future().await;
+        });
+        o
+    }
+
+    fn spawn_local_async<F: Future + 'static, Notifier: ObserverNotified<F::Output>>(
+        &mut self,
+        task: Task<F, Notifier>,
+    ) -> impl Future<Output = impl Observer<Value = F::Output>>
+    where
+        Self: Sized,
+        <F as Future>::Output: Unpin,
+        <F as Future>::Output: 'static,
+    {
+        let (s, o) = task.spawn_local(self);
+        let task_label = s.label().to_string();
+        #[allow(clippy::async_yields_async)]
+        async move {
+            already_on_main_thread_submit(task_label, async {
+                s.into_future().await;
+            });
+            o
+        }
+    }
+
+    fn spawn_local_objsafe(
+        &mut self,
+        task: Task<
+            Pin<Box<dyn Future<Output = Box<dyn Any>>>>,
+            Box<dyn ObserverNotified<dyn Any + 'static>>,
+        >,
+    ) -> Box<
+        dyn Observer<
+                Output = FinishedObservation<Box<dyn Any + 'static>>,
+                Value = Box<dyn Any + 'static>,
+            > + 'static,
+    > {
+        let (s, o) = task.spawn_local_objsafe(self);
+        let task_label = s.label().to_string();
+        already_on_main_thread_submit(task_label, async {
+            s.into_future().await;
+        });
+        Box::new(o)
+    }
+
+    fn spawn_local_objsafe_async<'s>(
+        &'s mut self,
+        task: Task<
+            Pin<Box<dyn Future<Output = Box<dyn Any>>>>,
+            Box<dyn ObserverNotified<dyn Any + 'static>>,
+        >,
+    ) -> Box<
+        dyn std::future::Future<
+                Output = Box<
+                    dyn Observer<
+                            Output = FinishedObservation<Box<dyn Any + 'static>>,
+                            Value = Box<dyn Any + 'static>,
+                        > + 'static,
+                >,
+            > + 's,
+    > {
+        #[allow(clippy::async_yields_async)]
+        Box::new(async {
+            let (s, o) = task.spawn_local_objsafe(self);
+            let task_label = s.label().to_string();
+            already_on_main_thread_submit(task_label, async {
+                s.into_future().await;
+            });
+            Box::new(o)
+                as Box<
+                    dyn Observer<Output = FinishedObservation<Box<dyn Any>>, Value = Box<dyn Any>>,
+                >
+        })
+    }
+
+    fn executor_notifier(&mut self) -> Option<Self::ExecutorNotifier> {
+        None
+    }
+}
+
+impl LocalExecutorExt<'static> for MainThreadExecutor {}
+
+impl SomeExecutor for MainThreadExecutor {
+    type ExecutorNotifier = Infallible;
+
+    fn spawn<F: Future + Send + 'static, Notifier: ObserverNotified<F::Output> + Send>(
+        &mut self,
+        task: Task<F, Notifier>,
+    ) -> impl Observer<Value = F::Output>
+    where
+        Self: Sized,
+        F::Output: Send + Unpin,
+    {
+        let (s, o) = task.spawn(self);
+        let task_label = s.label().to_string();
+        submit_to_main_thread(task_label.clone(), || {
+            already_on_main_thread_submit(task_label, async {
+                s.into_future().await;
+            });
+        });
+        o
+    }
+
+    async fn spawn_async<F: Future + Send + 'static, Notifier: ObserverNotified<F::Output> + Send>(
+        &mut self,
+        task: Task<F, Notifier>,
+    ) -> impl Observer<Value = F::Output>
+    where
+        Self: Sized,
+        F::Output: Send + Unpin,
+    {
+        let (s, o) = task.spawn(self);
+        let task_label = s.label().to_string();
+        submit_to_main_thread(task_label.clone(), || {
+            already_on_main_thread_submit(task_label, async {
+                s.into_future().await;
+            });
+        });
+        o
+    }
+
+    fn spawn_objsafe(
+        &mut self,
+        task: some_executor::ObjSafeTask,
+    ) -> some_executor::BoxedSendObserver {
+        let (s, o) = task.spawn_objsafe(self);
+        let task_label = s.label().to_string();
+        submit_to_main_thread(task_label.clone(), || {
+            already_on_main_thread_submit(task_label, async {
+                s.into_future().await;
+            });
+        });
+        Box::new(o)
+    }
+    fn spawn_objsafe_async<'s>(&'s mut self, task: ObjSafeTask) -> BoxedSendObserverFuture<'s> {
+        #[allow(clippy::async_yields_async)]
+        Box::new(async {
+            let (s, o) = task.spawn_objsafe(self);
+            let task_label = s.label().to_string();
+
+            submit_to_main_thread(task_label.clone(), || {
+                already_on_main_thread_submit(task_label, async {
+                    s.into_future().await;
+                });
+            });
+            Box::new(o)
+                as Box<
+                    dyn Observer<
+                            Value = Box<dyn Any + Send>,
+                            Output = FinishedObservation<Box<dyn Any + Send>>,
+                        > + Send,
+                >
+        })
+    }
+
+    fn clone_box(&self) -> Box<DynExecutor> {
+        Box::new(MainThreadExecutor {})
+    }
+
+    fn executor_notifier(&mut self) -> Option<Self::ExecutorNotifier> {
+        None
+    }
+}
+
+impl SomeExecutorExt for MainThreadExecutor {}
+
+impl SomeStaticExecutor for MainThreadExecutor {
+    type ExecutorNotifier = Box<dyn ExecutorNotified>;
+
+    fn spawn_static<F: Future + 'static, Notifier: ObserverNotified<F::Output>>(
+        &mut self,
+        task: Task<F, Notifier>,
+    ) -> impl Observer<Value = F::Output>
+    where
+        Self: Sized,
+        <F as Future>::Output: Unpin,
+        <F as Future>::Output: 'static,
+    {
+        let (s, o) = task.spawn_static(self);
+        let task_label = s.label().to_string();
+        already_on_main_thread_submit(task_label, async {
+            s.into_future().await;
+        });
+        o
+    }
+
+    fn spawn_static_async<F: Future + 'static, Notifier: ObserverNotified<F::Output>>(
+        &mut self,
+        task: Task<F, Notifier>,
+    ) -> impl Future<Output = impl Observer<Value = F::Output>>
+    where
+        Self: Sized,
+        <F as Future>::Output: Unpin,
+        <F as Future>::Output: 'static,
+    {
+        let (s, o) = task.spawn_static(self);
+        let task_label = s.label().to_string();
+        #[allow(clippy::async_yields_async)]
+        async move {
+            already_on_main_thread_submit(task_label, async {
+                s.into_future().await;
+            });
+            o
+        }
+    }
+
+    fn spawn_static_objsafe(&mut self, task: ObjSafeStaticTask) -> BoxedStaticObserver {
+        let (s, o) = task.spawn_static_objsafe(self);
+        let task_label = s.label().to_string();
+        already_on_main_thread_submit(task_label, async {
+            s.into_future().await;
+        });
+        Box::new(o)
+    }
+
+    fn spawn_static_objsafe_async<'s>(
+        &'s mut self,
+        task: ObjSafeStaticTask,
+    ) -> BoxedStaticObserverFuture<'s> {
+        #[allow(clippy::async_yields_async)]
+        Box::new(async {
+            let (s, o) = task.spawn_static_objsafe(self);
+            let task_label = s.label().to_string();
+            already_on_main_thread_submit(task_label, async {
+                s.into_future().await;
+            });
+            Box::new(o) as BoxedStaticObserver
+        })
+    }
+
+    fn clone_box(&self) -> Box<DynStaticExecutor> {
+        Box::new(MainThreadExecutor {})
+    }
+
+    fn executor_notifier(&mut self) -> Option<Self::ExecutorNotifier> {
+        None
+    }
+}

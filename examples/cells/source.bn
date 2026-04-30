@@ -1,0 +1,62 @@
+store:
+    sources:
+        viewport:
+            event:
+                key_down:
+                    key: SOURCE
+
+cells:
+    sources:
+        display:
+            event:
+                double_click: SOURCE
+            hovered: SOURCE
+        editor:
+            text: SOURCE
+            event:
+                change: SOURCE
+                key_down:
+                    key: SOURCE
+                blur: SOURCE
+
+rows:
+    List/range(from: 1, to: 100)
+
+columns:
+    List/range(from: 1, to: 26)
+
+formulas:
+    functions:
+        add: Math/add
+        sum: Math/sum
+
+grid:
+    rows |> List/map(row, new:
+        columns |> List/map(column, new:
+            [
+                row: row
+                column: column
+                sources: cells.sources
+            ]
+        )
+    )
+
+document:
+    Document/new(
+        root:
+            Element/grid(
+                element: store.sources.viewport
+                cells:
+                    grid |> List/map(row, new:
+                        row |> List/map(cell, new:
+                            Element/panel(
+                                children:
+                                    LIST {
+                                        Element/label(element: cell.sources.display)
+                                        Element/text_input(element: cell.sources.editor)
+                                    }
+                            )
+                        )
+                    )
+            )
+    )

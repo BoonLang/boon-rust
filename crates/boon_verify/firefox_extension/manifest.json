@@ -1,0 +1,29 @@
+{
+  "manifest_version": 2,
+  "name": "Boon Rust Firefox WebGPU Harness",
+  "version": "0.1.0",
+  "description": "Firefox-first verification harness for Boon Rust WebGPU tests.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "boon-rust-test@boonlang.local"
+    }
+  },
+  "permissions": [
+    "nativeMessaging",
+    "tabs",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://127.0.0.1/*", "http://localhost/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": ["page_bridge.js"]
+}
+

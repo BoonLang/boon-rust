@@ -1,0 +1,29 @@
+{
+  "entries": [
+    {
+      "id": 0,
+      "path": "store.sources.increment_button.event.press",
+      "shape": "EmptyRecord",
+      "producer": "Element/button(element.event.press)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": "Static"
+    },
+    {
+      "id": 1,
+      "path": "store.sources.increment_button.hovered",
+      "shape": {
+        "TagSet": [
+          "False",
+          "True"
+        ]
+      },
+      "producer": "Element/button(element.hovered)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": "Static"
+    }
+  ]
+}

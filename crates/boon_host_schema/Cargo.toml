@@ -1,0 +1,10 @@
+[package]
+name = "boon_host_schema"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+boon_shape = { path = "../boon_shape" }
+serde.workspace = true
+

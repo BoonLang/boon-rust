@@ -1,0 +1,15 @@
+[package]
+name = "boon_backend_browser"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[features]
+test-api = []
+
+[dependencies]
+anyhow.workspace = true
+boon_backend_wgpu = { path = "../boon_backend_wgpu" }
+serde.workspace = true
+serde_json.workspace = true
+

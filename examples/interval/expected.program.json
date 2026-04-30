@@ -1,0 +1,9 @@
+{
+  "counter": false,
+  "interval": true,
+  "keyed_list": null,
+  "grid": null,
+  "frame_counter": false,
+  "physical_debug": false,
+  "title": "interval"
+}

@@ -1,0 +1,106 @@
+store:
+    sources:
+        new_todo_input:
+            text: SOURCE
+            event:
+                change: SOURCE
+                key_down:
+                    key: SOURCE
+                blur: SOURCE
+                focus: SOURCE
+        toggle_all_checkbox:
+            event:
+                click: SOURCE
+            checked: SOURCE
+        clear_completed_button:
+            event:
+                press: SOURCE
+        filter_all:
+            event:
+                press: SOURCE
+        filter_active:
+            event:
+                press: SOURCE
+        filter_completed:
+            event:
+                press: SOURCE
+
+FUNCTION new_todo(title) {
+    [
+        sources:
+            checkbox:
+                event:
+                    click: SOURCE
+                checked: SOURCE
+            remove_button:
+                event:
+                    press: SOURCE
+                hovered: SOURCE
+            edit_input:
+                text: SOURCE
+                event:
+                    change: SOURCE
+                    key_down:
+                        key: SOURCE
+                    blur: SOURCE
+
+        title: title
+        completed:
+            False |> HOLD state {
+                LATEST {
+                    sources.checkbox.event.click |> THEN { state |> WHEN { True => False False => True } }
+                    store.sources.toggle_all_checkbox.event.click |> THEN { store.all_completed |> WHEN { True => False False => True } }
+                }
+            }
+    ]
+}
+
+title_to_add:
+    store.sources.new_todo_input.event.key_down.key
+    |> WHEN {
+        Enter => BLOCK {
+            trimmed: store.sources.new_todo_input.text |> Text/trim()
+            trimmed |> Text/is_not_empty() |> WHEN { True => trimmed False => SKIP }
+        }
+        __ => SKIP
+    }
+
+todos:
+    LIST {
+        new_todo(title: TEXT { Buy groceries })
+        new_todo(title: TEXT { Clean room })
+    }
+    |> List/append(item: title_to_add |> new_todo(title: PASSED))
+    |> List/remove(item, on: item.sources.remove_button.event.press)
+    |> List/remove(item, on: store.sources.clear_completed_button.event.press |> THEN { item.completed |> WHEN { True => [] False => SKIP } })
+
+todos_count: todos |> List/count()
+completed_todos_count: todos |> List/retain(item, if: item.completed) |> List/count()
+active_todos_count: todos_count - completed_todos_count
+all_completed: todos_count == completed_todos_count
+
+document:
+    Document/new(
+        root:
+            Element/panel(
+                children:
+                    LIST {
+                        Element/text_input(element: store.sources.new_todo_input)
+                        Element/checkbox(element: store.sources.toggle_all_checkbox)
+                        Element/button(element: store.sources.clear_completed_button)
+                        Element/button(element: store.sources.filter_all)
+                        Element/button(element: store.sources.filter_active)
+                        Element/button(element: store.sources.filter_completed)
+                        todos |> List/map(item, new:
+                            Element/panel(
+                                children:
+                                    LIST {
+                                        Element/checkbox(element: item.sources.checkbox)
+                                        Element/button(element: item.sources.remove_button)
+                                        Element/text_input(element: item.sources.edit_input)
+                                    }
+                            )
+                        )
+                    }
+            )
+    )

@@ -1,0 +1,10 @@
+[package]
+name = "boon_hir"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+boon_syntax = { path = "../boon_syntax" }
+serde.workspace = true
+

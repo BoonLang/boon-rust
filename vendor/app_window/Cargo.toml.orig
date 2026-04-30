@@ -1,0 +1,124 @@
+[package]
+name = "app_window"
+version = "0.3.3"
+edition = "2024"
+authors = ["Drew Crawford <drew@sealedabstract.com>"]
+description = "Cross-platform window library"
+repository = "https://github.com/drewcrawford/app_window"
+homepage = "https://sealedabstract.com/code/app_window"
+license = "MPL-2.0"
+keywords = ["window", "windowing", "input", "keyboard", "mouse"]
+categories = ["gui", "os", "wasm", "asynchronous"]
+exclude = [".*"]
+rust-version = "1.88.0"
+
+#[lib]
+
+[features]
+logwise_internal = []
+
+
+[dependencies]
+atomic_float = "1.1.0"
+raw-window-handle = "0.6.2"
+logwise = "0.5.1"
+thiserror = "2.0.17"
+some_executor = "0.6.1"
+continue = "0.1.1"
+send_cells = "0.2.1"
+
+[dev-dependencies]
+# needed for gpu example
+wgpu = "28.0.0"
+ampsc = "0.2.0"
+test_executors = "0.4.1" # gpu example
+
+# needed for submit_to_main_thread_benchmark
+futures = "0.3"
+
+# macos
+[target.'cfg(target_os = "macos")'.dependencies]
+swift-rs = "1.0.7"
+
+
+
+[target.'cfg(target_os = "macos")'.build-dependencies]
+swift-rs = { version = "1.0.7", features = ["build"] }
+
+# wasm32
+[target.'cfg(target_arch="wasm32")'.dependencies]
+web-sys = { version = "0.3.85", features=["CssStyleDeclaration","HtmlCanvasElement","KeyboardEvent","Window","Document","MouseEvent","WheelEvent","WorkerGlobalScope"] }
+wasm-bindgen = "0.2.108"
+wasm-bindgen-futures = "0.4.58"
+continue_stream = "0.1.0"
+web-time = "1.1.0"
+wasm_safe_thread = "0.1.1"
+
+
+[target.'cfg(target_arch="wasm32")'.dev-dependencies]
+console_error_panic_hook = "0.1.7"
+wasm-bindgen-test = "0.3.56"
+web-time = "1.1.0"
+
+
+# windows
+
+[target.'cfg(target_os="windows")'.dependencies]
+windows = { version = "0.62.2", features=[
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Graphics_Gdi",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_HiDpi",
+    "Win32_Foundation",
+    "Win32_UI_Input_KeyboardAndMouse",
+] }
+
+# linux
+[target.'cfg(target_os="linux")'.dependencies]
+libc = "0.2.175"
+wayland-client = "0.31.11"
+wayland-backend = {version = "0.3.7", features=["client_system"]}
+wayland-protocols = {version = "0.32.9", features = ["client"]}
+wayland-cursor = "0.31.11"
+memmap2 = "0.9.7"
+io-uring = "0.7.9"
+zune-png = "0.5.1"
+# probably at some point this will be a global requirement,
+# for now we only NEED it to advertise decorations on linux
+accesskit = "0.24.0"
+accesskit_unix = "0.20.0"
+# input dependencies
+tempfile = "3.21.0"
+atspi = {version = "0.29.0", features=[]}
+ampsc = "0.2.0"
+
+
+[[example]]
+name = "gpu"
+
+[[test]]
+name = "executor_bug_test"
+path = "tests/executor_bug_test.rs"
+harness = false
+
+[[test]]
+name = "wasm_main_closure_execution_test"
+path = "tests/wasm_main_closure_execution_test.rs"
+harness = false
+
+[[test]]
+name = "submit_to_main_thread_benchmark"
+path = "tests/submit_to_main_thread_benchmark.rs"
+harness = false
+
+[[test]]
+name = "platform_coalesced_mouse_test"
+path = "tests/platform_coalesced_mouse_test.rs"
+harness = false
+[[test]]
+name = "platform_coalesced_keyboard_test"
+path = "tests/platform_coalesced_keyboard_test.rs"
+harness = false
+
+[patch.crates-io]

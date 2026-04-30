@@ -1,0 +1,263 @@
+{
+  "entries": [
+    {
+      "id": 0,
+      "path": "store.sources.new_todo_input.text",
+      "shape": "Text",
+      "producer": "Element/text_input(element.text)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": "Static"
+    },
+    {
+      "id": 1,
+      "path": "store.sources.new_todo_input.event.change",
+      "shape": "EmptyRecord",
+      "producer": "Element/text_input(element.event.change)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": "Static"
+    },
+    {
+      "id": 2,
+      "path": "store.sources.new_todo_input.event.key_down.key",
+      "shape": {
+        "TagSet": [
+          "Enter",
+          "Escape",
+          "Backspace",
+          "Character",
+          "ArrowUp",
+          "ArrowDown",
+          "ArrowLeft",
+          "ArrowRight"
+        ]
+      },
+      "producer": "Element/text_input(element.event.key_down.key)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": "Static"
+    },
+    {
+      "id": 3,
+      "path": "store.sources.new_todo_input.event.blur",
+      "shape": "EmptyRecord",
+      "producer": "Element/text_input(element.event.blur)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": "Static"
+    },
+    {
+      "id": 4,
+      "path": "store.sources.new_todo_input.event.focus",
+      "shape": "EmptyRecord",
+      "producer": "Element/text_input(element.event.focus)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": "Static"
+    },
+    {
+      "id": 5,
+      "path": "store.sources.toggle_all_checkbox.event.click",
+      "shape": "EmptyRecord",
+      "producer": "Element/checkbox(element.event.click)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": "Static"
+    },
+    {
+      "id": 6,
+      "path": "store.sources.toggle_all_checkbox.checked",
+      "shape": {
+        "TagSet": [
+          "False",
+          "True"
+        ]
+      },
+      "producer": "Element/checkbox(element.checked)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": "Static"
+    },
+    {
+      "id": 7,
+      "path": "store.sources.clear_completed_button.event.press",
+      "shape": "EmptyRecord",
+      "producer": "Element/button(element.event.press)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": "Static"
+    },
+    {
+      "id": 8,
+      "path": "store.sources.filter_all.event.press",
+      "shape": "EmptyRecord",
+      "producer": "Element/button(element.event.press)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": "Static"
+    },
+    {
+      "id": 9,
+      "path": "store.sources.filter_active.event.press",
+      "shape": "EmptyRecord",
+      "producer": "Element/button(element.event.press)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": "Static"
+    },
+    {
+      "id": 10,
+      "path": "store.sources.filter_completed.event.press",
+      "shape": "EmptyRecord",
+      "producer": "Element/button(element.event.press)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": "Static"
+    },
+    {
+      "id": 11,
+      "path": "todos[*].sources.checkbox.event.click",
+      "shape": "EmptyRecord",
+      "producer": "Element/checkbox(element.event.click)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": {
+        "DynamicFamily": {
+          "owner_path": "store.todos item"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "path": "todos[*].sources.checkbox.checked",
+      "shape": {
+        "TagSet": [
+          "False",
+          "True"
+        ]
+      },
+      "producer": "Element/checkbox(element.checked)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": {
+        "DynamicFamily": {
+          "owner_path": "store.todos item"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "path": "todos[*].sources.remove_button.event.press",
+      "shape": "EmptyRecord",
+      "producer": "Element/button(element.event.press)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": {
+        "DynamicFamily": {
+          "owner_path": "store.todos item"
+        }
+      }
+    },
+    {
+      "id": 14,
+      "path": "todos[*].sources.remove_button.hovered",
+      "shape": {
+        "TagSet": [
+          "False",
+          "True"
+        ]
+      },
+      "producer": "Element/button(element.hovered)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": {
+        "DynamicFamily": {
+          "owner_path": "store.todos item"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "path": "todos[*].sources.edit_input.text",
+      "shape": "Text",
+      "producer": "Element/text_input(element.text)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": {
+        "DynamicFamily": {
+          "owner_path": "store.todos item"
+        }
+      }
+    },
+    {
+      "id": 16,
+      "path": "todos[*].sources.edit_input.event.change",
+      "shape": "EmptyRecord",
+      "producer": "Element/text_input(element.event.change)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": {
+        "DynamicFamily": {
+          "owner_path": "store.todos item"
+        }
+      }
+    },
+    {
+      "id": 17,
+      "path": "todos[*].sources.edit_input.event.key_down.key",
+      "shape": {
+        "TagSet": [
+          "Enter",
+          "Escape",
+          "Backspace",
+          "Character",
+          "ArrowUp",
+          "ArrowDown",
+          "ArrowLeft",
+          "ArrowRight"
+        ]
+      },
+      "producer": "Element/text_input(element.event.key_down.key)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": {
+        "DynamicFamily": {
+          "owner_path": "store.todos item"
+        }
+      }
+    },
+    {
+      "id": 18,
+      "path": "todos[*].sources.edit_input.event.blur",
+      "shape": "EmptyRecord",
+      "producer": "Element/text_input(element.event.blur)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": {
+        "DynamicFamily": {
+          "owner_path": "store.todos item"
+        }
+      }
+    }
+  ]
+}

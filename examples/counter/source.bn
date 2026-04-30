@@ -1,0 +1,22 @@
+store:
+    sources:
+        increment_button:
+            event:
+                press: SOURCE
+            hovered: SOURCE
+
+counter:
+    0 |> HOLD state {
+        store.sources.increment_button.event.press
+        |> THEN { state + 1 }
+    }
+
+document:
+    Document/new(
+        root:
+            Element/button(
+                element: store.sources.increment_button
+                label: counter |> Text/from_number()
+            )
+    )
+

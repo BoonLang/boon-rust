@@ -1,0 +1,15 @@
+[package]
+name = "boon_browser_runner"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+anyhow.workspace = true
+boon_examples = { path = "../boon_examples" }
+boon_runtime = { path = "../boon_runtime" }
+serde.workspace = true
+serde_json.workspace = true

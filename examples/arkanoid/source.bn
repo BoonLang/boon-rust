@@ -1,0 +1,29 @@
+store:
+    sources:
+        tick:
+            event:
+                frame: SOURCE
+        paddle:
+            event:
+                key_down:
+                    key: SOURCE
+
+game:
+    title: TEXT { Arkanoid }
+
+world:
+    0 |> HOLD frame {
+        store.sources.tick.event.frame |> THEN { frame + 1 }
+    }
+
+document:
+    Document/new(
+        root:
+            Element/panel(
+                children:
+                    LIST {
+                        Element/label(element: store.sources.tick)
+                        Element/label(element: store.sources.paddle)
+                    }
+            )
+    )

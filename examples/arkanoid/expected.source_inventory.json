@@ -1,0 +1,35 @@
+{
+  "entries": [
+    {
+      "id": 0,
+      "path": "store.sources.tick.event.frame",
+      "shape": "EmptyRecord",
+      "producer": "Element/label(element.event.frame)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": "Static"
+    },
+    {
+      "id": 1,
+      "path": "store.sources.paddle.event.key_down.key",
+      "shape": {
+        "TagSet": [
+          "Enter",
+          "Escape",
+          "Backspace",
+          "Character",
+          "ArrowUp",
+          "ArrowDown",
+          "ArrowLeft",
+          "ArrowRight"
+        ]
+      },
+      "producer": "Element/label(element.event.key_down.key)",
+      "readers": [
+        "compiled logic"
+      ],
+      "owner": "Static"
+    }
+  ]
+}

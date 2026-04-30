@@ -1,0 +1,20 @@
+{
+  "counter": false,
+  "interval": false,
+  "keyed_list": {
+    "initial_titles": [
+      "Buy groceries",
+      "Clean room"
+    ],
+    "append_from_text_input": true,
+    "toggle_all_from_checkbox": false,
+    "clear_completed_from_button": false,
+    "filters": [],
+    "item_checkbox_toggle": false,
+    "item_remove_button": false
+  },
+  "grid": null,
+  "frame_counter": false,
+  "physical_debug": true,
+  "title": "todo mvc physical"
+}

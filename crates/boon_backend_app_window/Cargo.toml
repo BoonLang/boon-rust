@@ -1,0 +1,13 @@
+[package]
+name = "boon_backend_app_window"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+app_window.workspace = true
+boon_backend_wgpu = { path = "../boon_backend_wgpu" }
+pollster.workspace = true
+serde.workspace = true
+wgpu.workspace = true
