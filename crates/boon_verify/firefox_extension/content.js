@@ -18,9 +18,13 @@ window.addEventListener("message", async (event) => {
   if (event.source !== window || !event.data || event.data.target !== "boon-extension") {
     return;
   }
+  const payload = event.data.payload || { type: "ping" };
+  const target = payload.type === "capture-visible-tab"
+    ? "boon-capture-visible-tab"
+    : "boon-native-host";
   const response = await browser.runtime.sendMessage({
-    target: "boon-native-host",
-    payload: event.data.payload || { type: "ping" }
+    target,
+    payload
   });
   window.postMessage({
     target: "boon-page",

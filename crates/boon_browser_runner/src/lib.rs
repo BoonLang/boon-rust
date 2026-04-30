@@ -206,11 +206,45 @@ fn run_core_scenario(name: &str, app: &mut impl BoonApp) -> Result<()> {
             app.advance_fake_time(Duration::from_secs(3));
         }
         "todo_mvc" | "todo_mvc_physical" => {
+            if name == "todo_mvc" {
+                dispatch(
+                    app,
+                    event(
+                        "store.sources.new_todo_input.event.focus",
+                        SourceValue::EmptyRecord,
+                    ),
+                )?;
+            }
+            let mut typed = String::new();
+            for ch in "Buy milk".chars() {
+                typed.push(ch);
+                dispatch(
+                    app,
+                    state(
+                        "store.sources.new_todo_input.text",
+                        SourceValue::Text(typed.clone()),
+                    ),
+                )?;
+                dispatch(
+                    app,
+                    event(
+                        "store.sources.new_todo_input.event.change",
+                        SourceValue::EmptyRecord,
+                    ),
+                )?;
+            }
+            dispatch(
+                app,
+                event(
+                    "store.sources.new_todo_input.event.key_down.key",
+                    SourceValue::Tag("Enter".to_string()),
+                ),
+            )?;
             dispatch(
                 app,
                 state(
                     "store.sources.new_todo_input.text",
-                    SourceValue::Text("Buy milk".to_string()),
+                    SourceValue::Text("   ".to_string()),
                 ),
             )?;
             dispatch(
@@ -218,6 +252,46 @@ fn run_core_scenario(name: &str, app: &mut impl BoonApp) -> Result<()> {
                 event(
                     "store.sources.new_todo_input.event.key_down.key",
                     SourceValue::Tag("Enter".to_string()),
+                ),
+            )?;
+            let mut edited = String::new();
+            for ch in "Buy oat milk".chars() {
+                edited.push(ch);
+                dispatch(
+                    app,
+                    dynamic_state(
+                        "todos[*].sources.edit_input.text",
+                        "3",
+                        0,
+                        SourceValue::Text(edited.clone()),
+                    ),
+                )?;
+                dispatch(
+                    app,
+                    dynamic_event(
+                        "todos[*].sources.edit_input.event.change",
+                        "3",
+                        0,
+                        SourceValue::EmptyRecord,
+                    ),
+                )?;
+            }
+            dispatch(
+                app,
+                dynamic_event(
+                    "todos[*].sources.edit_input.event.key_down.key",
+                    "3",
+                    0,
+                    SourceValue::Tag("Enter".to_string()),
+                ),
+            )?;
+            dispatch(
+                app,
+                dynamic_event(
+                    "todos[*].sources.edit_input.event.blur",
+                    "3",
+                    0,
+                    SourceValue::EmptyRecord,
                 ),
             )?;
             dispatch(
@@ -236,8 +310,44 @@ fn run_core_scenario(name: &str, app: &mut impl BoonApp) -> Result<()> {
                     SourceValue::EmptyRecord,
                 ),
             )?;
+            if name == "todo_mvc" {
+                for filter in ["completed", "active", "all"] {
+                    dispatch(
+                        app,
+                        event(
+                            &format!("store.sources.filter_{filter}.event.press"),
+                            SourceValue::EmptyRecord,
+                        ),
+                    )?;
+                }
+            }
+            dispatch(
+                app,
+                dynamic_event(
+                    "todos[*].sources.remove_button.event.press",
+                    "2",
+                    0,
+                    SourceValue::EmptyRecord,
+                ),
+            )?;
+            dispatch(
+                app,
+                event(
+                    "store.sources.clear_completed_button.event.press",
+                    SourceValue::EmptyRecord,
+                ),
+            )?;
         }
         "cells" => {
+            dispatch(
+                app,
+                dynamic_event(
+                    "cells[*].sources.display.event.double_click",
+                    "A1",
+                    0,
+                    SourceValue::EmptyRecord,
+                ),
+            )?;
             dispatch(
                 app,
                 dynamic_state(
@@ -256,8 +366,54 @@ fn run_core_scenario(name: &str, app: &mut impl BoonApp) -> Result<()> {
                     SourceValue::Tag("Enter".to_string()),
                 ),
             )?;
+            for (owner, text) in [
+                ("A2", "2"),
+                ("A3", "3"),
+                ("B1", "=add(A1, A2)"),
+                ("B2", "=sum(A1:A3)"),
+                ("A2", "5"),
+                ("A3", "=bad("),
+                ("A1", "=add(A1, A2)"),
+            ] {
+                dispatch(
+                    app,
+                    dynamic_state(
+                        "cells[*].sources.editor.text",
+                        owner,
+                        0,
+                        SourceValue::Text(text.to_string()),
+                    ),
+                )?;
+            }
+            for _ in 0..25 {
+                dispatch(
+                    app,
+                    event(
+                        "store.sources.viewport.event.key_down.key",
+                        SourceValue::Tag("ArrowRight".to_string()),
+                    ),
+                )?;
+            }
+            for _ in 0..99 {
+                dispatch(
+                    app,
+                    event(
+                        "store.sources.viewport.event.key_down.key",
+                        SourceValue::Tag("ArrowDown".to_string()),
+                    ),
+                )?;
+            }
         }
         "pong" | "arkanoid" => {
+            for key in ["ArrowUp", "ArrowDown"] {
+                dispatch(
+                    app,
+                    event(
+                        "store.sources.paddle.event.key_down.key",
+                        SourceValue::Tag(key.to_string()),
+                    ),
+                )?;
+            }
             dispatch(
                 app,
                 event("store.sources.tick.event.frame", SourceValue::EmptyRecord),
@@ -282,7 +438,7 @@ fn apply_browser_timing_mutations(name: &str, app: &mut impl BoonApp) -> Result<
             }
             ensure_todo_count(app, 100)?;
             for i in 0..35 {
-                let owner_id = ((i % 100) + 1).to_string();
+                let owner_id = if i == 0 { 1 } else { i + 3 }.to_string();
                 dispatch(
                     app,
                     dynamic_event(
@@ -352,6 +508,30 @@ fn apply_browser_timing_mutations(name: &str, app: &mut impl BoonApp) -> Result<
                         0,
                         SourceValue::Text(format!("edge-{i}")),
                     ),
+                )?;
+            }
+        }
+        "counter" | "counter_hold" => {
+            for _ in 0..35 {
+                dispatch(
+                    app,
+                    event(
+                        "store.sources.increment_button.event.press",
+                        SourceValue::EmptyRecord,
+                    ),
+                )?;
+            }
+        }
+        "interval" | "interval_hold" => {
+            for _ in 0..35 {
+                app.advance_fake_time(Duration::from_millis(16));
+            }
+        }
+        "pong" | "arkanoid" => {
+            for _ in 0..35 {
+                dispatch(
+                    app,
+                    event("store.sources.tick.event.frame", SourceValue::EmptyRecord),
                 )?;
             }
         }

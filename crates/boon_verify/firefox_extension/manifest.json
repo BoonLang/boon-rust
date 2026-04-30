@@ -11,6 +11,8 @@
   "permissions": [
     "nativeMessaging",
     "tabs",
+    "activeTab",
+    "<all_urls>",
     "http://127.0.0.1/*",
     "http://localhost/*"
   ],
@@ -26,4 +28,3 @@
   ],
   "web_accessible_resources": ["page_bridge.js"]
 }
-

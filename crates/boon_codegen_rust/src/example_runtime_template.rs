@@ -504,6 +504,23 @@ impl BoonApp for ExampleApp {
                 if let SourceValue::Text(value) = update.value {
                     self.input_text = value;
                 }
+            } else if update.path.contains("todos[*].sources.edit_input.text")
+                && let SourceValue::Text(value) = update.value
+            {
+                let owner_id = update
+                    .owner_id
+                    .as_deref()
+                    .expect("dynamic todo edit_input.text owner_id was validated");
+                let list_item_id = owner_id
+                    .parse::<u64>()
+                    .map_err(|_| anyhow::anyhow!("list_item owner_id `{owner_id}` is not numeric"))?;
+                let list_item = self
+                    .list_items
+                    .iter_mut()
+                    .find(|list_item| list_item.id == list_item_id)
+                    .ok_or_else(|| anyhow::anyhow!("list_item owner `{owner_id}` is not live"))?;
+                list_item.title = value;
+                list_item.editing = true;
             } else if update.path.contains("cells")
                 && update.path.ends_with("editor.text")
                 && let SourceValue::Text(value) = update.value
@@ -546,6 +563,11 @@ impl BoonApp for ExampleApp {
                     &["store.todos", "store.sources.new_todo_input.text"],
                     metrics,
                 ));
+            } else if event.path.ends_with("new_todo_input.event.focus")
+                || event.path.ends_with("new_todo_input.event.blur")
+                || event.path.ends_with("new_todo_input.event.change")
+            {
+                results.push(self.emit_frame(&["store.sources.new_todo_input"], metrics));
             } else if event.path.contains("toggle_all_checkbox.event.click") {
                 let all_completed = self.list_items.iter().all(|list_item| list_item.completed);
                 for list_item in &mut self.list_items {
@@ -594,6 +616,62 @@ impl BoonApp for ExampleApp {
             } else if event.path.contains("filter_all") {
                 self.filter = "all".to_string();
                 results.push(self.emit_frame(&["store.selected_filter"], metrics));
+            } else if event
+                .path
+                .contains("todos[*].sources.edit_input.event.key_down.key")
+            {
+                let owner_id = event
+                    .owner_id
+                    .as_deref()
+                    .expect("dynamic edit_input key owner_id was validated");
+                let list_item_id = owner_id
+                    .parse::<u64>()
+                    .map_err(|_| anyhow::anyhow!("list_item owner_id `{owner_id}` is not numeric"))?;
+                if let Some(list_item) = self
+                    .list_items
+                    .iter_mut()
+                    .find(|list_item| list_item.id == list_item_id)
+                    && matches!(event.value, SourceValue::Tag(ref key) if key == "Enter")
+                {
+                    list_item.editing = false;
+                }
+                results.push(self.emit_frame(&["store.todos"], metrics));
+            } else if event
+                .path
+                .contains("todos[*].sources.edit_input.event.blur")
+                || event
+                    .path
+                    .contains("todos[*].sources.edit_input.event.change")
+            {
+                let owner_id = event
+                    .owner_id
+                    .as_deref()
+                    .expect("dynamic edit_input event owner_id was validated");
+                let list_item_id = owner_id
+                    .parse::<u64>()
+                    .map_err(|_| anyhow::anyhow!("list_item owner_id `{owner_id}` is not numeric"))?;
+                if let Some(list_item) = self
+                    .list_items
+                    .iter_mut()
+                    .find(|list_item| list_item.id == list_item_id)
+                    && event.path.ends_with(".event.blur")
+                {
+                    list_item.editing = false;
+                }
+                results.push(self.emit_frame(&["store.todos"], metrics));
+            } else if event
+                .path
+                .contains("cells[*].sources.display.event.double_click")
+            {
+                let (row, col) = event
+                    .owner_id
+                    .as_deref()
+                    .map(|owner_id| self.parse_grid_owner(owner_id))
+                    .transpose()?
+                    .unwrap_or(self.grid.selected);
+                self.grid.selected = (row, col);
+                self.grid.editing = Some((row, col));
+                results.push(self.emit_frame(&["cells"], metrics));
             } else if event.path.contains("cells")
                 && event.path.ends_with("editor.event.key_down.key")
             {
@@ -601,6 +679,25 @@ impl BoonApp for ExampleApp {
                     self.grid.editing = None;
                 }
                 results.push(self.emit_frame(&["cells"], metrics));
+            } else if event.path.ends_with("store.sources.viewport.event.key_down.key") {
+                if let SourceValue::Tag(key) = &event.value {
+                    match key.as_str() {
+                        "ArrowUp" => {
+                            self.grid.selected.0 = self.grid.selected.0.saturating_sub(1).max(1);
+                        }
+                        "ArrowDown" => {
+                            self.grid.selected.0 = (self.grid.selected.0 + 1).min(self.grid.rows);
+                        }
+                        "ArrowLeft" => {
+                            self.grid.selected.1 = self.grid.selected.1.saturating_sub(1).max(1);
+                        }
+                        "ArrowRight" => {
+                            self.grid.selected.1 = (self.grid.selected.1 + 1).min(self.grid.columns);
+                        }
+                        _ => {}
+                    }
+                }
+                results.push(self.emit_frame(&["cells.selected"], metrics));
             } else {
                 self.game_frame += 1;
                 results.push(self.emit_frame(&["frame"], metrics));
@@ -638,9 +735,41 @@ impl BoonApp for ExampleApp {
             "store.sources.new_todo_input.text".to_string(),
             json!(self.input_text),
         );
+        values.insert(
+            "store.todos_titles".to_string(),
+            json!(self
+                .list_items
+                .iter()
+                .map(|list_item| list_item.title.clone())
+                .collect::<Vec<_>>()),
+        );
+        for list_item in &self.list_items {
+            values.insert(
+                format!("store.todos[{}].title", list_item.id),
+                json!(list_item.title),
+            );
+            values.insert(
+                format!("store.todos[{}].editing", list_item.id),
+                json!(list_item.editing),
+            );
+        }
         values.insert("cells.A1".to_string(), json!(self.grid_value(1, 1)));
+        values.insert("cells.A2".to_string(), json!(self.grid_value(2, 1)));
+        values.insert("cells.A3".to_string(), json!(self.grid_value(3, 1)));
         values.insert("cells.B1".to_string(), json!(self.grid_value(1, 2)));
         values.insert("cells.B2".to_string(), json!(self.grid_value(2, 2)));
+        values.insert(
+            "cells.selected".to_string(),
+            json!(format!(
+                "{}{}",
+                column_name(self.grid.selected.1),
+                self.grid.selected.0
+            )),
+        );
+        values.insert(
+            "cells.editing".to_string(),
+            json!(self.grid.editing.map(|(row, col)| format!("{}{}", column_name(col), row))),
+        );
         AppSnapshot {
             values,
             frame_text: self.frame_text.clone(),

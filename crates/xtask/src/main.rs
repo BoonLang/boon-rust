@@ -2,8 +2,8 @@ use anyhow::{Context, Result, bail};
 use boon_codegen_rust::{generate_manifest, generate_program_spec};
 use boon_examples::list_examples;
 use boon_verify::{
-    verify_all, verify_browser_firefox, verify_native_app_window, verify_native_wgpu_headless,
-    verify_ratatui,
+    run_native_app_window_example, run_native_playground, verify_all, verify_browser_firefox,
+    verify_native_app_window, verify_native_wgpu_headless, verify_ratatui,
 };
 use serde_json::json;
 use std::env;
@@ -11,6 +11,7 @@ use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::Duration;
 use walkdir::WalkDir;
 use wesl::Wesl;
 use wgsl_bindgen::{WgslBindgenOptionBuilder, WgslShaderSourceType, WgslTypeSerializeStrategy};
@@ -41,10 +42,20 @@ fn main() -> Result<()> {
             println!("removed {}", profile.display());
             Ok(())
         }
+        Some("run") if args.get(1).map(String::as_str) == Some("native") => run_native(&args[2..]),
+        Some("run") if args.get(1).map(String::as_str) == Some("ratatui") => {
+            run_ratatui(&args[2..])
+        }
+        Some("run") if args.get(1).map(String::as_str) == Some("browser") => {
+            run_browser(&args[2..])
+        }
+        Some("playground") if args.get(1).map(String::as_str) == Some("native") => {
+            playground_native(&args[2..])
+        }
         Some("bench") => bench(&args[1..]),
         _ => {
             eprintln!(
-                "commands: examples list | bootstrap [--check] | generate | shaders | verify <all|ratatui|native-wgpu|browser-wgpu> | doctor firefox-webgpu | firefox reset-profile"
+                "commands: examples list | bootstrap [--check] | generate | shaders | verify <all|ratatui|native-wgpu|browser-wgpu> | run <native|ratatui|browser> --example <name> [--hold-ms <ms>] | playground native [--example <name>] [--hold-ms <ms>] | doctor firefox-webgpu | firefox reset-profile"
             );
             bail!("unknown xtask command")
         }
@@ -411,6 +422,131 @@ fn bench(args: &[String]) -> Result<()> {
     )?;
     println!("wrote {}", bench_path.display());
     Ok(())
+}
+
+fn run_native(args: &[String]) -> Result<()> {
+    let (example, hold_ms) = parse_run_args("native", args)?;
+    let root = repo_root()?;
+    let artifacts = root.join("target/boon-artifacts");
+    fs::create_dir_all(&artifacts)?;
+    bootstrap(false)?;
+    generate()?;
+    shaders()?;
+    let result =
+        run_native_app_window_example(example, &artifacts, Duration::from_millis(hold_ms))?;
+    if !result.passed {
+        bail!("{}", result.message);
+    }
+    println!("{}", serde_json::to_string_pretty(&result)?);
+    println!("artifact_dir {}", result.artifact_dir.display());
+    Ok(())
+}
+
+fn playground_native(args: &[String]) -> Result<()> {
+    let (example, hold_ms) = parse_playground_args(args)?;
+    bootstrap(false)?;
+    generate()?;
+    shaders()?;
+    println!(
+        "starting native playground with example `{example}`; press Esc in the window to quit"
+    );
+    run_native_playground(example, Duration::from_millis(hold_ms))
+}
+
+fn run_ratatui(args: &[String]) -> Result<()> {
+    let (example, hold_ms) = parse_run_args("ratatui", args)?;
+    let root = repo_root()?;
+    let artifacts = root.join("target/boon-artifacts");
+    fs::create_dir_all(&artifacts)?;
+    generate()?;
+    let report = verify_ratatui(&artifacts, false)?;
+    let result = report
+        .results
+        .into_iter()
+        .find(|result| result.example == example)
+        .context("ratatui runner did not produce the requested example")?;
+    if !result.passed {
+        bail!("{}", result.message);
+    }
+    let frame = fs::read_to_string(result.artifact_dir.join("frames.txt"))?;
+    println!("{frame}");
+    if hold_ms > 0 {
+        std::thread::sleep(Duration::from_millis(hold_ms));
+    }
+    println!("{}", serde_json::to_string_pretty(&result)?);
+    println!("artifact_dir {}", result.artifact_dir.display());
+    Ok(())
+}
+
+fn run_browser(args: &[String]) -> Result<()> {
+    let (example, hold_ms) = parse_run_args("browser", args)?;
+    let root = repo_root()?;
+    let artifacts = root.join("target/boon-artifacts");
+    fs::create_dir_all(&artifacts)?;
+    bootstrap(false)?;
+    generate()?;
+    shaders()?;
+    let report = verify_browser_firefox(&artifacts)?;
+    let result = report
+        .results
+        .into_iter()
+        .find(|result| result.example == example)
+        .context("browser runner did not produce the requested example")?;
+    if !result.passed {
+        bail!("{}", result.message);
+    }
+    if hold_ms > 0 {
+        std::thread::sleep(Duration::from_millis(hold_ms));
+    }
+    println!("{}", serde_json::to_string_pretty(&result)?);
+    println!("artifact_dir {}", result.artifact_dir.display());
+    Ok(())
+}
+
+fn parse_playground_args<'a>(args: &'a [String]) -> Result<(&'a str, u64)> {
+    let example = args
+        .windows(2)
+        .find(|pair| pair[0] == "--example")
+        .map(|pair| pair[1].as_str())
+        .or_else(|| {
+            args.first()
+                .map(String::as_str)
+                .filter(|arg| !arg.starts_with("--"))
+        })
+        .unwrap_or("todo_mvc");
+    if !list_examples().contains(&example) {
+        bail!("unknown example `{example}`; run `cargo xtask examples list`");
+    }
+    let hold_ms = args
+        .windows(2)
+        .find(|pair| pair[0] == "--hold-ms")
+        .map(|pair| pair[1].parse::<u64>())
+        .transpose()
+        .context("--hold-ms must be an integer")?
+        .unwrap_or(3_600_000);
+    Ok((example, hold_ms))
+}
+
+fn parse_run_args<'a>(platform: &str, args: &'a [String]) -> Result<(&'a str, u64)> {
+    let example = args
+        .windows(2)
+        .find(|pair| pair[0] == "--example")
+        .map(|pair| pair[1].as_str())
+        .or_else(|| args.first().map(String::as_str))
+        .with_context(|| {
+            format!("usage: cargo xtask run {platform} --example <name> [--hold-ms <ms>]")
+        })?;
+    if !list_examples().contains(&example) {
+        bail!("unknown example `{example}`; run `cargo xtask examples list`");
+    }
+    let hold_ms = args
+        .windows(2)
+        .find(|pair| pair[0] == "--hold-ms")
+        .map(|pair| pair[1].parse::<u64>())
+        .transpose()
+        .context("--hold-ms must be an integer")?
+        .unwrap_or(3000);
+    Ok((example, hold_ms))
 }
 
 fn repo_root() -> Result<PathBuf> {

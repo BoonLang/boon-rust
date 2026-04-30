@@ -1,14 +1,21 @@
 use anyhow::{Context, Result};
 use boon_render_ir::{FrameInfo, FrameSnapshot, HostPatch};
 use boon_runtime::{BoonApp, SourceBatch};
+use glyphon::{
+    Attrs, Buffer, Cache, Color, Family, FontSystem, Metrics, Resolution, Shaping, SwashCache,
+    TextArea, TextAtlas, TextBounds, TextRenderer, Viewport, fontdb,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
-use std::path::PathBuf;
+use std::io::BufWriter;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 
 pub const REQUIRED_WGPU_VERSION: &str = "29.0.1";
 pub const REQUIRED_GLYPHON_VERSION: &str = "0.11.0";
+const UI_FONT_BYTES: &[u8] = include_bytes!("../../../assets/fonts/DejaVuSansMono.ttf");
+const FRAME_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WgpuMetadata {
@@ -16,7 +23,21 @@ pub struct WgpuMetadata {
     pub adapter: String,
     pub device: String,
     pub renderer_version: String,
+    pub text_engine: String,
+    pub font_sha256: String,
     pub generated_shader_modules: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct FrameImageArtifact {
+    pub path: PathBuf,
+    pub width: u32,
+    pub height: u32,
+    pub byte_len: usize,
+    pub png_sha256: String,
+    pub rgba_hash: String,
+    pub nonblank: bool,
+    pub distinct_sampled_colors: usize,
 }
 
 pub struct WgpuBackend {
@@ -26,6 +47,7 @@ pub struct WgpuBackend {
     metadata: WgpuMetadata,
     device: Option<wgpu::Device>,
     queue: Option<wgpu::Queue>,
+    glyphon: Option<GlyphonRenderer>,
     last_rgba: Vec<u8>,
     last_rgba_hash: Option<String>,
 }
@@ -43,10 +65,13 @@ impl WgpuBackend {
                 renderer_version: format!(
                     "wgpu-{REQUIRED_WGPU_VERSION}/glyphon-{REQUIRED_GLYPHON_VERSION}"
                 ),
+                text_engine: "glyphon".to_string(),
+                font_sha256: ui_font_sha256(),
                 generated_shader_modules: 0,
             },
             device: None,
             queue: None,
+            glyphon: None,
             last_rgba: Vec::new(),
             last_rgba_hash: None,
         }
@@ -67,6 +92,7 @@ impl WgpuBackend {
         };
         let (device, queue) = pollster::block_on(adapter.request_device(&descriptor))?;
         let generated_shader_modules = load_generated_shader_modules(&device)?;
+        let glyphon = GlyphonRenderer::new(&device, &queue)?;
         Ok(Self {
             frame_text: String::new(),
             width,
@@ -78,10 +104,13 @@ impl WgpuBackend {
                 renderer_version: format!(
                     "wgpu-{REQUIRED_WGPU_VERSION}/glyphon-{REQUIRED_GLYPHON_VERSION}"
                 ),
+                text_engine: "glyphon".to_string(),
+                font_sha256: ui_font_sha256(),
                 generated_shader_modules,
             },
             device: Some(device),
             queue: Some(queue),
+            glyphon: Some(glyphon),
             last_rgba: Vec::new(),
             last_rgba_hash: None,
         })
@@ -133,10 +162,11 @@ impl WgpuBackend {
     }
 
     pub fn render_frame_ready(&mut self) -> Result<FrameInfo> {
-        let hash = self.submit_offscreen_clear(false)?;
+        self.submit_frame_ready_marker()?;
+        let hash = hash_frame_ready(self.width, self.height, &self.frame_text);
         Ok(FrameInfo {
             hash,
-            nonblank: true,
+            nonblank: !self.frame_text.trim().is_empty(),
         })
     }
 
@@ -150,16 +180,62 @@ impl WgpuBackend {
         })
     }
 
+    pub fn write_last_frame_png(&self, path: impl AsRef<Path>) -> Result<FrameImageArtifact> {
+        let path = path.as_ref();
+        let rgba_hash = self
+            .last_rgba_hash
+            .clone()
+            .context("no captured RGBA frame is available; call capture_frame first")?;
+        if self.last_rgba.len() != (self.width as usize * self.height as usize * 4) {
+            anyhow::bail!(
+                "captured RGBA frame has {} bytes, expected {}",
+                self.last_rgba.len(),
+                self.width as usize * self.height as usize * 4
+            );
+        }
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let file = fs::File::create(path)
+            .with_context(|| format!("creating frame PNG {}", path.display()))?;
+        let writer = BufWriter::new(file);
+        let mut encoder = png::Encoder::new(writer, self.width, self.height);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut png_writer = encoder.write_header()?;
+        png_writer.write_image_data(&self.last_rgba)?;
+        drop(png_writer);
+
+        let bytes =
+            fs::read(path).with_context(|| format!("reading frame PNG {}", path.display()))?;
+        let png_sha256 = hex::encode(Sha256::digest(&bytes));
+        Ok(FrameImageArtifact {
+            path: path.to_path_buf(),
+            width: self.width,
+            height: self.height,
+            byte_len: bytes.len(),
+            png_sha256,
+            rgba_hash,
+            nonblank: self.last_rgba.iter().any(|byte| *byte != 0),
+            distinct_sampled_colors: sampled_color_count(&self.last_rgba),
+        })
+    }
+
     pub fn metadata(&self) -> &WgpuMetadata {
         &self.metadata
     }
 
+    pub fn frame_text(&self) -> &str {
+        &self.frame_text
+    }
+
     fn render_offscreen_frame(&mut self) -> Result<()> {
-        self.submit_offscreen_clear(true)?;
+        self.submit_offscreen_frame(true)?
+            .context("offscreen readback did not produce an RGBA hash")?;
         Ok(())
     }
 
-    fn submit_offscreen_clear(&mut self, readback: bool) -> Result<String> {
+    fn submit_offscreen_frame(&mut self, readback: bool) -> Result<Option<String>> {
         let device = self
             .device
             .as_ref()
@@ -168,6 +244,10 @@ impl WgpuBackend {
             .queue
             .as_ref()
             .context("native wgpu renderer has no real Queue")?;
+        let glyphon = self
+            .glyphon
+            .as_mut()
+            .context("native wgpu renderer has no glyphon text renderer")?;
         let size = wgpu::Extent3d {
             width: self.width,
             height: self.height,
@@ -179,80 +259,78 @@ impl WgpuBackend {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: if readback {
-                wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC
-            } else {
-                wgpu::TextureUsages::RENDER_ATTACHMENT
-            },
+            format: FRAME_FORMAT,
+            usage: wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
         });
+        let rgba = rasterize_frame_background(self.width, self.height, &self.frame_text);
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &rgba,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(self.width * 4),
+                rows_per_image: Some(self.height),
+            },
+            size,
+        );
+
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let clear = self.clear_color();
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("boon-offscreen-encoder"),
+        });
+        glyphon.render_text(
+            device,
+            queue,
+            &mut encoder,
+            &view,
+            self.width,
+            self.height,
+            &self.frame_text,
+        )?;
+        if !readback {
+            queue.submit([encoder.finish()]);
+            device.poll(wgpu::PollType::wait_indefinitely())?;
+            return Ok(None);
+        }
 
         let bytes_per_pixel = 4;
         let dense_bytes_per_row = self.width * bytes_per_pixel;
         let padded_bytes_per_row =
             align_to(dense_bytes_per_row, wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
-        let output_buffer = if readback {
-            let output_buffer_size = padded_bytes_per_row as u64 * self.height as u64;
-            Some(device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("boon-offscreen-readback"),
-                size: output_buffer_size,
-                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-                mapped_at_creation: false,
-            }))
-        } else {
-            None
-        };
-
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("boon-offscreen-encoder"),
+        let output_buffer_size = padded_bytes_per_row as u64 * self.height as u64;
+        let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("boon-offscreen-readback"),
+            size: output_buffer_size,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
         });
-        {
-            let color_attachments = [Some(wgpu::RenderPassColorAttachment {
-                view: &view,
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(clear),
-                    store: wgpu::StoreOp::Store,
-                },
-            })];
-            let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("boon-offscreen-clear-pass"),
-                color_attachments: &color_attachments,
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-        }
-        if let Some(output_buffer) = output_buffer.as_ref() {
-            encoder.copy_texture_to_buffer(
-                wgpu::TexelCopyTextureInfo {
-                    texture: &texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                },
-                wgpu::TexelCopyBufferInfo {
-                    buffer: output_buffer,
-                    layout: wgpu::TexelCopyBufferLayout {
-                        offset: 0,
-                        bytes_per_row: Some(padded_bytes_per_row),
-                        rows_per_image: Some(self.height),
-                    },
-                },
-                size,
-            );
-        }
-        queue.submit([encoder.finish()]);
 
-        let Some(output_buffer) = output_buffer else {
-            device.poll(wgpu::PollType::Poll)?;
-            return Ok(hash_frame_ready(self.width, self.height, &self.frame_text));
-        };
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &output_buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(padded_bytes_per_row),
+                    rows_per_image: Some(self.height),
+                },
+            },
+            size,
+        );
+        queue.submit([encoder.finish()]);
 
         let slice = output_buffer.slice(..);
         let (sender, receiver) = mpsc::channel();
@@ -278,17 +356,234 @@ impl WgpuBackend {
         let hash = hash_rgba(self.width, self.height, &rgba);
         self.last_rgba = rgba;
         self.last_rgba_hash = Some(hash.clone());
-        Ok(hash)
+        Ok(Some(hash))
     }
 
-    fn clear_color(&self) -> wgpu::Color {
-        let digest = Sha256::digest(self.frame_text.as_bytes());
-        wgpu::Color {
-            r: (digest[0] as f64 + 1.0) / 256.0,
-            g: (digest[1] as f64 + 1.0) / 256.0,
-            b: (digest[2] as f64 + 1.0) / 256.0,
-            a: 1.0,
+    fn submit_frame_ready_marker(&mut self) -> Result<()> {
+        let device = self
+            .device
+            .as_ref()
+            .context("native wgpu renderer has no real Device")?;
+        let queue = self
+            .queue
+            .as_ref()
+            .context("native wgpu renderer has no real Queue")?;
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("boon-frame-ready-marker"),
+            size: wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: FRAME_FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("boon-frame-ready-marker-encoder"),
+        });
+        {
+            let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("boon-frame-ready-marker-pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
         }
+        queue.submit([encoder.finish()]);
+        device.poll(wgpu::PollType::wait_indefinitely())?;
+        Ok(())
+    }
+}
+
+struct GlyphonRenderer {
+    font_system: FontSystem,
+    swash_cache: SwashCache,
+    cache: Cache,
+    viewport: Viewport,
+    atlas: TextAtlas,
+    text_renderer: TextRenderer,
+    header_buffer: Buffer,
+    body_buffer: Buffer,
+    footer_buffer: Buffer,
+}
+
+impl GlyphonRenderer {
+    fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<Self> {
+        let mut font_db = fontdb::Database::new();
+        font_db.load_font_data(UI_FONT_BYTES.to_vec());
+        if font_db.faces().next().is_none() {
+            anyhow::bail!("checked-in Boon UI font did not load");
+        }
+        font_db.set_monospace_family("DejaVu Sans Mono");
+        font_db.set_sans_serif_family("DejaVu Sans Mono");
+        font_db.set_serif_family("DejaVu Sans Mono");
+
+        let mut font_system = FontSystem::new_with_locale_and_db("en-US".to_string(), font_db);
+        let swash_cache = SwashCache::new();
+        let cache = Cache::new(device);
+        let viewport = Viewport::new(device, &cache);
+        let mut atlas = TextAtlas::new(device, queue, &cache, FRAME_FORMAT);
+        let text_renderer =
+            TextRenderer::new(&mut atlas, device, wgpu::MultisampleState::default(), None);
+        let header_buffer = Buffer::new(&mut font_system, Metrics::new(30.0, 38.0));
+        let body_buffer = Buffer::new(&mut font_system, Metrics::new(14.0, 17.0));
+        let footer_buffer = Buffer::new(&mut font_system, Metrics::new(12.0, 16.0));
+
+        Ok(Self {
+            font_system,
+            swash_cache,
+            cache,
+            viewport,
+            atlas,
+            text_renderer,
+            header_buffer,
+            body_buffer,
+            footer_buffer,
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn render_text(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        width: u32,
+        height: u32,
+        frame_text: &str,
+    ) -> Result<()> {
+        self.viewport.update(queue, Resolution { width, height });
+
+        self.header_buffer
+            .set_size(&mut self.font_system, Some(360.0), Some(42.0));
+        self.header_buffer.set_text(
+            &mut self.font_system,
+            "BOON FRAME",
+            &Attrs::new().family(Family::Monospace),
+            Shaping::Advanced,
+            None,
+        );
+        self.header_buffer
+            .shape_until_scroll(&mut self.font_system, false);
+
+        let body_width = width.saturating_sub(112) as f32;
+        let body_height = height.saturating_sub(178) as f32;
+        self.body_buffer
+            .set_size(&mut self.font_system, Some(body_width), Some(body_height));
+        self.body_buffer.set_text(
+            &mut self.font_system,
+            &clip_frame_text(frame_text),
+            &Attrs::new().family(Family::Monospace),
+            Shaping::Advanced,
+            None,
+        );
+        self.body_buffer
+            .shape_until_scroll(&mut self.font_system, false);
+
+        self.footer_buffer
+            .set_size(&mut self.font_system, Some(360.0), Some(20.0));
+        self.footer_buffer.set_text(
+            &mut self.font_system,
+            "internal deterministic RGBA frame",
+            &Attrs::new().family(Family::Monospace),
+            Shaping::Advanced,
+            None,
+        );
+        self.footer_buffer
+            .shape_until_scroll(&mut self.font_system, false);
+
+        self.text_renderer.prepare(
+            device,
+            queue,
+            &mut self.font_system,
+            &mut self.atlas,
+            &self.viewport,
+            [
+                TextArea {
+                    buffer: &self.header_buffer,
+                    left: 46.0,
+                    top: 37.0,
+                    scale: 1.0,
+                    bounds: TextBounds {
+                        left: 24,
+                        top: 20,
+                        right: width.saturating_sub(24) as i32,
+                        bottom: 94,
+                    },
+                    default_color: Color::rgb(236, 248, 255),
+                    custom_glyphs: &[],
+                },
+                TextArea {
+                    buffer: &self.body_buffer,
+                    left: 56.0,
+                    top: 136.0,
+                    scale: 1.0,
+                    bounds: TextBounds {
+                        left: 32,
+                        top: 112,
+                        right: width.saturating_sub(32) as i32,
+                        bottom: height.saturating_sub(42) as i32,
+                    },
+                    default_color: Color::rgb(205, 225, 236),
+                    custom_glyphs: &[],
+                },
+                TextArea {
+                    buffer: &self.footer_buffer,
+                    left: 44.0,
+                    top: height.saturating_sub(32) as f32,
+                    scale: 1.0,
+                    bounds: TextBounds {
+                        left: 32,
+                        top: height.saturating_sub(46) as i32,
+                        right: width.saturating_sub(32) as i32,
+                        bottom: height as i32,
+                    },
+                    default_color: Color::rgb(169, 210, 190),
+                    custom_glyphs: &[],
+                },
+            ],
+            &mut self.swash_cache,
+        )?;
+
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("boon-glyphon-text-pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            self.text_renderer
+                .render(&self.atlas, &self.viewport, &mut pass)?;
+        }
+        self.atlas.trim();
+        let _ = &self.cache;
+        Ok(())
     }
 }
 
@@ -349,4 +644,419 @@ fn hash_frame_ready(width: u32, height: u32, frame_text: &str) -> String {
     hasher.update(height.to_le_bytes());
     hasher.update(frame_text.as_bytes());
     hex::encode(hasher.finalize())
+}
+
+fn ui_font_sha256() -> String {
+    hex::encode(Sha256::digest(UI_FONT_BYTES))
+}
+
+fn clip_frame_text(frame_text: &str) -> String {
+    frame_text
+        .lines()
+        .take(33)
+        .map(|line| line.chars().take(104).collect::<String>())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn rasterize_frame_background(width: u32, height: u32, frame_text: &str) -> Vec<u8> {
+    let mut rgba = vec![0u8; width as usize * height as usize * 4];
+    for y in 0..height as usize {
+        for x in 0..width as usize {
+            let idx = (y * width as usize + x) * 4;
+            let shade = 18u8.saturating_add(((y as u32 * 28) / height.max(1)) as u8);
+            rgba[idx..idx + 4].copy_from_slice(&[shade / 2, shade, shade + 16, 255]);
+        }
+    }
+
+    draw_rect(
+        &mut rgba,
+        width,
+        height,
+        24,
+        20,
+        width.saturating_sub(48),
+        74,
+        [28, 54, 68, 255],
+    );
+    draw_rect_outline(
+        &mut rgba,
+        width,
+        height,
+        24,
+        20,
+        width.saturating_sub(48),
+        74,
+        [91, 148, 169, 255],
+    );
+    let text_digest = Sha256::digest(frame_text.as_bytes());
+    let accent = [
+        80u8.saturating_add(text_digest[0] / 3),
+        145u8.saturating_add(text_digest[1] / 4),
+        170u8.saturating_add(text_digest[2] / 5),
+        255,
+    ];
+    draw_rect(
+        &mut rgba,
+        width,
+        height,
+        width.saturating_sub(310),
+        37,
+        236,
+        16,
+        accent,
+    );
+
+    let stage_x = 32;
+    let stage_y = 112;
+    let stage_w = width.saturating_sub(64);
+    let stage_h = height.saturating_sub(154);
+    draw_rect(
+        &mut rgba,
+        width,
+        height,
+        stage_x,
+        stage_y,
+        stage_w,
+        stage_h,
+        [16, 29, 39, 255],
+    );
+    draw_rect_outline(
+        &mut rgba,
+        width,
+        height,
+        stage_x,
+        stage_y,
+        stage_w,
+        stage_h,
+        [74, 112, 132, 255],
+    );
+    for i in 0..8 {
+        let y = stage_y + 28 + i * 62;
+        if y < stage_y + stage_h {
+            draw_rect(
+                &mut rgba,
+                width,
+                height,
+                stage_x + 1,
+                y,
+                stage_w.saturating_sub(2),
+                1,
+                [28, 47, 58, 255],
+            );
+        }
+    }
+
+    rgba
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_rect(
+    rgba: &mut [u8],
+    width: u32,
+    height: u32,
+    x: u32,
+    y: u32,
+    w: u32,
+    h: u32,
+    color: [u8; 4],
+) {
+    let x1 = x.saturating_add(w).min(width);
+    let y1 = y.saturating_add(h).min(height);
+    for py in y.min(height)..y1 {
+        for px in x.min(width)..x1 {
+            let idx = ((py * width + px) * 4) as usize;
+            rgba[idx..idx + 4].copy_from_slice(&color);
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_rect_outline(
+    rgba: &mut [u8],
+    width: u32,
+    height: u32,
+    x: u32,
+    y: u32,
+    w: u32,
+    h: u32,
+    color: [u8; 4],
+) {
+    draw_rect(rgba, width, height, x, y, w, 1, color);
+    draw_rect(
+        rgba,
+        width,
+        height,
+        x,
+        y.saturating_add(h).saturating_sub(1),
+        w,
+        1,
+        color,
+    );
+    draw_rect(rgba, width, height, x, y, 1, h, color);
+    draw_rect(
+        rgba,
+        width,
+        height,
+        x.saturating_add(w).saturating_sub(1),
+        y,
+        1,
+        h,
+        color,
+    );
+}
+
+#[allow(dead_code, clippy::too_many_arguments)]
+fn draw_text(
+    rgba: &mut [u8],
+    width: u32,
+    height: u32,
+    x: u32,
+    y: u32,
+    scale: u32,
+    text: &str,
+    color: [u8; 4],
+) {
+    let mut cursor = x;
+    for ch in text.chars() {
+        draw_glyph(rgba, width, height, cursor, y, scale, ch, color);
+        cursor = cursor.saturating_add(6 * scale);
+        if cursor >= width.saturating_sub(12 * scale) {
+            break;
+        }
+    }
+}
+
+#[allow(dead_code, clippy::too_many_arguments)]
+fn draw_glyph(
+    rgba: &mut [u8],
+    width: u32,
+    height: u32,
+    x: u32,
+    y: u32,
+    scale: u32,
+    ch: char,
+    color: [u8; 4],
+) {
+    if ch == ' ' {
+        return;
+    }
+    for (row, pattern) in glyph_rows(ch).iter().enumerate() {
+        for (col, bit) in pattern.as_bytes().iter().enumerate() {
+            if *bit == b'1' {
+                draw_rect(
+                    rgba,
+                    width,
+                    height,
+                    x + col as u32 * scale,
+                    y + row as u32 * scale,
+                    scale,
+                    scale,
+                    color,
+                );
+            }
+        }
+    }
+}
+
+#[allow(dead_code)]
+fn glyph_rows(ch: char) -> [&'static str; 7] {
+    match ch.to_ascii_uppercase() {
+        'A' => [
+            "01110", "10001", "10001", "11111", "10001", "10001", "10001",
+        ],
+        'B' => [
+            "11110", "10001", "10001", "11110", "10001", "10001", "11110",
+        ],
+        'C' => [
+            "01111", "10000", "10000", "10000", "10000", "10000", "01111",
+        ],
+        'D' => [
+            "11110", "10001", "10001", "10001", "10001", "10001", "11110",
+        ],
+        'E' => [
+            "11111", "10000", "10000", "11110", "10000", "10000", "11111",
+        ],
+        'F' => [
+            "11111", "10000", "10000", "11110", "10000", "10000", "10000",
+        ],
+        'G' => [
+            "01111", "10000", "10000", "10011", "10001", "10001", "01110",
+        ],
+        'H' => [
+            "10001", "10001", "10001", "11111", "10001", "10001", "10001",
+        ],
+        'I' => [
+            "11111", "00100", "00100", "00100", "00100", "00100", "11111",
+        ],
+        'J' => [
+            "00111", "00010", "00010", "00010", "10010", "10010", "01100",
+        ],
+        'K' => [
+            "10001", "10010", "10100", "11000", "10100", "10010", "10001",
+        ],
+        'L' => [
+            "10000", "10000", "10000", "10000", "10000", "10000", "11111",
+        ],
+        'M' => [
+            "10001", "11011", "10101", "10101", "10001", "10001", "10001",
+        ],
+        'N' => [
+            "10001", "11001", "10101", "10011", "10001", "10001", "10001",
+        ],
+        'O' => [
+            "01110", "10001", "10001", "10001", "10001", "10001", "01110",
+        ],
+        'P' => [
+            "11110", "10001", "10001", "11110", "10000", "10000", "10000",
+        ],
+        'Q' => [
+            "01110", "10001", "10001", "10001", "10101", "10010", "01101",
+        ],
+        'R' => [
+            "11110", "10001", "10001", "11110", "10100", "10010", "10001",
+        ],
+        'S' => [
+            "01111", "10000", "10000", "01110", "00001", "00001", "11110",
+        ],
+        'T' => [
+            "11111", "00100", "00100", "00100", "00100", "00100", "00100",
+        ],
+        'U' => [
+            "10001", "10001", "10001", "10001", "10001", "10001", "01110",
+        ],
+        'V' => [
+            "10001", "10001", "10001", "10001", "10001", "01010", "00100",
+        ],
+        'W' => [
+            "10001", "10001", "10001", "10101", "10101", "10101", "01010",
+        ],
+        'X' => [
+            "10001", "10001", "01010", "00100", "01010", "10001", "10001",
+        ],
+        'Y' => [
+            "10001", "10001", "01010", "00100", "00100", "00100", "00100",
+        ],
+        'Z' => [
+            "11111", "00001", "00010", "00100", "01000", "10000", "11111",
+        ],
+        '0' => [
+            "01110", "10001", "10011", "10101", "11001", "10001", "01110",
+        ],
+        '1' => [
+            "00100", "01100", "00100", "00100", "00100", "00100", "01110",
+        ],
+        '2' => [
+            "01110", "10001", "00001", "00010", "00100", "01000", "11111",
+        ],
+        '3' => [
+            "11110", "00001", "00001", "01110", "00001", "00001", "11110",
+        ],
+        '4' => [
+            "00010", "00110", "01010", "10010", "11111", "00010", "00010",
+        ],
+        '5' => [
+            "11111", "10000", "10000", "11110", "00001", "00001", "11110",
+        ],
+        '6' => [
+            "01110", "10000", "10000", "11110", "10001", "10001", "01110",
+        ],
+        '7' => [
+            "11111", "00001", "00010", "00100", "01000", "01000", "01000",
+        ],
+        '8' => [
+            "01110", "10001", "10001", "01110", "10001", "10001", "01110",
+        ],
+        '9' => [
+            "01110", "10001", "10001", "01111", "00001", "00001", "01110",
+        ],
+        '-' => [
+            "00000", "00000", "00000", "11111", "00000", "00000", "00000",
+        ],
+        '_' => [
+            "00000", "00000", "00000", "00000", "00000", "00000", "11111",
+        ],
+        '=' => [
+            "00000", "11111", "00000", "11111", "00000", "00000", "00000",
+        ],
+        '+' => [
+            "00000", "00100", "00100", "11111", "00100", "00100", "00000",
+        ],
+        ':' => [
+            "00000", "00100", "00100", "00000", "00100", "00100", "00000",
+        ],
+        '.' => [
+            "00000", "00000", "00000", "00000", "00000", "01100", "01100",
+        ],
+        ',' => [
+            "00000", "00000", "00000", "00000", "00100", "00100", "01000",
+        ],
+        '/' => [
+            "00001", "00010", "00010", "00100", "01000", "01000", "10000",
+        ],
+        '\\' => [
+            "10000", "01000", "01000", "00100", "00010", "00010", "00001",
+        ],
+        '(' => [
+            "00010", "00100", "01000", "01000", "01000", "00100", "00010",
+        ],
+        ')' => [
+            "01000", "00100", "00010", "00010", "00010", "00100", "01000",
+        ],
+        '[' => [
+            "01110", "01000", "01000", "01000", "01000", "01000", "01110",
+        ],
+        ']' => [
+            "01110", "00010", "00010", "00010", "00010", "00010", "01110",
+        ],
+        '#' => [
+            "01010", "11111", "01010", "01010", "11111", "01010", "00000",
+        ],
+        '*' => [
+            "00000", "10101", "01110", "11111", "01110", "10101", "00000",
+        ],
+        '|' => [
+            "00100", "00100", "00100", "00100", "00100", "00100", "00100",
+        ],
+        '<' => [
+            "00010", "00100", "01000", "10000", "01000", "00100", "00010",
+        ],
+        '>' => [
+            "01000", "00100", "00010", "00001", "00010", "00100", "01000",
+        ],
+        '!' => [
+            "00100", "00100", "00100", "00100", "00100", "00000", "00100",
+        ],
+        '?' => [
+            "01110", "10001", "00001", "00010", "00100", "00000", "00100",
+        ],
+        '\'' => [
+            "00100", "00100", "01000", "00000", "00000", "00000", "00000",
+        ],
+        '"' => [
+            "01010", "01010", "01010", "00000", "00000", "00000", "00000",
+        ],
+        _ => [
+            "11111", "10001", "00010", "00100", "00100", "00000", "00100",
+        ],
+    }
+}
+
+fn sampled_color_count(rgba: &[u8]) -> usize {
+    let pixel_count = rgba.len() / 4;
+    if pixel_count == 0 {
+        return 0;
+    }
+    let stride = (pixel_count / 4096).max(1);
+    let mut colors = Vec::<[u8; 4]>::new();
+    for pixel in rgba.chunks_exact(4).step_by(stride) {
+        let color = [pixel[0], pixel[1], pixel[2], pixel[3]];
+        if !colors.contains(&color) {
+            colors.push(color);
+            if colors.len() >= 1024 {
+                break;
+            }
+        }
+    }
+    colors.len()
 }
