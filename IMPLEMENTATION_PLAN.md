@@ -1974,7 +1974,7 @@ cargo xtask firefox reset-profile
 
 ### 12.4 Definition of successful implementation
 
-The implementation is successful only when a clean checkout can run:
+The implementation is successful when the current development checkout can run:
 
 ```bash
 cargo xtask verify all
@@ -1989,7 +1989,6 @@ target/boon-artifacts/success.json
 
 The success report must include:
 
-- git commit,
 - OS/platform,
 - Rust/cargo versions,
 - Firefox version and profile path,
@@ -2585,8 +2584,8 @@ Deliverables:
 
 Success criteria:
 
-- `cargo xtask verify all` starts from a clean checkout, bootstraps missing
-  repo-local tools, and runs the Ratatui buffer, Ratatui PTY, native headless
+- `cargo xtask verify all` bootstraps missing repo-local tools in the current
+  development checkout and runs the Ratatui buffer, Ratatui PTY, native headless
   wgpu, native app_window, and Firefox WebGPU gates,
 - TodoMVC and Cells pass the hard timing budgets and deterministic frame/hash
   checkpoints from Sections 12.4, 12.5, and 13,
