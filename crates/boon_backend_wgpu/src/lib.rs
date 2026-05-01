@@ -52,6 +52,247 @@ pub struct WgpuBackend {
     last_rgba_hash: Option<String>,
 }
 
+pub fn rasterize_native_gui_frame(
+    width: u32,
+    height: u32,
+    examples: &[&str],
+    current_index: usize,
+    frame_text: &str,
+    controls: &str,
+) -> Vec<u8> {
+    let mut rgba = vec![0u8; width as usize * height as usize * 4];
+    draw_rect(
+        &mut rgba,
+        width,
+        height,
+        0,
+        0,
+        width,
+        height,
+        [16, 20, 26, 255],
+    );
+    let sidebar_w = 236u32.min(width / 2);
+    let toolbar_h = 54u32.min(height / 3);
+    draw_rect(
+        &mut rgba,
+        width,
+        height,
+        0,
+        0,
+        sidebar_w,
+        height,
+        [24, 31, 40, 255],
+    );
+    draw_rect(
+        &mut rgba,
+        width,
+        height,
+        sidebar_w,
+        0,
+        width.saturating_sub(sidebar_w),
+        toolbar_h,
+        [28, 36, 46, 255],
+    );
+    draw_rect(
+        &mut rgba,
+        width,
+        height,
+        sidebar_w.saturating_sub(1),
+        0,
+        1,
+        height,
+        [60, 76, 89, 255],
+    );
+    draw_text(
+        &mut rgba,
+        width,
+        height,
+        18,
+        18,
+        2,
+        "Boon Rust",
+        [226, 239, 245, 255],
+    );
+    draw_text(
+        &mut rgba,
+        width,
+        height,
+        18,
+        48,
+        1,
+        "Native GUI playground",
+        [150, 183, 198, 255],
+    );
+    for (index, example) in examples.iter().enumerate() {
+        let y = 86 + index as u32 * 30;
+        let selected = index == current_index;
+        if selected {
+            draw_rect(
+                &mut rgba,
+                width,
+                height,
+                10,
+                y.saturating_sub(8),
+                sidebar_w.saturating_sub(20),
+                25,
+                [48, 89, 101, 255],
+            );
+            draw_rect(
+                &mut rgba,
+                width,
+                height,
+                10,
+                y.saturating_sub(8),
+                4,
+                25,
+                [90, 220, 230, 255],
+            );
+        }
+        draw_text(
+            &mut rgba,
+            width,
+            height,
+            22,
+            y,
+            1,
+            &format!("F{} {}", index + 1, example),
+            if selected {
+                [244, 252, 255, 255]
+            } else {
+                [158, 179, 190, 255]
+            },
+        );
+    }
+    draw_text(
+        &mut rgba,
+        width,
+        height,
+        sidebar_w + 22,
+        21,
+        2,
+        current_example_title(frame_text),
+        [236, 244, 247, 255],
+    );
+    draw_text(
+        &mut rgba,
+        width,
+        height,
+        sidebar_w + 340,
+        25,
+        1,
+        "Esc quit | Tab next | F1-F9 examples",
+        [142, 176, 192, 255],
+    );
+
+    let preview_x = sidebar_w + 24;
+    let preview_y = toolbar_h + 24;
+    let preview_w = width.saturating_sub(preview_x + 24);
+    let preview_h = height.saturating_sub(preview_y + 48);
+    let content_side = preview_w.min(preview_h).max(1);
+    let content_x = preview_x + preview_w.saturating_sub(content_side) / 2;
+    let content_y = preview_y + preview_h.saturating_sub(content_side) / 2;
+    draw_rect(
+        &mut rgba,
+        width,
+        height,
+        preview_x,
+        preview_y,
+        preview_w,
+        preview_h,
+        [245, 245, 245, 255],
+    );
+    draw_rect_outline(
+        &mut rgba,
+        width,
+        height,
+        preview_x,
+        preview_y,
+        preview_w,
+        preview_h,
+        [78, 98, 112, 255],
+    );
+
+    if frame_text.contains("TodoMVC") || frame_text.contains("What needs to be done") {
+        draw_todomvc_preview(
+            &mut rgba,
+            width,
+            height,
+            content_x,
+            content_y,
+            content_side,
+            content_side,
+            frame_text,
+        );
+    } else if frame_text.contains("Cells") || frame_text.contains("selected:") {
+        draw_cells_preview(
+            &mut rgba,
+            width,
+            height,
+            content_x,
+            content_y,
+            content_side,
+            content_side,
+            frame_text,
+        );
+    } else if frame_text.contains("Pong") || frame_text.contains("Arkanoid") {
+        draw_game_preview(
+            &mut rgba,
+            width,
+            height,
+            content_x,
+            content_y,
+            content_side,
+            content_side,
+            frame_text,
+        );
+    } else if frame_text.contains("Counter") {
+        draw_counter_preview(
+            &mut rgba,
+            width,
+            height,
+            content_x,
+            content_y,
+            content_side,
+            content_side,
+            frame_text,
+        );
+    } else if frame_text.contains("Interval") {
+        draw_interval_preview(
+            &mut rgba,
+            width,
+            height,
+            content_x,
+            content_y,
+            content_side,
+            content_side,
+            frame_text,
+        );
+    } else {
+        draw_text(
+            &mut rgba,
+            width,
+            height,
+            content_x + 32,
+            content_y + 32,
+            2,
+            frame_text,
+            [28, 42, 52, 255],
+        );
+    }
+
+    draw_text(
+        &mut rgba,
+        width,
+        height,
+        sidebar_w + 24,
+        height.saturating_sub(28),
+        1,
+        controls,
+        [140, 173, 156, 255],
+    );
+    rgba
+}
+
 impl WgpuBackend {
     pub fn headless(width: u32, height: u32) -> Self {
         Self {
@@ -360,14 +601,9 @@ impl WgpuBackend {
     }
 
     fn submit_frame_ready_marker(&mut self) -> Result<()> {
-        let device = self
-            .device
-            .as_ref()
-            .context("native wgpu renderer has no real Device")?;
-        let queue = self
-            .queue
-            .as_ref()
-            .context("native wgpu renderer has no real Queue")?;
+        let (Some(device), Some(queue)) = (self.device.as_ref(), self.queue.as_ref()) else {
+            return Ok(());
+        };
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("boon-frame-ready-marker"),
             size: wgpu::Extent3d {
@@ -468,6 +704,9 @@ impl GlyphonRenderer {
         height: u32,
         frame_text: &str,
     ) -> Result<()> {
+        if is_graphical_preview_frame(frame_text) {
+            return Ok(());
+        }
         self.viewport.update(queue, Resolution { width, height });
 
         self.header_buffer
@@ -630,7 +869,7 @@ fn align_to(value: u32, alignment: u32) -> u32 {
     value.div_ceil(alignment) * alignment
 }
 
-fn hash_rgba(width: u32, height: u32, rgba: &[u8]) -> String {
+pub fn hash_rgba(width: u32, height: u32, rgba: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(width.to_le_bytes());
     hasher.update(height.to_le_bytes());
@@ -660,6 +899,9 @@ fn clip_frame_text(frame_text: &str) -> String {
 }
 
 fn rasterize_frame_background(width: u32, height: u32, frame_text: &str) -> Vec<u8> {
+    if is_graphical_preview_frame(frame_text) {
+        return rasterize_native_gui_frame(width, height, &[], 0, frame_text, "");
+    }
     let mut rgba = vec![0u8; width as usize * height as usize * 4];
     for y in 0..height as usize {
         for x in 0..width as usize {
@@ -748,6 +990,656 @@ fn rasterize_frame_background(width: u32, height: u32, frame_text: &str) -> Vec<
     }
 
     rgba
+}
+
+fn is_graphical_preview_frame(frame_text: &str) -> bool {
+    frame_text.contains("TodoMVC")
+        || frame_text.contains("What needs to be done")
+        || frame_text.contains("Cells")
+        || frame_text.contains("Pong")
+        || frame_text.contains("Arkanoid")
+        || frame_text.contains("Counter")
+        || frame_text.contains("Interval")
+}
+
+fn current_example_title(frame_text: &str) -> &str {
+    frame_text.lines().next().unwrap_or("Boon")
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_todomvc_preview(
+    rgba: &mut [u8],
+    width: u32,
+    height: u32,
+    x: u32,
+    y: u32,
+    w: u32,
+    h: u32,
+    frame_text: &str,
+) {
+    let input = frame_text
+        .lines()
+        .find_map(|line| line.strip_prefix("input: "))
+        .unwrap_or("");
+    let filter = frame_text
+        .lines()
+        .find_map(|line| line.strip_prefix("filter: "))
+        .unwrap_or("all");
+    let items = frame_text
+        .lines()
+        .filter_map(parse_todo_line)
+        .collect::<Vec<_>>();
+    let panel_w = w.min(700).saturating_mul(550) / 700;
+    let panel_x = x + (w.saturating_sub(panel_w)) / 2;
+    let heading_y = y + 28;
+    draw_text(
+        rgba,
+        width,
+        height,
+        panel_x + panel_w / 2 - 150,
+        heading_y,
+        8,
+        "todos",
+        [184, 63, 69, 95],
+    );
+    let main_y = y + (h.min(700).saturating_mul(130) / 700).max(96);
+    draw_rect(
+        rgba,
+        width,
+        height,
+        panel_x,
+        main_y,
+        panel_w,
+        64,
+        [255, 255, 255, 255],
+    );
+    draw_rect_outline(
+        rgba,
+        width,
+        height,
+        panel_x,
+        main_y,
+        panel_w,
+        64,
+        [229, 229, 229, 255],
+    );
+    draw_text(
+        rgba,
+        width,
+        height,
+        panel_x + 56,
+        main_y + 23,
+        2,
+        if input.is_empty() {
+            "What needs to be done?"
+        } else {
+            input
+        },
+        [85, 85, 85, 255],
+    );
+    if !items.is_empty() {
+        draw_text(
+            rgba,
+            width,
+            height,
+            panel_x + 18,
+            main_y + 24,
+            2,
+            "v",
+            [115, 115, 115, 255],
+        );
+    }
+    for (idx, (_, completed, title)) in items.iter().enumerate() {
+        let row_y = main_y + 64 + idx as u32 * 58;
+        draw_rect(
+            rgba,
+            width,
+            height,
+            panel_x,
+            row_y,
+            panel_w,
+            58,
+            [255, 255, 255, 255],
+        );
+        draw_rect(
+            rgba,
+            width,
+            height,
+            panel_x,
+            row_y,
+            panel_w,
+            1,
+            [237, 237, 237, 255],
+        );
+        draw_rect_outline(
+            rgba,
+            width,
+            height,
+            panel_x + 14,
+            row_y + 14,
+            30,
+            30,
+            if *completed {
+                [80, 180, 140, 255]
+            } else {
+                [205, 215, 215, 255]
+            },
+        );
+        if *completed {
+            draw_text(
+                rgba,
+                width,
+                height,
+                panel_x + 20,
+                row_y + 21,
+                1,
+                "OK",
+                [80, 180, 140, 255],
+            );
+        }
+        draw_text(
+            rgba,
+            width,
+            height,
+            panel_x + 62,
+            row_y + 19,
+            2,
+            title,
+            if *completed {
+                [150, 150, 150, 255]
+            } else {
+                [72, 72, 72, 255]
+            },
+        );
+        if *completed {
+            draw_rect(
+                rgba,
+                width,
+                height,
+                panel_x + 62,
+                row_y + 29,
+                panel_w.saturating_sub(128),
+                2,
+                [190, 190, 190, 255],
+            );
+        }
+        draw_text(
+            rgba,
+            width,
+            height,
+            panel_x + panel_w.saturating_sub(42),
+            row_y + 20,
+            2,
+            "x",
+            [175, 47, 47, 210],
+        );
+    }
+    let footer_y = main_y + 64 + items.len() as u32 * 58;
+    draw_rect(
+        rgba,
+        width,
+        height,
+        panel_x,
+        footer_y,
+        panel_w,
+        42,
+        [255, 255, 255, 255],
+    );
+    draw_rect(
+        rgba,
+        width,
+        height,
+        panel_x,
+        footer_y,
+        panel_w,
+        1,
+        [237, 237, 237, 255],
+    );
+    let active = items.iter().filter(|(_, done, _)| !*done).count();
+    draw_text(
+        rgba,
+        width,
+        height,
+        panel_x + 16,
+        footer_y + 16,
+        1,
+        &format!("{active} items left"),
+        [80, 80, 80, 255],
+    );
+    let filters = [("all", 220), ("active", 290), ("completed", 380)];
+    for (name, dx) in filters {
+        let selected = filter == name;
+        if selected {
+            draw_rect_outline(
+                rgba,
+                width,
+                height,
+                panel_x + dx,
+                footer_y + 10,
+                62,
+                20,
+                [235, 213, 213, 255],
+            );
+        }
+        draw_text(
+            rgba,
+            width,
+            height,
+            panel_x + dx + 7,
+            footer_y + 16,
+            1,
+            name,
+            [80, 80, 80, 255],
+        );
+    }
+    draw_text(
+        rgba,
+        width,
+        height,
+        panel_x + panel_w.saturating_sub(138),
+        footer_y + 16,
+        1,
+        "Clear completed",
+        [80, 80, 80, 255],
+    );
+    draw_text(
+        rgba,
+        width,
+        height,
+        panel_x + panel_w / 2 - 110,
+        footer_y + 78,
+        1,
+        "Double-click to edit a todo",
+        [77, 77, 77, 255],
+    );
+    draw_text(
+        rgba,
+        width,
+        height,
+        panel_x + panel_w / 2 - 96,
+        footer_y + 100,
+        1,
+        "Created by Martin Kavik",
+        [77, 77, 77, 255],
+    );
+}
+
+fn parse_todo_line(line: &str) -> Option<(String, bool, String)> {
+    let trimmed = line.trim();
+    let (id, rest) = trimmed.split_once(' ')?;
+    id.parse::<u64>().ok()?;
+    let completed = rest.starts_with("[x]");
+    let title = rest.get(4..)?.trim().to_string();
+    Some((id.to_string(), completed, title))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_counter_preview(
+    rgba: &mut [u8],
+    width: u32,
+    height: u32,
+    x: u32,
+    y: u32,
+    w: u32,
+    h: u32,
+    frame_text: &str,
+) {
+    let count = frame_text
+        .lines()
+        .find_map(|line| line.strip_prefix("count: "))
+        .unwrap_or("0");
+    draw_rect(rgba, width, height, x, y, w, h, [238, 244, 248, 255]);
+    let bx = x + w / 2 - 110;
+    let by = y + h / 2 - 48;
+    draw_rect(
+        rgba,
+        width,
+        height,
+        bx + 5,
+        by + 6,
+        220,
+        82,
+        [190, 202, 210, 255],
+    );
+    draw_rect(rgba, width, height, bx, by, 220, 82, [55, 130, 150, 255]);
+    draw_rect_outline(rgba, width, height, bx, by, 220, 82, [34, 92, 110, 255]);
+    draw_text(
+        rgba,
+        width,
+        height,
+        bx + 38,
+        by + 30,
+        3,
+        "Increment",
+        [245, 252, 255, 255],
+    );
+    draw_text(
+        rgba,
+        width,
+        height,
+        bx + 70,
+        by + 116,
+        4,
+        count,
+        [26, 42, 50, 255],
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_interval_preview(
+    rgba: &mut [u8],
+    width: u32,
+    height: u32,
+    x: u32,
+    y: u32,
+    w: u32,
+    h: u32,
+    frame_text: &str,
+) {
+    draw_rect(rgba, width, height, x, y, w, h, [234, 240, 244, 255]);
+    let ticks = frame_text
+        .lines()
+        .find_map(|line| line.strip_prefix("ticks: "))
+        .unwrap_or("0");
+    let ms = frame_text
+        .lines()
+        .find_map(|line| line.strip_prefix("fake_clock_ms: "))
+        .unwrap_or("0");
+    draw_text(
+        rgba,
+        width,
+        height,
+        x + 52,
+        y + 52,
+        4,
+        "Live interval",
+        [33, 67, 82, 255],
+    );
+    draw_rect(
+        rgba,
+        width,
+        height,
+        x + 54,
+        y + 128,
+        w.saturating_sub(108),
+        84,
+        [255, 255, 255, 255],
+    );
+    draw_rect_outline(
+        rgba,
+        width,
+        height,
+        x + 54,
+        y + 128,
+        w.saturating_sub(108),
+        84,
+        [190, 206, 214, 255],
+    );
+    draw_text(
+        rgba,
+        width,
+        height,
+        x + 86,
+        y + 160,
+        3,
+        &format!("ticks {ticks}"),
+        [40, 94, 112, 255],
+    );
+    draw_text(
+        rgba,
+        width,
+        height,
+        x + 86,
+        y + 232,
+        2,
+        &format!("{ms} ms"),
+        [98, 116, 126, 255],
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_game_preview(
+    rgba: &mut [u8],
+    width: u32,
+    height: u32,
+    x: u32,
+    y: u32,
+    w: u32,
+    h: u32,
+    frame_text: &str,
+) {
+    let title = current_example_title(frame_text);
+    let frame = frame_text
+        .lines()
+        .find_map(|line| line.strip_prefix("frame: "))
+        .and_then(|value| value.parse::<u32>().ok())
+        .unwrap_or(0);
+    draw_rect(rgba, width, height, x, y, w, h, [8, 12, 18, 255]);
+    draw_rect_outline(
+        rgba,
+        width,
+        height,
+        x + 24,
+        y + 24,
+        w.saturating_sub(48),
+        h.saturating_sub(48),
+        [70, 96, 122, 255],
+    );
+    draw_text(
+        rgba,
+        width,
+        height,
+        x + 42,
+        y + 42,
+        3,
+        title,
+        [218, 236, 245, 255],
+    );
+    let arena_x = x + 52;
+    let arena_y = y + 96;
+    let arena_w = w.saturating_sub(104);
+    let arena_h = h.saturating_sub(148);
+    draw_rect(
+        rgba,
+        width,
+        height,
+        arena_x,
+        arena_y,
+        arena_w,
+        arena_h,
+        [14, 26, 38, 255],
+    );
+    if title.contains("Arkanoid") {
+        for row in 0..5 {
+            for col in 0..10 {
+                if !(row + col + frame as usize / 12).is_multiple_of(7) {
+                    draw_rect(
+                        rgba,
+                        width,
+                        height,
+                        arena_x + 12 + col as u32 * 48,
+                        arena_y + 20 + row as u32 * 22,
+                        38,
+                        14,
+                        [180, 92u8.saturating_add(row as u8 * 24), 80, 255],
+                    );
+                }
+            }
+        }
+    } else {
+        draw_rect(
+            rgba,
+            width,
+            height,
+            arena_x + arena_w / 2,
+            arena_y + 16,
+            2,
+            arena_h.saturating_sub(32),
+            [52, 72, 88, 255],
+        );
+        let left_span = arena_h.saturating_sub(160).max(1);
+        let right_span = arena_h.saturating_sub(180).max(1);
+        draw_rect(
+            rgba,
+            width,
+            height,
+            arena_x + 24,
+            arena_y + 88 + (frame * 3 % left_span),
+            12,
+            84,
+            [210, 236, 240, 255],
+        );
+        draw_rect(
+            rgba,
+            width,
+            height,
+            arena_x + arena_w.saturating_sub(36),
+            arena_y + 120 + (frame * 2 % right_span),
+            12,
+            84,
+            [210, 236, 240, 255],
+        );
+    }
+    let ball_x = arena_x + 80 + (frame * 9 % arena_w.saturating_sub(120).max(1));
+    let ball_y = arena_y + 80 + (frame * 5 % arena_h.saturating_sub(120).max(1));
+    draw_rect(
+        rgba,
+        width,
+        height,
+        ball_x,
+        ball_y,
+        14,
+        14,
+        [96, 224, 230, 255],
+    );
+    draw_rect(
+        rgba,
+        width,
+        height,
+        arena_x + arena_w / 2 - 54,
+        arena_y + arena_h.saturating_sub(34),
+        108,
+        12,
+        [220, 235, 240, 255],
+    );
+    draw_text(
+        rgba,
+        width,
+        height,
+        x + 42,
+        y + h.saturating_sub(32),
+        1,
+        &format!("frame {frame} | arrow keys control paddle"),
+        [156, 188, 204, 255],
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_cells_preview(
+    rgba: &mut [u8],
+    width: u32,
+    height: u32,
+    x: u32,
+    y: u32,
+    w: u32,
+    h: u32,
+    frame_text: &str,
+) {
+    draw_rect(rgba, width, height, x, y, w, h, [248, 250, 252, 255]);
+    draw_text(
+        rgba,
+        width,
+        height,
+        x + 32,
+        y + 28,
+        3,
+        "Cells",
+        [34, 65, 80, 255],
+    );
+    let grid_x = x + 48;
+    let grid_y = y + 92;
+    let cell_w = 92;
+    let cell_h = 34;
+    for col in 0..6 {
+        draw_rect(
+            rgba,
+            width,
+            height,
+            grid_x + col * cell_w,
+            grid_y,
+            cell_w,
+            cell_h,
+            [224, 232, 236, 255],
+        );
+        draw_text(
+            rgba,
+            width,
+            height,
+            grid_x + col * cell_w + 36,
+            grid_y + 12,
+            1,
+            &format!("{}", (b'A' + col as u8) as char),
+            [54, 73, 84, 255],
+        );
+    }
+    for row in 1..=12 {
+        draw_rect(
+            rgba,
+            width,
+            height,
+            grid_x.saturating_sub(42),
+            grid_y + row * cell_h,
+            42,
+            cell_h,
+            [224, 232, 236, 255],
+        );
+        draw_text(
+            rgba,
+            width,
+            height,
+            grid_x.saturating_sub(30),
+            grid_y + row * cell_h + 12,
+            1,
+            &row.to_string(),
+            [54, 73, 84, 255],
+        );
+        for col in 0..6 {
+            let cx = grid_x + col * cell_w;
+            let cy = grid_y + row * cell_h;
+            draw_rect(
+                rgba,
+                width,
+                height,
+                cx,
+                cy,
+                cell_w,
+                cell_h,
+                [255, 255, 255, 255],
+            );
+            draw_rect_outline(
+                rgba,
+                width,
+                height,
+                cx,
+                cy,
+                cell_w,
+                cell_h,
+                [213, 222, 228, 255],
+            );
+        }
+    }
+    for line in frame_text.lines().skip(2).take(5) {
+        draw_text(
+            rgba,
+            width,
+            height,
+            x + 640.min(w.saturating_sub(180)),
+            y + 100 + 22 * line.len().min(5) as u32,
+            1,
+            line,
+            [56, 82, 96, 255],
+        );
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -1,0 +1,19 @@
+{
+  "reference": "reference_700x700_(1400x1400).png",
+  "reference_sha256": "4eed3835c50064087a378cae337df2a5e4b3499afd638e7e1afed79b6647d1d5",
+  "viewport": {
+    "width": 700,
+    "height": 700,
+    "device_pixel_ratio": 2
+  },
+  "max_mean_abs_channel_delta": 18.0,
+  "max_percent_pixels_over_delta_32": 18.0,
+  "required_visual_features": [
+    "large todos heading",
+    "new todo input row",
+    "toggle-all control",
+    "todo rows with checkboxes",
+    "footer filters",
+    "clear completed action"
+  ]
+}

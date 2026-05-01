@@ -2,8 +2,9 @@ use anyhow::{Context, Result, bail};
 use boon_codegen_rust::{generate_manifest, generate_program_spec};
 use boon_examples::list_examples;
 use boon_verify::{
-    run_native_app_window_example, run_native_playground, verify_all, verify_browser_firefox,
-    verify_native_app_window, verify_native_wgpu_headless, verify_ratatui,
+    native_visible_surface_probe_helper, run_native_app_window_example, run_native_playground,
+    verify_all, verify_browser_firefox, verify_native_app_window, verify_native_wgpu_headless,
+    verify_ratatui,
 };
 use serde_json::json;
 use std::env;
@@ -52,6 +53,7 @@ fn main() -> Result<()> {
         Some("playground") if args.get(1).map(String::as_str) == Some("native") => {
             playground_native(&args[2..])
         }
+        Some("__native-surface-probe") => native_surface_probe_helper(&args[1..]),
         Some("bench") => bench(&args[1..]),
         _ => {
             eprintln!(
@@ -60,6 +62,20 @@ fn main() -> Result<()> {
             bail!("unknown xtask command")
         }
     }
+}
+
+fn native_surface_probe_helper(args: &[String]) -> Result<()> {
+    let example = args
+        .windows(2)
+        .find(|pair| pair[0] == "--example")
+        .map(|pair| pair[1].as_str())
+        .context("--example <name> is required")?;
+    let out = args
+        .windows(2)
+        .find(|pair| pair[0] == "--out")
+        .map(|pair| PathBuf::from(&pair[1]))
+        .context("--out <path> is required")?;
+    native_visible_surface_probe_helper(example, &out)
 }
 
 fn examples_list() -> Result<()> {
@@ -503,7 +519,7 @@ fn run_browser(args: &[String]) -> Result<()> {
     Ok(())
 }
 
-fn parse_playground_args<'a>(args: &'a [String]) -> Result<(&'a str, u64)> {
+fn parse_playground_args(args: &[String]) -> Result<(&str, u64)> {
     let example = args
         .windows(2)
         .find(|pair| pair[0] == "--example")

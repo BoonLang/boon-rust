@@ -1579,6 +1579,12 @@ No Sokol.
 No SDL3.
 No Slang initially.
 
+The native playground GUI is governed by the companion plan
+`docs/plans/native_gui_playground_plan.md`. That plan is part of the source of
+truth for Phase 10 and all verification prompts. A text-only app_window surface
+or terminal transcript rendered into a window is not an acceptable native
+playground.
+
 ### 9.1 Native does not require installing WebGPU
 
 Native `wgpu` uses system GPU APIs such as Vulkan, Metal, D3D12, or OpenGL depending on platform and driver support. Do not require users to install a separate “WebGPU runtime.”
@@ -1631,7 +1637,26 @@ And an app-window smoke mode:
 native_wgpu_app_window
   real app_window surface
   still capture internal frame texture before present
+  also read back the actual app_window/wgpu surface texture before present
+  verify nonblank/color diversity and final live surface size == render size
 ```
+
+The app_window gate must not be satisfied by an offscreen/internal framebuffer
+alone. It must launch the real app_window RGBA path for every maintained example
+in an isolated helper process, record `visible-surface-frame.json`, and fail on
+blank/solid frames or stale configured size after the compositor has resized the
+surface. OS compositor screenshots may be recorded as diagnostic artifacts when
+a local screenshot backend is available, but deterministic pass/fail remains the
+app_window surface readback plus semantic/state/hash gates.
+
+Native app_window verification must also drive the native playground shell with
+app_window-shaped mouse/key samples for every maintained example and write
+`playground-interactions.json`. These scenarios must include sidebar/example
+selection, visible-control hit testing, typed text where applicable, keyboard
+controls for games, live interval/game advancement, and state/frame assertions.
+TodoMVC must have multiple playground scenarios covering add, whitespace reject,
+edit, remove, checkbox toggle, filters, clear completed, and outside-click
+non-mutation.
 
 ### 9.4 GPU text rendering
 
@@ -2015,6 +2040,15 @@ Canonical capture rules:
   device-pixel-ratio `1.0`, fixed scale, and no live animation during capture.
 - Browser captures use `window.__boonTest.captureFrameRgba()`.
 - Native captures use the owned offscreen frame texture before present.
+- Native app_window captures additionally read back the real app_window surface
+  texture before present, record the final live surface size, and require it to
+  match the rendered frame size. This gate exists specifically to catch black
+  visible windows, stale Wayland configure sizes, and text-only/window-layout
+  regressions that internal offscreen frames alone can miss.
+- Native app_window also records `playground-interactions.json` for each
+  maintained example. These are not semantic shortcuts: they pass through the
+  same native playground hit-testing/input handlers used by manual app_window
+  runs, then assert semantic state and frame hashes after each step.
 - All GPU/browser text uses one checked-in deterministic UI font; do not use
   system font fallback in tests.
 - Each checked frame writes PNG artifact, raw RGBA hash, and semantic view-tree
@@ -2517,7 +2551,9 @@ Deliverables:
 - native wgpu surface integration,
 - event loop integration,
 - source input mapping,
-- internal framebuffer capture before present.
+- internal framebuffer capture before present,
+- graphical native playground shell and preview surface from
+  `docs/plans/native_gui_playground_plan.md`.
 
 Success criteria:
 
@@ -2526,7 +2562,15 @@ Success criteria:
 - app_window smoke tests pass by launching the app_window host, creating a wgpu
   surface, translating one synthetic input to `SourceBatch`, dispatching through
   `BoonApp`, rendering one internal frame texture, capturing a nonblank frame hash,
+  reading back the actual app_window surface texture with a live-size match proof,
+  running native playground interaction scenarios for every maintained example,
   and exiting cleanly,
+- `cargo xtask playground native --example todo_mvc` displays a graphical
+  TodoMVC-like preview with actual visible input, checkbox, filter, row, and
+  clear-completed regions,
+- interval examples tick from live host time in manual native playground mode,
+- `pong` and `arkanoid` advance automatically in manual native playground mode
+  and accept keyboard control,
 - no winit fallback added.
 
 ### Phase 11: Browser wgpu backend

@@ -8,6 +8,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -36,6 +37,29 @@ pub struct AppWindowInputSample {
     pub scroll_y: f64,
     pub pressed_keys: Vec<String>,
     pub newly_pressed_keys: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RgbaFrame {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AppWindowSurfaceFrameProof {
+    pub configured_width: u32,
+    pub configured_height: u32,
+    pub final_surface_width: u32,
+    pub final_surface_height: u32,
+    pub rgba_hash: String,
+    pub byte_len: usize,
+    pub distinct_sampled_colors: usize,
+    pub dominant_rgba: [u8; 4],
+    pub dominant_ratio: f64,
+    pub nonblank: bool,
+    pub size_matches_final_surface: bool,
+    pub passed: bool,
 }
 
 pub fn smoke_test() -> Result<AppWindowSmoke> {
@@ -235,6 +259,75 @@ where
         .expect("text input session result lock")
         .take()
         .context("app_window text input session did not return a result")?;
+    session.map_err(anyhow::Error::msg)
+}
+
+pub fn run_rgba_input_session<S, F, G>(
+    title: impl Into<String>,
+    hold: Duration,
+    tick: Duration,
+    state: S,
+    on_input: F,
+    frame_rgba: G,
+) -> Result<(AppWindowSmoke, S)>
+where
+    S: Send + 'static,
+    F: FnMut(&mut S, AppWindowInputSample) -> Result<()> + Send + 'static,
+    G: FnMut(&mut S, u32, u32) -> Result<RgbaFrame> + Send + 'static,
+{
+    let result = Arc::new(Mutex::new(None));
+    let result_for_closure = Arc::clone(&result);
+    let title = title.into();
+    app_window::test_support::integration_test_harness(move || {
+        let session = pollster::block_on(rgba_input_session(
+            title, hold, tick, state, on_input, frame_rgba, false,
+        ))
+        .map(|(smoke, state, _)| (smoke, state))
+        .map_err(|err| err.to_string());
+        *result_for_closure
+            .lock()
+            .expect("rgba input session result lock") = Some(session);
+    });
+
+    let session = result
+        .lock()
+        .expect("rgba input session result lock")
+        .take()
+        .context("app_window rgba input session did not return a result")?;
+    session.map_err(anyhow::Error::msg)
+}
+
+pub fn run_rgba_input_session_with_proof<S, F, G>(
+    title: impl Into<String>,
+    hold: Duration,
+    tick: Duration,
+    state: S,
+    on_input: F,
+    frame_rgba: G,
+) -> Result<(AppWindowSmoke, S, Option<AppWindowSurfaceFrameProof>)>
+where
+    S: Send + 'static,
+    F: FnMut(&mut S, AppWindowInputSample) -> Result<()> + Send + 'static,
+    G: FnMut(&mut S, u32, u32) -> Result<RgbaFrame> + Send + 'static,
+{
+    let result = Arc::new(Mutex::new(None));
+    let result_for_closure = Arc::clone(&result);
+    let title = title.into();
+    app_window::test_support::integration_test_harness(move || {
+        let session = pollster::block_on(rgba_input_session(
+            title, hold, tick, state, on_input, frame_rgba, true,
+        ))
+        .map_err(|err| err.to_string());
+        *result_for_closure
+            .lock()
+            .expect("rgba input session result lock") = Some(session);
+    });
+
+    let session = result
+        .lock()
+        .expect("rgba input session result lock")
+        .take()
+        .context("app_window rgba input session did not return a result")?;
     session.map_err(anyhow::Error::msg)
 }
 
@@ -537,6 +630,171 @@ where
     ))
 }
 
+async fn rgba_input_session<S, F, G>(
+    title: String,
+    hold: Duration,
+    tick: Duration,
+    state: S,
+    mut on_input: F,
+    mut frame_rgba: G,
+    capture_surface_proof: bool,
+) -> Result<(AppWindowSmoke, S, Option<AppWindowSurfaceFrameProof>)>
+where
+    S: Send + 'static,
+    F: FnMut(&mut S, AppWindowInputSample) -> Result<()> + Send + 'static,
+    G: FnMut(&mut S, u32, u32) -> Result<RgbaFrame> + Send + 'static,
+{
+    use app_window::coordinates::{Position, Size};
+    use app_window::input::keyboard::Keyboard;
+    use app_window::input::keyboard::key::KeyboardKey;
+    use app_window::input::mouse::{MOUSE_BUTTON_LEFT, Mouse};
+    use app_window::window::Window;
+
+    let mut window = Window::new(Position::new(16.0, 16.0), Size::new(1120.0, 760.0), title).await;
+    let surface = window.surface().await;
+    let (initial_size, mut scale) = surface.size_scale().await;
+    let mut size = initial_size;
+    if size.width() <= 0.0 || size.height() <= 0.0 {
+        bail!("app_window created a non-positive surface: {size:?} scale {scale}");
+    }
+    let mut width = size.width() as u32;
+    let mut height = size.height() as u32;
+
+    let instance = wgpu::Instance::default();
+    let wgpu_surface = unsafe {
+        instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::RawHandle {
+            raw_display_handle: Some(surface.raw_display_handle()),
+            raw_window_handle: surface.raw_window_handle(),
+        })?
+    };
+    let adapter = instance
+        .request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::default(),
+            force_fallback_adapter: false,
+            compatible_surface: Some(&wgpu_surface),
+        })
+        .await?;
+    let adapter_info = adapter.get_info();
+    let (device, queue) = adapter
+        .request_device(&wgpu::DeviceDescriptor {
+            label: Some("boon-app-window-rgba-playground-device"),
+            required_features: wgpu::Features::empty(),
+            required_limits: wgpu::Limits::downlevel_defaults().using_resolution(adapter.limits()),
+            experimental_features: wgpu::ExperimentalFeatures::disabled(),
+            memory_hints: wgpu::MemoryHints::MemoryUsage,
+            trace: wgpu::Trace::Off,
+        })
+        .await?;
+    let mut config = wgpu_surface
+        .get_default_config(&adapter, width, height)
+        .context("app_window wgpu surface did not provide a default config")?;
+    config.usage |= wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::COPY_SRC;
+    let surface_format = format!("{:?}", config.format);
+    wgpu_surface.configure(&device, &config);
+
+    let keyboard = Keyboard::coalesced().await;
+    let mut mouse = Mouse::coalesced().await;
+    let keys = KeyboardKey::all_keys();
+    let mut previous_keys = BTreeSet::<String>::new();
+    let mut previous_left = false;
+    let mut state = state;
+    let mut surface_proofs = Vec::new();
+    let started = Instant::now();
+    let deadline = started + hold;
+    loop {
+        let (current_size, current_scale) = surface.size_scale().await;
+        let current_width = current_size.width() as u32;
+        let current_height = current_size.height() as u32;
+        if current_width > 0
+            && current_height > 0
+            && (current_width != width || current_height != height)
+        {
+            size = current_size;
+            scale = current_scale;
+            width = current_width;
+            height = current_height;
+            config.width = width;
+            config.height = height;
+            wgpu_surface.configure(&device, &config);
+        }
+        let pressed_keys = keys
+            .iter()
+            .copied()
+            .filter(|key| keyboard.is_pressed(*key))
+            .map(|key| format!("{key:?}"))
+            .collect::<BTreeSet<_>>();
+        let newly_pressed_keys = pressed_keys
+            .difference(&previous_keys)
+            .cloned()
+            .collect::<Vec<_>>();
+        if newly_pressed_keys.iter().any(|key| key == "Escape") {
+            break;
+        }
+        let left_pressed = mouse.button_state(MOUSE_BUTTON_LEFT);
+        let left_clicked = left_pressed && !previous_left;
+        let location = mouse.window_pos();
+        let (scroll_x, scroll_y) = mouse.load_clear_scroll_delta();
+        let sample = AppWindowInputSample {
+            elapsed_ms: started.elapsed().as_millis(),
+            mouse_x: location.map(|location| location.pos_x()),
+            mouse_y: location.map(|location| location.pos_y()),
+            mouse_window_width: location.map(|location| location.window_width()),
+            mouse_window_height: location.map(|location| location.window_height()),
+            left_pressed,
+            left_clicked,
+            scroll_x,
+            scroll_y,
+            pressed_keys: pressed_keys.iter().cloned().collect(),
+            newly_pressed_keys,
+        };
+        on_input(&mut state, sample)?;
+        previous_keys = pressed_keys;
+        previous_left = left_pressed;
+
+        let frame = frame_rgba(&mut state, width, height)?;
+        if capture_surface_proof {
+            surface_proofs.push(present_rgba_frame(
+                &device,
+                &queue,
+                &wgpu_surface,
+                config.format,
+                frame,
+            )?);
+        } else {
+            present_rgba_frame_fast(&queue, &wgpu_surface, config.format, frame)?;
+        }
+        if hold.is_zero() || Instant::now() >= deadline {
+            break;
+        }
+        std::thread::sleep(tick);
+    }
+
+    let (final_size, _) = surface.size_scale().await;
+    let mut last_surface_proof = surface_proofs.pop();
+    if let Some(proof) = &mut last_surface_proof {
+        proof.final_surface_width = final_size.width() as u32;
+        proof.final_surface_height = final_size.height() as u32;
+        proof.size_matches_final_surface = proof.configured_width == proof.final_surface_width
+            && proof.configured_height == proof.final_surface_height;
+        proof.passed = proof.nonblank
+            && proof.distinct_sampled_colors >= 8
+            && proof.size_matches_final_surface;
+    }
+
+    Ok((
+        AppWindowSmoke {
+            logical_width: size.width(),
+            logical_height: size.height(),
+            scale,
+            wgpu_backend: format!("{:?}", adapter_info.backend),
+            wgpu_adapter: adapter_info.name,
+            surface_format,
+        },
+        state,
+        last_surface_proof,
+    ))
+}
+
 fn present_smoke_frame(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -580,6 +838,241 @@ fn present_smoke_frame(
     queue.submit([encoder.finish()]);
     frame.present();
     Ok(())
+}
+
+fn present_rgba_frame(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    surface: &wgpu::Surface<'_>,
+    format: wgpu::TextureFormat,
+    frame: RgbaFrame,
+) -> Result<AppWindowSurfaceFrameProof> {
+    if frame.rgba.len() != frame.width as usize * frame.height as usize * 4 {
+        bail!(
+            "RGBA frame has {} bytes, expected {}",
+            frame.rgba.len(),
+            frame.width as usize * frame.height as usize * 4
+        );
+    }
+    let frame_texture = match surface.get_current_texture() {
+        wgpu::CurrentSurfaceTexture::Success(frame)
+        | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
+        other => bail!("app_window surface did not provide a presentable texture: {other:?}"),
+    };
+    let pixels = surface_format_pixels(format, &frame.rgba)?;
+    queue.write_texture(
+        wgpu::TexelCopyTextureInfo {
+            texture: &frame_texture.texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        &pixels,
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(frame.width * 4),
+            rows_per_image: Some(frame.height),
+        },
+        wgpu::Extent3d {
+            width: frame.width,
+            height: frame.height,
+            depth_or_array_layers: 1,
+        },
+    );
+    let proof = readback_surface_frame(
+        device,
+        queue,
+        &frame_texture.texture,
+        format,
+        frame.width,
+        frame.height,
+    )?;
+    frame_texture.present();
+    Ok(proof)
+}
+
+fn present_rgba_frame_fast(
+    queue: &wgpu::Queue,
+    surface: &wgpu::Surface<'_>,
+    format: wgpu::TextureFormat,
+    frame: RgbaFrame,
+) -> Result<()> {
+    if frame.rgba.len() != frame.width as usize * frame.height as usize * 4 {
+        bail!(
+            "RGBA frame has {} bytes, expected {}",
+            frame.rgba.len(),
+            frame.width as usize * frame.height as usize * 4
+        );
+    }
+    let frame_texture = match surface.get_current_texture() {
+        wgpu::CurrentSurfaceTexture::Success(frame)
+        | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
+        other => bail!("app_window surface did not provide a presentable texture: {other:?}"),
+    };
+    let pixels = surface_format_pixels(format, &frame.rgba)?;
+    queue.write_texture(
+        wgpu::TexelCopyTextureInfo {
+            texture: &frame_texture.texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        &pixels,
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(frame.width * 4),
+            rows_per_image: Some(frame.height),
+        },
+        wgpu::Extent3d {
+            width: frame.width,
+            height: frame.height,
+            depth_or_array_layers: 1,
+        },
+    );
+    queue.submit(std::iter::empty());
+    frame_texture.present();
+    Ok(())
+}
+
+fn readback_surface_frame(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+    format: wgpu::TextureFormat,
+    width: u32,
+    height: u32,
+) -> Result<AppWindowSurfaceFrameProof> {
+    let bytes_per_pixel = 4;
+    let dense_bytes_per_row = width * bytes_per_pixel;
+    let padded_bytes_per_row = align_to(dense_bytes_per_row, wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
+    let output_buffer_size = padded_bytes_per_row as u64 * height as u64;
+    let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("boon-app-window-surface-readback"),
+        size: output_buffer_size,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("boon-app-window-surface-readback-encoder"),
+    });
+    encoder.copy_texture_to_buffer(
+        wgpu::TexelCopyTextureInfo {
+            texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::TexelCopyBufferInfo {
+            buffer: &output_buffer,
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(padded_bytes_per_row),
+                rows_per_image: Some(height),
+            },
+        },
+        wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+    );
+    queue.submit([encoder.finish()]);
+    let slice = output_buffer.slice(..);
+    let (sender, receiver) = mpsc::channel();
+    slice.map_async(wgpu::MapMode::Read, move |result| {
+        let _ = sender.send(result);
+    });
+    device.poll(wgpu::PollType::wait_indefinitely())?;
+    receiver
+        .recv()
+        .context("app_window surface readback callback did not run")?
+        .context("app_window surface readback map failed")?;
+    let mapped = slice.get_mapped_range();
+    let mut surface_pixels = Vec::with_capacity((width * height * bytes_per_pixel) as usize);
+    for row in 0..height as usize {
+        let start = row * padded_bytes_per_row as usize;
+        let end = start + dense_bytes_per_row as usize;
+        surface_pixels.extend_from_slice(&mapped[start..end]);
+    }
+    drop(mapped);
+    output_buffer.unmap();
+    let rgba = surface_pixels_to_rgba(format, &surface_pixels)?;
+    let (distinct_sampled_colors, dominant_rgba, dominant_ratio) = surface_color_stats(&rgba);
+    let nonblank = distinct_sampled_colors > 1 && dominant_ratio < 0.995;
+    Ok(AppWindowSurfaceFrameProof {
+        configured_width: width,
+        configured_height: height,
+        final_surface_width: width,
+        final_surface_height: height,
+        rgba_hash: boon_backend_wgpu::hash_rgba(width, height, &rgba),
+        byte_len: rgba.len(),
+        distinct_sampled_colors,
+        dominant_rgba,
+        dominant_ratio,
+        nonblank,
+        size_matches_final_surface: true,
+        passed: nonblank && distinct_sampled_colors >= 8,
+    })
+}
+
+fn surface_format_pixels(format: wgpu::TextureFormat, rgba: &[u8]) -> Result<Vec<u8>> {
+    match format {
+        wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Rgba8UnormSrgb => Ok(rgba.to_vec()),
+        wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb => {
+            let mut bgra = rgba.to_vec();
+            for pixel in bgra.chunks_exact_mut(4) {
+                pixel.swap(0, 2);
+            }
+            Ok(bgra)
+        }
+        other => bail!("unsupported app_window surface format for RGBA playground: {other:?}"),
+    }
+}
+
+fn surface_pixels_to_rgba(format: wgpu::TextureFormat, pixels: &[u8]) -> Result<Vec<u8>> {
+    match format {
+        wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Rgba8UnormSrgb => {
+            Ok(pixels.to_vec())
+        }
+        wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb => {
+            let mut rgba = pixels.to_vec();
+            for pixel in rgba.chunks_exact_mut(4) {
+                pixel.swap(0, 2);
+            }
+            Ok(rgba)
+        }
+        other => bail!("unsupported app_window surface format for RGBA readback: {other:?}"),
+    }
+}
+
+fn surface_color_stats(rgba: &[u8]) -> (usize, [u8; 4], f64) {
+    let pixel_count = rgba.len() / 4;
+    if pixel_count == 0 {
+        return (0, [0, 0, 0, 0], 1.0);
+    }
+    let stride = (pixel_count / 8192).max(1);
+    let mut colors = Vec::<([u8; 4], usize)>::new();
+    let mut samples = 0usize;
+    for pixel in rgba.chunks_exact(4).step_by(stride) {
+        samples += 1;
+        let color = [pixel[0], pixel[1], pixel[2], pixel[3]];
+        if let Some((_, count)) = colors.iter_mut().find(|(candidate, _)| *candidate == color) {
+            *count += 1;
+        } else if colors.len() < 2048 {
+            colors.push((color, 1));
+        }
+    }
+    colors.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
+    let (dominant_rgba, dominant_count) = colors.first().copied().unwrap_or(([0, 0, 0, 0], 0));
+    (
+        colors.len(),
+        dominant_rgba,
+        dominant_count as f64 / samples.max(1) as f64,
+    )
+}
+
+fn align_to(value: u32, alignment: u32) -> u32 {
+    value.div_ceil(alignment) * alignment
 }
 
 struct TextPresenter {

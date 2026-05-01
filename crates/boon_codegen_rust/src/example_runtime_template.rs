@@ -743,16 +743,37 @@ impl BoonApp for ExampleApp {
                 .map(|list_item| list_item.title.clone())
                 .collect::<Vec<_>>()),
         );
+        values.insert(
+            "store.todos_ids".to_string(),
+            json!(self
+                .list_items
+                .iter()
+                .map(|list_item| list_item.id)
+                .collect::<Vec<_>>()),
+        );
+        values.insert(
+            "store.visible_todos_ids".to_string(),
+            json!(self
+                .visible_keyed_items()
+                .map(|list_item| list_item.id)
+                .collect::<Vec<_>>()),
+        );
+        values.insert("store.selected_filter".to_string(), json!(self.filter));
         for list_item in &self.list_items {
             values.insert(
                 format!("store.todos[{}].title", list_item.id),
                 json!(list_item.title),
             );
             values.insert(
+                format!("store.todos[{}].completed", list_item.id),
+                json!(list_item.completed),
+            );
+            values.insert(
                 format!("store.todos[{}].editing", list_item.id),
                 json!(list_item.editing),
             );
         }
+        values.insert("game.frame".to_string(), json!(self.game_frame));
         values.insert("cells.A1".to_string(), json!(self.grid_value(1, 1)));
         values.insert("cells.A2".to_string(), json!(self.grid_value(2, 1)));
         values.insert("cells.A3".to_string(), json!(self.grid_value(3, 1)));

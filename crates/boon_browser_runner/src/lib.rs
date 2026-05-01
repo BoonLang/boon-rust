@@ -366,9 +366,27 @@ fn run_core_scenario(name: &str, app: &mut impl BoonApp) -> Result<()> {
                     SourceValue::Tag("Enter".to_string()),
                 ),
             )?;
+            for (owner, text) in [("A2", "2"), ("A3", "3")] {
+                dispatch(
+                    app,
+                    dynamic_state(
+                        "cells[*].sources.editor.text",
+                        owner,
+                        0,
+                        SourceValue::Text(text.to_string()),
+                    ),
+                )?;
+                dispatch(
+                    app,
+                    dynamic_event(
+                        "cells[*].sources.editor.event.change",
+                        owner,
+                        0,
+                        SourceValue::EmptyRecord,
+                    ),
+                )?;
+            }
             for (owner, text) in [
-                ("A2", "2"),
-                ("A3", "3"),
                 ("B1", "=add(A1, A2)"),
                 ("B2", "=sum(A1:A3)"),
                 ("A2", "5"),
