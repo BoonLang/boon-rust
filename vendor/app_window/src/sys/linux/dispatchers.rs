@@ -566,7 +566,7 @@ impl<A: AsRef<Mutex<WindowInternal>>> Dispatch<WlPointer, A> for App {
                                 toplevel._move(seat.as_ref().unwrap(), serial);
                             }
                             MouseRegion::CloseButton => {
-                                data.close_window();
+                                data.request_close();
                             }
                             MouseRegion::MaximizeButton => data.maximize(),
                             MouseRegion::MinimizeButton => {

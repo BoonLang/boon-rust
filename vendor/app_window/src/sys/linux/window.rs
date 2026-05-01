@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 use std::collections::HashSet;
 use std::fmt::Debug;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 use wayland_client::QueueHandle;
 use wayland_client::protocol::wl_seat::WlSeat;
@@ -47,6 +48,8 @@ pub(super) struct WindowInternal {
     pub title: String,
     pub current_outputs: HashSet<u32>,
     pub has_been_configured: bool,
+    pub close_requested: AtomicBool,
+    pub destroyed: AtomicBool,
 }
 
 impl WindowInternal {
@@ -79,6 +82,8 @@ impl WindowInternal {
             xdg_surface: None,
             current_outputs: HashSet::new(),
             has_been_configured: false,
+            close_requested: AtomicBool::new(false),
+            destroyed: AtomicBool::new(false),
         }));
         if ax {
             let _aximpl = AX::new(size, title.clone(), window_internal.clone());
@@ -105,7 +110,15 @@ impl WindowInternal {
         Size::new(applied.width as f64, applied.height as f64)
     }
 
+    pub fn request_close(&self) {
+        self.close_requested.store(true, Ordering::SeqCst);
+    }
+
     pub fn close_window(&self) {
+        self.close_requested.store(true, Ordering::SeqCst);
+        if self.destroyed.swap(true, Ordering::SeqCst) {
+            return;
+        }
         // Only destroy xdg objects if we received a configure event.
         // Destroying an unconfigured xdg_surface is a protocol error in Weston.
         if self.has_been_configured {
@@ -119,6 +132,10 @@ impl WindowInternal {
         if let Some(s) = self.wl_surface.as_ref() {
             s.destroy()
         }
+    }
+
+    pub fn is_closed(&self) -> bool {
+        self.close_requested.load(Ordering::SeqCst) || self.destroyed.load(Ordering::SeqCst)
     }
 
     pub fn maximize(&mut self) {

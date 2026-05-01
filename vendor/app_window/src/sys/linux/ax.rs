@@ -119,7 +119,7 @@ impl accesskit::ActionHandler for AX {
         if request.target_node == CLOSE_ID {
             match request.action {
                 Action::Click => {
-                    self.window_internal.lock().unwrap().close_window();
+                    self.window_internal.lock().unwrap().request_close();
                 }
                 _ => unimplemented!(),
             }

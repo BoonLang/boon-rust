@@ -1997,6 +1997,9 @@ impl NativeManualState {
         for key in &sample.newly_pressed_keys {
             self.handle_key(key, &sample.pressed_keys)?;
         }
+        for key in &sample.repeated_keys {
+            self.handle_key(key, &sample.pressed_keys)?;
+        }
         Ok(())
     }
 
@@ -2068,7 +2071,8 @@ impl NativeManualState {
         let visible_ids = self.visible_todo_ids();
         let footer_y = main_y + 64.0 + visible_ids.len() as f64 * 58.0;
         if (footer_y..footer_y + 42.0).contains(&y) {
-            if x >= panel_x + panel_w - 150.0
+            if x >= panel_x + panel_w - 120.0
+                && self.completed_todo_count() > 0
                 && self.has_source("store.sources.clear_completed_button.event.press")
             {
                 return self.dispatch_labeled(
@@ -2079,11 +2083,11 @@ impl NativeManualState {
                     ),
                 );
             }
-            let filter = if (panel_x + 220.0..panel_x + 282.0).contains(&x) {
+            let filter = if (panel_x + 214.0..panel_x + 256.0).contains(&x) {
                 "all"
-            } else if (panel_x + 290.0..panel_x + 352.0).contains(&x) {
+            } else if (panel_x + 268.0..panel_x + 330.0).contains(&x) {
                 "active"
-            } else if (panel_x + 380.0..panel_x + 470.0).contains(&x) {
+            } else if (panel_x + 336.0..panel_x + 428.0).contains(&x) {
                 "completed"
             } else {
                 return Ok(());
@@ -2146,7 +2150,7 @@ impl NativeManualState {
 
     fn handle_cells_click(&mut self, x: f64, y: f64) -> Result<()> {
         let col = ((x - 48.0) / 92.0).floor() as i64 + 1;
-        let row = ((y - 126.0) / 34.0).floor() as i64 + 1;
+        let row = ((y - 154.0) / 34.0).floor() as i64 + 1;
         if !(1..=26).contains(&col) || !(1..=100).contains(&row) {
             return Ok(());
         }
@@ -2155,6 +2159,15 @@ impl NativeManualState {
             owner_id: owner_id.clone(),
         });
         self.text_buffer.clear();
+        if let Some(text) = self
+            .app
+            .snapshot()
+            .values
+            .get(&format!("cells.{owner_id}.formula"))
+            .and_then(|value| value.as_str())
+        {
+            self.text_buffer = text.to_string();
+        }
         self.dispatch_labeled(
             "native mouse double-click cell display",
             dynamic_event(
@@ -2322,6 +2335,15 @@ impl NativeManualState {
                     })
                     .unwrap_or_default()
             })
+    }
+
+    fn completed_todo_count(&self) -> i64 {
+        self.app
+            .snapshot()
+            .values
+            .get("store.completed_todos_count")
+            .and_then(|value| value.as_i64())
+            .unwrap_or(0)
     }
 
     fn dispatch_focused_text(&mut self) -> Result<()> {
@@ -2782,6 +2804,7 @@ fn key_to_char(key: &str, pressed_keys: &[String]) -> Option<char> {
         "Minus" | "KeypadMinus" => '-',
         "Equal" | "KeypadEquals" => '=',
         "Comma" => ',',
+        "Semicolon" => ':',
         "Period" | "KeypadDecimal" => '.',
         "Slash" | "KeypadDivide" => '/',
         "LeftBracket" => '(',
@@ -3122,12 +3145,12 @@ fn run_interval_native_playground_scenarios(
 fn run_cells_native_playground_scenarios(name: &str) -> Result<NativePlaygroundInteractionProof> {
     let mut state = playground_state_for(name)?;
     let mut steps = Vec::new();
-    play_click(&mut state, &mut steps, "click A1 grid cell", 90.0, 143.0)?;
+    play_click(&mut state, &mut steps, "click A1 grid cell", 90.0, 172.0)?;
     play_text(
         &mut state,
         &mut steps,
         "type A1 cell value character-by-character",
-        "42",
+        "1",
     )?;
     play_key(
         &mut state,
@@ -3137,8 +3160,97 @@ fn run_cells_native_playground_scenarios(name: &str) -> Result<NativePlaygroundI
     )?;
     expect(
         state.snapshot()?.values.get("cells.A1"),
-        json!("42"),
+        json!("1"),
         "cells A1 after native playground edit",
+    )?;
+    play_click(&mut state, &mut steps, "click A2 grid cell", 90.0, 206.0)?;
+    play_text(
+        &mut state,
+        &mut steps,
+        "type A2 cell value character-by-character",
+        "2",
+    )?;
+    play_key(
+        &mut state,
+        &mut steps,
+        "press Enter in A2 cell editor",
+        "Return",
+    )?;
+    play_click(&mut state, &mut steps, "click B1 grid cell", 182.0, 172.0)?;
+    play_text(
+        &mut state,
+        &mut steps,
+        "type B1 add formula character-by-character",
+        "=add(a1, a2)",
+    )?;
+    play_key(
+        &mut state,
+        &mut steps,
+        "press Enter in B1 formula editor",
+        "Return",
+    )?;
+    expect(
+        state.snapshot()?.values.get("cells.B1"),
+        json!("3"),
+        "cells B1 after native playground add formula",
+    )?;
+    expect(
+        state.snapshot()?.values.get("cells.selected_formula"),
+        json!("=add(a1, a2)"),
+        "cells formula bar shows selected B1 formula",
+    )?;
+    play_click(&mut state, &mut steps, "click B2 grid cell", 182.0, 206.0)?;
+    play_text(
+        &mut state,
+        &mut steps,
+        "type B2 sum formula character-by-character",
+        "=sum(a1:a2)",
+    )?;
+    play_key(
+        &mut state,
+        &mut steps,
+        "press Enter in B2 formula editor",
+        "Return",
+    )?;
+    expect(
+        state.snapshot()?.values.get("cells.B2"),
+        json!("3"),
+        "cells B2 after native playground sum formula",
+    )?;
+    play_click(
+        &mut state,
+        &mut steps,
+        "click A2 grid cell for update",
+        90.0,
+        206.0,
+    )?;
+    play_key(
+        &mut state,
+        &mut steps,
+        "clear old A2 value with Backspace",
+        "Backspace",
+    )?;
+    play_text(
+        &mut state,
+        &mut steps,
+        "type updated A2 value character-by-character",
+        "5",
+    )?;
+    play_key(
+        &mut state,
+        &mut steps,
+        "press Enter after updating A2",
+        "Return",
+    )?;
+    expect(
+        state.snapshot()?.values.get("cells.B1"),
+        json!("6"),
+        "cells B1 recomputes after A2 update",
+    )?;
+    expect(
+        state.snapshot()?.values.get("cells.B2"),
+        json!("6"),
+        "cells B2 recomputes after A2 update",
     )?;
     let scenario = finish_playground_scenario(
         "cells_click_type_enter",
@@ -3146,8 +3258,10 @@ fn run_cells_native_playground_scenarios(name: &str) -> Result<NativePlaygroundI
         steps,
         vec![
             "sidebar selection used".to_string(),
-            "grid cell clicked".to_string(),
-            "cell text typed character-by-character".to_string(),
+            "grid cells clicked".to_string(),
+            "cell text and formulas typed character-by-character".to_string(),
+            "formula bar exposes selected formula".to_string(),
+            "dependent formulas recompute after source cell update".to_string(),
         ],
     )?;
     Ok(single_playground_proof(name, scenario))
@@ -3158,19 +3272,81 @@ fn run_game_native_playground_scenarios(name: &str) -> Result<NativePlaygroundIn
     let mut steps = Vec::new();
     let first = state.render_gui_frame(1020, 1082)?;
     let first_hash = hash_rgba(first.width, first.height, &first.rgba);
-    play_key(
-        &mut state,
-        &mut steps,
-        "press ArrowUp game control",
-        "UpArrow",
-    )?;
+    let initial_snapshot = state.snapshot()?;
+    let initial_x = snapshot_i64(&initial_snapshot, "game.ball_x")?;
+    let initial_y = snapshot_i64(&initial_snapshot, "game.ball_y")?;
+    let initial_dx = snapshot_i64(&initial_snapshot, "game.ball_dx")?;
+    let initial_dy = snapshot_i64(&initial_snapshot, "game.ball_dy")?;
+    let initial_bricks = snapshot_i64(&initial_snapshot, "game.bricks_live_count").unwrap_or(0);
+    let (axis, first_key, second_key, first_label, second_label) = if name == "arkanoid" {
+        (
+            "game.paddle_x",
+            "LeftArrow",
+            "RightArrow",
+            "press ArrowLeft horizontal paddle control",
+            "press ArrowRight horizontal paddle control and advance frame",
+        )
+    } else {
+        (
+            "game.paddle_y",
+            "UpArrow",
+            "DownArrow",
+            "press ArrowUp vertical paddle control",
+            "press ArrowDown vertical paddle control and advance frame",
+        )
+    };
+    let initial_paddle = snapshot_i64(&initial_snapshot, axis)?;
+    play_key(&mut state, &mut steps, first_label, first_key)?;
+    let after_first = snapshot_i64(&state.snapshot()?, axis)?;
+    if after_first >= initial_paddle {
+        bail!(
+            "{name} playground {first_key} did not move paddle: {initial_paddle} -> {after_first}"
+        );
+    }
     state.current_state_mut()?.last_auto_tick = Instant::now() - Duration::from_millis(60);
-    play_key(
+    play_key(&mut state, &mut steps, second_label, second_key)?;
+    let after_second = snapshot_i64(&state.snapshot()?, axis)?;
+    if after_second <= after_first {
+        bail!(
+            "{name} playground {second_key} did not move paddle: {after_first} -> {after_second}"
+        );
+    }
+    record_playground_step(
         &mut state,
         &mut steps,
-        "press ArrowDown game control and advance frame",
-        "DownArrow",
+        "hold game control key and receive key-repeat sample",
+        repeated_key_sample(second_key),
     )?;
+    let after_repeat = snapshot_i64(&state.snapshot()?, axis)?;
+    if after_repeat <= after_second {
+        bail!(
+            "{name} playground held {second_key} did not continue moving paddle: {after_second} -> {after_repeat}"
+        );
+    }
+    let mut saw_ball_move = false;
+    let mut saw_collision = false;
+    let mut saw_brick_hit = name != "arkanoid";
+    for tick_idx in 0..48 {
+        state.current_state_mut()?.last_auto_tick = Instant::now() - Duration::from_millis(60);
+        let frame = state.render_gui_frame(1020, 1082)?;
+        steps.push(NativePlaygroundStepProof {
+            action: format!("advance deterministic game physics frame {tick_idx}"),
+            sample: AppWindowInputSample::default(),
+            current_example: state.examples[state.current_index].to_string(),
+            snapshot_hash: snapshot_hash(&state.snapshot()?)?,
+            frame_hash: hash_rgba(frame.width, frame.height, &frame.rgba),
+        });
+        let snapshot = state.snapshot()?;
+        let x = snapshot_i64(&snapshot, "game.ball_x")?;
+        let y = snapshot_i64(&snapshot, "game.ball_y")?;
+        let dx = snapshot_i64(&snapshot, "game.ball_dx")?;
+        let dy = snapshot_i64(&snapshot, "game.ball_dy")?;
+        saw_ball_move |= x != initial_x || y != initial_y;
+        saw_collision |= dx.signum() != initial_dx.signum() || dy.signum() != initial_dy.signum();
+        if name == "arkanoid" {
+            saw_brick_hit |= snapshot_i64(&snapshot, "game.bricks_live_count")? < initial_bricks;
+        }
+    }
     let frame = state
         .snapshot()?
         .values
@@ -3179,6 +3355,15 @@ fn run_game_native_playground_scenarios(name: &str) -> Result<NativePlaygroundIn
         .unwrap_or(0);
     if frame == 0 {
         bail!("{name} playground did not advance autonomous game frame");
+    }
+    if !saw_ball_move {
+        bail!("{name} playground ball did not move during physics ticks");
+    }
+    if !saw_collision {
+        bail!("{name} playground did not observe a ball collision reversing velocity");
+    }
+    if !saw_brick_hit {
+        bail!("{name} playground did not remove a brick during Arkanoid collision scenario");
     }
     if steps
         .last()
@@ -3192,11 +3377,23 @@ fn run_game_native_playground_scenarios(name: &str) -> Result<NativePlaygroundIn
         steps,
         vec![
             "sidebar selection used".to_string(),
-            "keyboard controls accepted".to_string(),
+            "keyboard controls moved the paddle".to_string(),
+            "held keyboard repeat continued moving the paddle".to_string(),
             "autonomous frame advanced".to_string(),
+            "ball position changed from runtime physics".to_string(),
+            "ball collision reversed velocity".to_string(),
+            "arkanoid brick collision removes bricks when applicable".to_string(),
         ],
     )?;
     Ok(single_playground_proof(name, scenario))
+}
+
+fn snapshot_i64(snapshot: &boon_runtime::AppSnapshot, key: &str) -> Result<i64> {
+    snapshot
+        .values
+        .get(key)
+        .and_then(|value| value.as_i64())
+        .with_context(|| format!("missing numeric snapshot key `{key}`"))
 }
 
 fn single_playground_proof(
@@ -3271,13 +3468,13 @@ fn todomvc_playground_add_toggle_filter_clear(name: &str) -> Result<NativePlaygr
         "TodoMVC completed count after playground checkbox",
     )?;
     if name == "todo_mvc" {
-        play_todo_footer_click(&mut state, &mut steps, "click completed filter", 460.0)?;
+        play_todo_footer_click(&mut state, &mut steps, "click completed filter", 456.0)?;
         expect(
             state.snapshot()?.values.get("store.selected_filter"),
             json!("completed"),
             "TodoMVC completed filter selected",
         )?;
-        play_todo_footer_click(&mut state, &mut steps, "click active filter", 390.0)?;
+        play_todo_footer_click(&mut state, &mut steps, "click active filter", 374.0)?;
         expect(
             state.snapshot()?.values.get("store.selected_filter"),
             json!("active"),
@@ -3290,7 +3487,7 @@ fn todomvc_playground_add_toggle_filter_clear(name: &str) -> Result<NativePlaygr
             "TodoMVC all filter selected",
         )?;
     }
-    play_todo_footer_click(&mut state, &mut steps, "click clear completed", 580.0)?;
+    play_todo_footer_click(&mut state, &mut steps, "click clear completed", 565.0)?;
     expect(
         state.snapshot()?.values.get("store.todos_count"),
         json!(2),
@@ -3392,6 +3589,17 @@ fn todomvc_playground_reject_empty_and_outside_click(
         initial_count.clone(),
         "TodoMVC count unchanged after outside click",
     )?;
+    play_todo_footer_click(
+        &mut state,
+        &mut steps,
+        "click hidden clear-completed area with no completed todos",
+        565.0,
+    )?;
+    expect(
+        state.snapshot()?.values.get("store.todos_count"),
+        initial_count.clone(),
+        "TodoMVC count unchanged when clear completed is hidden",
+    )?;
     play_click(
         &mut state,
         &mut steps,
@@ -3400,6 +3608,25 @@ fn todomvc_playground_reject_empty_and_outside_click(
         162.0,
     )?;
     play_text(&mut state, &mut steps, "type whitespace-only text", "   ")?;
+    for idx in 0..3 {
+        record_playground_step(
+            &mut state,
+            &mut steps,
+            &format!(
+                "hold Backspace repeat deletes whitespace character {}",
+                idx + 1
+            ),
+            repeated_key_sample("Delete"),
+        )?;
+    }
+    expect(
+        state
+            .snapshot()?
+            .values
+            .get("store.sources.new_todo_input.text"),
+        json!(""),
+        "TodoMVC repeated Backspace cleared input",
+    )?;
     play_key(
         &mut state,
         &mut steps,
@@ -3418,6 +3645,7 @@ fn todomvc_playground_reject_empty_and_outside_click(
         vec![
             "outside click did not mutate state".to_string(),
             "whitespace-only todo rejected".to_string(),
+            "held Backspace repeat deletes text continuously".to_string(),
         ],
     )
 }
@@ -3557,6 +3785,16 @@ fn key_sample(key: &str) -> AppWindowInputSample {
     }
 }
 
+fn repeated_key_sample(key: &str) -> AppWindowInputSample {
+    AppWindowInputSample {
+        mouse_window_width: Some(1020.0),
+        mouse_window_height: Some(1082.0),
+        pressed_keys: vec![key.to_string()],
+        repeated_keys: vec![key.to_string()],
+        ..AppWindowInputSample::default()
+    }
+}
+
 fn key_name(ch: char) -> &'static str {
     match ch {
         'a' | 'A' => "A",
@@ -3599,6 +3837,7 @@ fn key_name(ch: char) -> &'static str {
         '-' => "Minus",
         '=' => "Equal",
         ',' => "Comma",
+        ':' => "Semicolon",
         '.' => "Period",
         '/' => "Slash",
         '(' => "LeftBracket",

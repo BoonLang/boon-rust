@@ -7,6 +7,7 @@ use glyphon::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeSet;
 use std::fs;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
@@ -1029,6 +1030,7 @@ fn draw_todomvc_preview(
         .lines()
         .filter_map(parse_todo_line)
         .collect::<Vec<_>>();
+    let completed_count = items.iter().filter(|(_, completed, _)| *completed).count();
     let panel_w = w.min(700).saturating_mul(550) / 700;
     let panel_x = x + (w.saturating_sub(panel_w)) / 2;
     let heading_y = y + 28;
@@ -1206,8 +1208,12 @@ fn draw_todomvc_preview(
         &format!("{active} items left"),
         [80, 80, 80, 255],
     );
-    let filters = [("all", 220), ("active", 290), ("completed", 380)];
-    for (name, dx) in filters {
+    let filters = [
+        ("all", 214, 42),
+        ("active", 268, 62),
+        ("completed", 336, 92),
+    ];
+    for (name, dx, button_w) in filters {
         let selected = filter == name;
         if selected {
             draw_rect_outline(
@@ -1216,7 +1222,7 @@ fn draw_todomvc_preview(
                 height,
                 panel_x + dx,
                 footer_y + 10,
-                62,
+                button_w,
                 20,
                 [235, 213, 213, 255],
             );
@@ -1232,16 +1238,18 @@ fn draw_todomvc_preview(
             [80, 80, 80, 255],
         );
     }
-    draw_text(
-        rgba,
-        width,
-        height,
-        panel_x + panel_w.saturating_sub(138),
-        footer_y + 16,
-        1,
-        "Clear completed",
-        [80, 80, 80, 255],
-    );
+    if completed_count > 0 {
+        draw_text(
+            rgba,
+            width,
+            height,
+            panel_x + panel_w.saturating_sub(120),
+            footer_y + 16,
+            1,
+            "Clear completed",
+            [80, 80, 80, 255],
+        );
+    }
     draw_text(
         rgba,
         width,
@@ -1268,6 +1276,9 @@ fn parse_todo_line(line: &str) -> Option<(String, bool, String)> {
     let trimmed = line.trim();
     let (id, rest) = trimmed.split_once(' ')?;
     id.parse::<u64>().ok()?;
+    if !rest.starts_with("[x]") && !rest.starts_with("[ ]") {
+        return None;
+    }
     let completed = rest.starts_with("[x]");
     let title = rest.get(4..)?.trim().to_string();
     Some((id.to_string(), completed, title))
@@ -1409,11 +1420,25 @@ fn draw_game_preview(
     frame_text: &str,
 ) {
     let title = current_example_title(frame_text);
-    let frame = frame_text
+    let frame = frame_u32(frame_text, "frame").unwrap_or(0);
+    let paddle_y = frame_u32(frame_text, "paddle_y").unwrap_or(50).min(100);
+    let paddle_x = frame_u32(frame_text, "paddle_x").unwrap_or(50).min(100);
+    let right_paddle_y = frame_u32(frame_text, "right_paddle_y")
+        .unwrap_or(50)
+        .min(100);
+    let ball_x = frame_u32(frame_text, "ball_x").unwrap_or(500).min(1000);
+    let ball_y = frame_u32(frame_text, "ball_y").unwrap_or(350).min(700);
+    let ball_dx = frame_i32(frame_text, "ball_dx").unwrap_or(0);
+    let ball_dy = frame_i32(frame_text, "ball_dy").unwrap_or(0);
+    let bricks_rows = frame_u32(frame_text, "bricks_rows").unwrap_or(0);
+    let bricks_cols = frame_u32(frame_text, "bricks_cols").unwrap_or(0);
+    let live_bricks = frame_text
         .lines()
-        .find_map(|line| line.strip_prefix("frame: "))
-        .and_then(|value| value.parse::<u32>().ok())
-        .unwrap_or(0);
+        .find_map(|line| line.strip_prefix("bricks_live: "))
+        .unwrap_or("")
+        .split(',')
+        .filter_map(|value| value.parse::<u32>().ok())
+        .collect::<BTreeSet<_>>();
     draw_rect(rgba, width, height, x, y, w, h, [8, 12, 18, 255]);
     draw_rect_outline(
         rgba,
@@ -1450,22 +1475,43 @@ fn draw_game_preview(
         [14, 26, 38, 255],
     );
     if title.contains("Arkanoid") {
-        for row in 0..5 {
-            for col in 0..10 {
-                if !(row + col + frame as usize / 12).is_multiple_of(7) {
+        let rows = bricks_rows.max(1);
+        let cols = bricks_cols.max(1);
+        let gap = 6;
+        let top = arena_y + 28;
+        let brick_h = 22;
+        let brick_w = arena_w
+            .saturating_sub(24)
+            .saturating_sub(gap * cols.saturating_sub(1))
+            / cols;
+        for row in 0..rows {
+            for col in 0..cols {
+                let idx = row * cols + col;
+                if live_bricks.contains(&idx) {
                     draw_rect(
                         rgba,
                         width,
                         height,
-                        arena_x + 12 + col as u32 * 48,
-                        arena_y + 20 + row as u32 * 22,
-                        38,
-                        14,
+                        arena_x + 12 + col * (brick_w + gap),
+                        top + row * (brick_h + gap),
+                        brick_w.saturating_sub(1).max(8),
+                        brick_h,
                         [180, 92u8.saturating_add(row as u8 * 24), 80, 255],
                     );
                 }
             }
         }
+        let paddle_w = 124;
+        draw_rect(
+            rgba,
+            width,
+            height,
+            arena_x + arena_w.saturating_sub(paddle_w) * paddle_x / 100,
+            arena_y + arena_h.saturating_sub(38),
+            paddle_w,
+            14,
+            [220, 235, 240, 255],
+        );
     } else {
         draw_rect(
             rgba,
@@ -1477,14 +1523,16 @@ fn draw_game_preview(
             arena_h.saturating_sub(32),
             [52, 72, 88, 255],
         );
-        let left_span = arena_h.saturating_sub(160).max(1);
+        let left_span = arena_h.saturating_sub(120).max(1);
         let right_span = arena_h.saturating_sub(180).max(1);
+        let left_y = arena_y + 18 + left_span * paddle_y / 100;
+        let right_y = arena_y + 18 + right_span * right_paddle_y / 100;
         draw_rect(
             rgba,
             width,
             height,
             arena_x + 24,
-            arena_y + 88 + (frame * 3 % left_span),
+            left_y,
             12,
             84,
             [210, 236, 240, 255],
@@ -1494,33 +1542,23 @@ fn draw_game_preview(
             width,
             height,
             arena_x + arena_w.saturating_sub(36),
-            arena_y + 120 + (frame * 2 % right_span),
+            right_y,
             12,
             84,
             [210, 236, 240, 255],
         );
     }
-    let ball_x = arena_x + 80 + (frame * 9 % arena_w.saturating_sub(120).max(1));
-    let ball_y = arena_y + 80 + (frame * 5 % arena_h.saturating_sub(120).max(1));
+    let ball_px = arena_x + arena_w.saturating_sub(18) * ball_x / 1000;
+    let ball_py = arena_y + arena_h.saturating_sub(18) * ball_y / 700;
     draw_rect(
         rgba,
         width,
         height,
-        ball_x,
-        ball_y,
+        ball_px,
+        ball_py,
         14,
         14,
         [96, 224, 230, 255],
-    );
-    draw_rect(
-        rgba,
-        width,
-        height,
-        arena_x + arena_w / 2 - 54,
-        arena_y + arena_h.saturating_sub(34),
-        108,
-        12,
-        [220, 235, 240, 255],
     );
     draw_text(
         rgba,
@@ -1529,9 +1567,25 @@ fn draw_game_preview(
         x + 42,
         y + h.saturating_sub(32),
         1,
-        &format!("frame {frame} | arrow keys control paddle"),
+        &format!(
+            "frame {frame} | ball {ball_x},{ball_y} d {ball_dx},{ball_dy} | arrows control paddle"
+        ),
         [156, 188, 204, 255],
     );
+}
+
+fn frame_u32(frame_text: &str, key: &str) -> Option<u32> {
+    frame_text
+        .lines()
+        .find_map(|line| line.strip_prefix(&format!("{key}: ")))
+        .and_then(|value| value.parse::<u32>().ok())
+}
+
+fn frame_i32(frame_text: &str, key: &str) -> Option<i32> {
+    frame_text
+        .lines()
+        .find_map(|line| line.strip_prefix(&format!("{key}: ")))
+        .and_then(|value| value.parse::<i32>().ok())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1546,6 +1600,18 @@ fn draw_cells_preview(
     frame_text: &str,
 ) {
     draw_rect(rgba, width, height, x, y, w, h, [248, 250, 252, 255]);
+    let selected = frame_text
+        .lines()
+        .find_map(|line| line.strip_prefix("selected: "))
+        .unwrap_or("A1");
+    let formula = frame_text
+        .lines()
+        .find_map(|line| line.strip_prefix("formula: "))
+        .unwrap_or("");
+    let value = frame_text
+        .lines()
+        .find_map(|line| line.strip_prefix("value: "))
+        .unwrap_or("");
     draw_text(
         rgba,
         width,
@@ -1556,8 +1622,83 @@ fn draw_cells_preview(
         "Cells",
         [34, 65, 80, 255],
     );
+    let name_box_x = x + 32;
+    let formula_y = y + 68;
+    draw_rect(
+        rgba,
+        width,
+        height,
+        name_box_x,
+        formula_y,
+        72,
+        30,
+        [238, 242, 245, 255],
+    );
+    draw_rect_outline(
+        rgba,
+        width,
+        height,
+        name_box_x,
+        formula_y,
+        72,
+        30,
+        [178, 194, 204, 255],
+    );
+    draw_text(
+        rgba,
+        width,
+        height,
+        name_box_x + 16,
+        formula_y + 11,
+        1,
+        selected,
+        [36, 56, 68, 255],
+    );
+    draw_text(
+        rgba,
+        width,
+        height,
+        name_box_x + 88,
+        formula_y + 11,
+        1,
+        "fx",
+        [83, 105, 118, 255],
+    );
+    let formula_x = name_box_x + 118;
+    let formula_w = w.saturating_sub(170).min(510);
+    draw_rect(
+        rgba,
+        width,
+        height,
+        formula_x,
+        formula_y,
+        formula_w,
+        30,
+        [255, 255, 255, 255],
+    );
+    draw_rect_outline(
+        rgba,
+        width,
+        height,
+        formula_x,
+        formula_y,
+        formula_w,
+        30,
+        [178, 194, 204, 255],
+    );
+    let formula_label = if formula.is_empty() { value } else { formula };
+    draw_text(
+        rgba,
+        width,
+        height,
+        formula_x + 10,
+        formula_y + 11,
+        1,
+        formula_label,
+        [35, 52, 62, 255],
+    );
     let grid_x = x + 48;
-    let grid_y = y + 92;
+    let grid_y = y + 120;
     let cell_w = 92;
     let cell_h = 34;
     for col in 0..6 {
@@ -1606,6 +1747,7 @@ fn draw_cells_preview(
         for col in 0..6 {
             let cx = grid_x + col * cell_w;
             let cy = grid_y + row * cell_h;
+            let cell_name = format!("{}{}", (b'A' + col as u8) as char, row);
             draw_rect(
                 rgba,
                 width,
@@ -1626,20 +1768,63 @@ fn draw_cells_preview(
                 cell_h,
                 [213, 222, 228, 255],
             );
+            if cell_name == selected {
+                draw_rect_outline(
+                    rgba,
+                    width,
+                    height,
+                    cx + 1,
+                    cy + 1,
+                    cell_w.saturating_sub(2),
+                    cell_h.saturating_sub(2),
+                    [33, 115, 70, 255],
+                );
+            }
+            if let Some(text) = cell_preview_value(frame_text, row as usize, col as usize) {
+                draw_text(
+                    rgba,
+                    width,
+                    height,
+                    cx + 8,
+                    cy + 12,
+                    1,
+                    text,
+                    [33, 48, 58, 255],
+                );
+            }
         }
     }
-    for line in frame_text.lines().skip(2).take(5) {
-        draw_text(
-            rgba,
-            width,
-            height,
-            x + 640.min(w.saturating_sub(180)),
-            y + 100 + 22 * line.len().min(5) as u32,
-            1,
-            line,
-            [56, 82, 96, 255],
-        );
+    draw_text(
+        rgba,
+        width,
+        height,
+        x + 32,
+        y + h.saturating_sub(32),
+        1,
+        "Type numbers or formulas like =add(A1, A2) and =sum(A1:A3)",
+        [76, 98, 112, 255],
+    );
+}
+
+fn cell_preview_value(frame_text: &str, row: usize, col: usize) -> Option<&str> {
+    let prefix = format!("row {row}: ");
+    let line = frame_text
+        .lines()
+        .find_map(|line| line.strip_prefix(&prefix))?;
+    let name = match col {
+        0 => "A",
+        1 => "B",
+        2 => "C",
+        _ => return None,
+    };
+    for part in line.split('|') {
+        let part = part.trim();
+        let (key, value) = part.split_once('=')?;
+        if key.trim() == name {
+            return Some(value.trim());
+        }
     }
+    None
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1951,4 +2136,32 @@ fn sampled_color_count(rgba: &[u8]) -> usize {
         }
     }
     colors.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn todomvc_parser_does_not_treat_footer_as_todo() {
+        assert_eq!(
+            parse_todo_line("1 [ ] Buy groceries"),
+            Some(("1".to_string(), false, "Buy groceries".to_string()))
+        );
+        assert_eq!(
+            parse_todo_line("2 [x] Clean room"),
+            Some(("2".to_string(), true, "Clean room".to_string()))
+        );
+        assert_eq!(parse_todo_line("2 items left"), None);
+        assert_eq!(parse_todo_line("filter: completed"), None);
+    }
+
+    #[test]
+    fn cells_preview_parser_reads_rendered_grid_rows() {
+        let frame_text = "Cells\nselected: B1\nformula: =add(a1, a2)\nvalue: 3\ncolumns: A B C D E F ... Z\nrow 1: A=1 | B=3 | C=\nrow 2: A=2 | B=3 | C=\n";
+        assert_eq!(cell_preview_value(frame_text, 1, 0), Some("1"));
+        assert_eq!(cell_preview_value(frame_text, 1, 1), Some("3"));
+        assert_eq!(cell_preview_value(frame_text, 2, 1), Some("3"));
+        assert_eq!(cell_preview_value(frame_text, 3, 1), None);
+    }
 }

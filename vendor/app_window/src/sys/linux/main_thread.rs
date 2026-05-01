@@ -32,10 +32,11 @@ struct MainThreadSender {
 impl MainThreadSender {
     fn send(&self, message: Message) {
         if let Err(err) = self.sender.send(message) {
-            if !IS_MAIN_THREAD_RUNNING.load(Ordering::SeqCst) {
-                return;
-            }
-            panic!("Can't send closure: {err:?}");
+            logwise::warn_sync!(
+                "can't send app_window main-thread message after shutdown: {err}",
+                err = logwise::privacy::LogIt(format!("{err:?}"))
+            );
+            return;
         }
         let val = 1_u64;
         let w = unsafe {
@@ -50,12 +51,12 @@ impl MainThreadSender {
         {
             return;
         }
-        assert_eq!(
-            w,
-            std::mem::size_of_val(&val) as isize,
-            "Failed to write to eventfd: {err}",
-            err = unsafe { *libc::__errno_location() }
-        );
+        if w != std::mem::size_of_val(&val) as isize {
+            logwise::warn_sync!(
+                "failed to write app_window main-thread eventfd after shutdown: {err}",
+                err = logwise::privacy::LogIt(unsafe { *libc::__errno_location() })
+            );
+        }
     }
 }
 
@@ -246,18 +247,38 @@ pub fn run_main_thread<F: FnOnce() + Send + 'static>(closure: F) {
                                 }
                             }
                         }
-                        WaylandError::Protocol(_) => {
-                            panic!("Protocol error reading from wayland");
+                        WaylandError::Protocol(err) => {
+                            logwise::warn_sync!(
+                                "wayland protocol error while closing app_window: {err}",
+                                err = logwise::privacy::LogIt(format!("{err:?}"))
+                            );
+                            IS_MAIN_THREAD_RUNNING.store(false, Ordering::SeqCst);
+                            break;
                         }
                     }
                 }
             }
-            event_queue
-                .dispatch_pending(&mut app)
-                .expect("Can't dispatch events");
+            if !IS_MAIN_THREAD_RUNNING.load(Ordering::SeqCst) {
+                break;
+            }
+            if let Err(err) = event_queue.dispatch_pending(&mut app) {
+                logwise::warn_sync!(
+                    "can't dispatch wayland events while closing app_window: {err}",
+                    err = logwise::privacy::LogIt(format!("{err:?}"))
+                );
+                IS_MAIN_THREAD_RUNNING.store(false, Ordering::SeqCst);
+                break;
+            }
             //prepare next read
             //ensure writes queued during dispatch_pending go out (such as proxy replies, etc)
-            event_queue.flush().expect("Failed to flush event queue");
+            if let Err(err) = event_queue.flush() {
+                logwise::warn_sync!(
+                    "failed to flush wayland queue while closing app_window: {err}",
+                    err = logwise::privacy::LogIt(format!("{err:?}"))
+                );
+                IS_MAIN_THREAD_RUNNING.store(false, Ordering::SeqCst);
+                break;
+            }
 
             let mut sqs = io_uring.submission();
             wayland_entry =

@@ -132,6 +132,11 @@ impl Surface {
         self.sys.size_main()
     }
 
+    /// Returns true after the platform window has begun closing.
+    pub fn is_closed(&self) -> bool {
+        self.sys.is_closed()
+    }
+
     /// Returns the raw window handle for this surface.
     ///
     /// This handle can be used with graphics APIs like wgpu to create a rendering surface.

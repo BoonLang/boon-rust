@@ -4,7 +4,7 @@ use glyphon::{
     TextArea, TextAtlas, TextBounds, TextRenderer, Viewport, fontdb,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -37,6 +37,7 @@ pub struct AppWindowInputSample {
     pub scroll_y: f64,
     pub pressed_keys: Vec<String>,
     pub newly_pressed_keys: Vec<String>,
+    pub repeated_keys: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -446,6 +447,7 @@ where
     let mut mouse = Mouse::coalesced().await;
     let keys = KeyboardKey::all_keys();
     let mut previous_keys = BTreeSet::<String>::new();
+    let mut key_repeats = BTreeMap::<String, KeyRepeatState>::new();
     let mut previous_left = false;
     let mut state = state;
     let started = Instant::now();
@@ -462,6 +464,8 @@ where
             .difference(&previous_keys)
             .cloned()
             .collect::<Vec<_>>();
+        let repeated_keys =
+            update_key_repeats(&pressed_keys, &newly_pressed_keys, &mut key_repeats);
         let left_pressed = mouse.button_state(MOUSE_BUTTON_LEFT);
         let left_clicked = left_pressed && !previous_left;
         let location = mouse.window_pos();
@@ -478,6 +482,7 @@ where
             scroll_y,
             pressed_keys: pressed_keys.iter().cloned().collect(),
             newly_pressed_keys,
+            repeated_keys,
         };
         on_input(&mut state, sample)?;
         previous_keys = pressed_keys;
@@ -563,6 +568,7 @@ where
     let mut mouse = Mouse::coalesced().await;
     let keys = KeyboardKey::all_keys();
     let mut previous_keys = BTreeSet::<String>::new();
+    let mut key_repeats = BTreeMap::<String, KeyRepeatState>::new();
     let mut previous_left = false;
     let mut state = state;
     let started = Instant::now();
@@ -588,6 +594,8 @@ where
             .difference(&previous_keys)
             .cloned()
             .collect::<Vec<_>>();
+        let repeated_keys =
+            update_key_repeats(&pressed_keys, &newly_pressed_keys, &mut key_repeats);
         if newly_pressed_keys.iter().any(|key| key == "Escape") {
             break;
         }
@@ -607,6 +615,7 @@ where
             scroll_y,
             pressed_keys: pressed_keys.iter().cloned().collect(),
             newly_pressed_keys,
+            repeated_keys,
         };
         on_input(&mut state, sample)?;
         previous_keys = pressed_keys;
@@ -696,12 +705,16 @@ where
     let mut mouse = Mouse::coalesced().await;
     let keys = KeyboardKey::all_keys();
     let mut previous_keys = BTreeSet::<String>::new();
+    let mut key_repeats = BTreeMap::<String, KeyRepeatState>::new();
     let mut previous_left = false;
     let mut state = state;
     let mut surface_proofs = Vec::new();
     let started = Instant::now();
     let deadline = started + hold;
     loop {
+        if surface.is_closed() {
+            break;
+        }
         let (current_size, current_scale) = surface.size_scale().await;
         let current_width = current_size.width() as u32;
         let current_height = current_size.height() as u32;
@@ -727,6 +740,8 @@ where
             .difference(&previous_keys)
             .cloned()
             .collect::<Vec<_>>();
+        let repeated_keys =
+            update_key_repeats(&pressed_keys, &newly_pressed_keys, &mut key_repeats);
         if newly_pressed_keys.iter().any(|key| key == "Escape") {
             break;
         }
@@ -746,8 +761,12 @@ where
             scroll_y,
             pressed_keys: pressed_keys.iter().cloned().collect(),
             newly_pressed_keys,
+            repeated_keys,
         };
         on_input(&mut state, sample)?;
+        if surface.is_closed() {
+            break;
+        }
         previous_keys = pressed_keys;
         previous_left = left_pressed;
 
@@ -793,6 +812,58 @@ where
         state,
         last_surface_proof,
     ))
+}
+
+#[derive(Clone, Debug)]
+struct KeyRepeatState {
+    pressed_at: Instant,
+    last_repeat_at: Instant,
+}
+
+fn update_key_repeats(
+    pressed_keys: &BTreeSet<String>,
+    newly_pressed_keys: &[String],
+    key_repeats: &mut BTreeMap<String, KeyRepeatState>,
+) -> Vec<String> {
+    const INITIAL_REPEAT_DELAY: Duration = Duration::from_millis(260);
+    const REPEAT_INTERVAL: Duration = Duration::from_millis(42);
+
+    let now = Instant::now();
+    key_repeats.retain(|key, _| pressed_keys.contains(key));
+    for key in newly_pressed_keys {
+        key_repeats.insert(
+            key.clone(),
+            KeyRepeatState {
+                pressed_at: now,
+                last_repeat_at: now,
+            },
+        );
+    }
+
+    let newly_pressed = newly_pressed_keys.iter().collect::<BTreeSet<_>>();
+    let mut repeated = Vec::new();
+    for key in pressed_keys {
+        if newly_pressed.contains(key) {
+            continue;
+        }
+        let Some(state) = key_repeats.get_mut(key) else {
+            key_repeats.insert(
+                key.clone(),
+                KeyRepeatState {
+                    pressed_at: now,
+                    last_repeat_at: now,
+                },
+            );
+            continue;
+        };
+        if now.saturating_duration_since(state.pressed_at) >= INITIAL_REPEAT_DELAY
+            && now.saturating_duration_since(state.last_repeat_at) >= REPEAT_INTERVAL
+        {
+            state.last_repeat_at = now;
+            repeated.push(key.clone());
+        }
+    }
+    repeated
 }
 
 fn present_smoke_frame(

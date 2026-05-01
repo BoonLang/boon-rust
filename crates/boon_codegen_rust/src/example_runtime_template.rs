@@ -14,6 +14,7 @@ pub struct ExampleApp {
     filter: String,
     grid: GridModel,
     game_frame: u64,
+    game: GameModel,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -53,6 +54,69 @@ impl GridModel {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct GameModel {
+    ball_x: i64,
+    ball_y: i64,
+    ball_dx: i64,
+    ball_dy: i64,
+    paddle_x: i64,
+    paddle_y: i64,
+    right_paddle_y: i64,
+    bricks_rows: usize,
+    bricks_cols: usize,
+    bricks: Vec<bool>,
+    score: i64,
+    lives: i64,
+}
+
+impl GameModel {
+    fn pong() -> Self {
+        Self {
+            ball_x: 84,
+            ball_y: 350,
+            ball_dx: -12,
+            ball_dy: 8,
+            paddle_x: 50,
+            paddle_y: 50,
+            right_paddle_y: 50,
+            bricks_rows: 0,
+            bricks_cols: 0,
+            bricks: Vec::new(),
+            score: 0,
+            lives: 3,
+        }
+    }
+
+    fn arkanoid() -> Self {
+        let rows = 6;
+        let cols = 12;
+        Self {
+            ball_x: 470,
+            ball_y: 205,
+            ball_dx: 10,
+            ball_dy: -12,
+            paddle_x: 50,
+            paddle_y: 50,
+            right_paddle_y: 50,
+            bricks_rows: rows,
+            bricks_cols: cols,
+            bricks: vec![true; rows * cols],
+            score: 0,
+            lives: 3,
+        }
+    }
+
+    fn live_brick_indices(&self) -> String {
+        self.bricks
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, live)| live.then_some(idx.to_string()))
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+}
+
 impl ExampleApp {
     fn new(compiled: boon_compiler::CompiledModule) -> Self {
         let inventory = compiled.sources;
@@ -67,6 +131,7 @@ impl ExampleApp {
             .as_ref()
             .map(|grid| GridModel::new(grid.rows, grid.columns))
             .unwrap_or_else(|| GridModel::new(100, 26));
+        let is_arkanoid = program.title.contains("Arkanoid");
         let mut app = Self {
             program,
             inventory,
@@ -92,6 +157,11 @@ impl ExampleApp {
             filter: "all".to_string(),
             grid,
             game_frame: 0,
+            game: if is_arkanoid {
+                GameModel::arkanoid()
+            } else {
+                GameModel::pong()
+            },
         };
         app.next_list_item_id = app.list_items.len() as u64 + 1;
         app.frame_text = app.render_text();
@@ -159,9 +229,184 @@ impl ExampleApp {
 
     fn render_frame_counter(&self) -> String {
         format!(
-            "{}\nframe: {}\ndeterministic input source: store.sources.tick.event.frame",
-            self.program.title, self.game_frame
+            "{}\nframe: {}\npaddle_y: {}\npaddle_x: {}\nright_paddle_y: {}\nball_x: {}\nball_y: {}\nball_dx: {}\nball_dy: {}\nbricks_rows: {}\nbricks_cols: {}\nbricks_live: {}\nscore: {}\nlives: {}\ndeterministic input source: store.sources.tick.event.frame",
+            self.program.title,
+            self.game_frame,
+            self.game.paddle_y,
+            self.game.paddle_x,
+            self.game.right_paddle_y,
+            self.game.ball_x,
+            self.game.ball_y,
+            self.game.ball_dx,
+            self.game.ball_dy,
+            self.game.bricks_rows,
+            self.game.bricks_cols,
+            self.game.live_brick_indices(),
+            self.game.score,
+            self.game.lives
         )
+    }
+
+    fn advance_game_frame(&mut self) {
+        self.game_frame += 1;
+        if self.program.title.contains("Arkanoid") {
+            self.advance_arkanoid_frame();
+        } else {
+            self.advance_pong_frame();
+        }
+    }
+
+    fn advance_pong_frame(&mut self) {
+        const ARENA_W: i64 = 1000;
+        const ARENA_H: i64 = 700;
+        const BALL: i64 = 22;
+        const PADDLE_W: i64 = 18;
+        const PADDLE_H: i64 = 128;
+        const LEFT_X: i64 = 38;
+        const RIGHT_X: i64 = ARENA_W - LEFT_X - PADDLE_W;
+
+        self.game.ball_x += self.game.ball_dx;
+        self.game.ball_y += self.game.ball_dy;
+        if self.game.ball_y <= 0 {
+            self.game.ball_y = 0;
+            self.game.ball_dy = self.game.ball_dy.abs();
+        } else if self.game.ball_y + BALL >= ARENA_H {
+            self.game.ball_y = ARENA_H - BALL;
+            self.game.ball_dy = -self.game.ball_dy.abs();
+        }
+
+        self.game.right_paddle_y =
+            position_from_paddle_top(self.game.ball_y + BALL / 2 - PADDLE_H / 2, ARENA_H, PADDLE_H);
+        let left_y = paddle_top_from_position(self.game.paddle_y, ARENA_H, PADDLE_H);
+        let right_y = paddle_top_from_position(self.game.right_paddle_y, ARENA_H, PADDLE_H);
+
+        if self.game.ball_dx < 0
+            && self.game.ball_x <= LEFT_X + PADDLE_W
+            && self.game.ball_x + BALL >= LEFT_X
+            && ranges_overlap(self.game.ball_y, self.game.ball_y + BALL, left_y, left_y + PADDLE_H)
+        {
+            self.game.ball_x = LEFT_X + PADDLE_W;
+            self.game.ball_dx = self.game.ball_dx.abs();
+            self.game.ball_dy = (self.game.ball_dy
+                + ((self.game.ball_y + BALL / 2) - (left_y + PADDLE_H / 2)) / 18)
+                .clamp(-18, 18);
+            self.game.score += 1;
+        }
+        if self.game.ball_dx > 0
+            && self.game.ball_x + BALL >= RIGHT_X
+            && self.game.ball_x <= RIGHT_X + PADDLE_W
+            && ranges_overlap(
+                self.game.ball_y,
+                self.game.ball_y + BALL,
+                right_y,
+                right_y + PADDLE_H,
+            )
+        {
+            self.game.ball_x = RIGHT_X - BALL;
+            self.game.ball_dx = -self.game.ball_dx.abs();
+            self.game.ball_dy = (self.game.ball_dy
+                + ((self.game.ball_y + BALL / 2) - (right_y + PADDLE_H / 2)) / 18)
+                .clamp(-18, 18);
+            self.game.score += 1;
+        }
+        if self.game.ball_x < -BALL || self.game.ball_x > ARENA_W + BALL {
+            self.game.ball_x = ARENA_W / 2;
+            self.game.ball_y = ARENA_H / 2;
+            self.game.ball_dx = if self.game.ball_dx < 0 { 12 } else { -12 };
+            self.game.ball_dy = 8;
+            self.game.lives = (self.game.lives - 1).max(0);
+        }
+    }
+
+    fn advance_arkanoid_frame(&mut self) {
+        const ARENA_W: i64 = 1000;
+        const ARENA_H: i64 = 700;
+        const BALL: i64 = 22;
+        const PADDLE_W: i64 = 160;
+        const PADDLE_H: i64 = 18;
+        const PADDLE_Y: i64 = 646;
+
+        self.game.ball_x += self.game.ball_dx;
+        self.game.ball_y += self.game.ball_dy;
+        if self.game.ball_x <= 0 {
+            self.game.ball_x = 0;
+            self.game.ball_dx = self.game.ball_dx.abs();
+        } else if self.game.ball_x + BALL >= ARENA_W {
+            self.game.ball_x = ARENA_W - BALL;
+            self.game.ball_dx = -self.game.ball_dx.abs();
+        }
+        if self.game.ball_y <= 0 {
+            self.game.ball_y = 0;
+            self.game.ball_dy = self.game.ball_dy.abs();
+        }
+
+        if self.game.ball_dy < 0 {
+            let margin = 36;
+            let gap = 8;
+            let brick_h = 28;
+            let rows = self.game.bricks_rows as i64;
+            let cols = self.game.bricks_cols as i64;
+            let brick_w = if cols > 0 {
+                (ARENA_W - margin * 2 - gap * (cols - 1)) / cols
+            } else {
+                0
+            };
+            'brick_scan: for row in 0..rows {
+                for col in 0..cols {
+                    let idx = (row * cols + col) as usize;
+                    if !self.game.bricks.get(idx).copied().unwrap_or(false) {
+                        continue;
+                    }
+                    let bx = margin + col * (brick_w + gap);
+                    let by = 56 + row * (brick_h + gap);
+                    if rects_overlap(
+                        self.game.ball_x,
+                        self.game.ball_y,
+                        BALL,
+                        BALL,
+                        bx,
+                        by,
+                        brick_w,
+                        brick_h,
+                    ) {
+                        self.game.bricks[idx] = false;
+                        self.game.ball_dy = self.game.ball_dy.abs();
+                        self.game.score += 10;
+                        break 'brick_scan;
+                    }
+                }
+            }
+        }
+
+        let paddle_x = paddle_left_from_position(self.game.paddle_x, ARENA_W, PADDLE_W);
+        if self.game.ball_dy > 0
+            && rects_overlap(
+                self.game.ball_x,
+                self.game.ball_y,
+                BALL,
+                BALL,
+                paddle_x,
+                PADDLE_Y,
+                PADDLE_W,
+                PADDLE_H,
+            )
+        {
+            self.game.ball_y = PADDLE_Y - BALL;
+            self.game.ball_dy = -self.game.ball_dy.abs();
+            self.game.ball_dx = (self.game.ball_dx
+                + ((self.game.ball_x + BALL / 2) - (paddle_x + PADDLE_W / 2)) / 18)
+                .clamp(-18, 18);
+        }
+        if self.game.ball_y > ARENA_H {
+            self.game.ball_x = paddle_x + PADDLE_W / 2 - BALL / 2;
+            self.game.ball_y = PADDLE_Y - BALL - 2;
+            self.game.ball_dx = 10;
+            self.game.ball_dy = -12;
+            self.game.lives = (self.game.lives - 1).max(0);
+        }
+        if self.game.bricks.iter().all(|live| !*live) {
+            self.game.bricks.fill(true);
+        }
     }
 
     fn visible_keyed_items(&self) -> impl Iterator<Item = &ListItem> {
@@ -175,21 +420,29 @@ impl ExampleApp {
     fn render_grid(&self) -> String {
         let mut lines = vec![
             self.program.title.clone(),
-            "     A     B     C     ...     Z".to_string(),
+            format!(
+                "selected: {}{}",
+                column_name(self.grid.selected.1),
+                self.grid.selected.0
+            ),
+            format!(
+                "formula: {}",
+                self.grid_text(self.grid.selected.0, self.grid.selected.1)
+            ),
+            format!(
+                "value: {}",
+                self.grid_value(self.grid.selected.0, self.grid.selected.1)
+            ),
+            "columns: A B C D E F ... Z".to_string(),
         ];
         for row in 1..=self.grid.rows.min(5) {
             lines.push(format!(
-                "{row:>3}  {:<5} {:<5} {:<5}",
+                "row {row}: A={} | B={} | C={}",
                 self.grid_value(row, 1.min(self.grid.columns)),
                 self.grid_value(row, 2.min(self.grid.columns)),
                 self.grid_value(row, 3.min(self.grid.columns))
             ));
         }
-        lines.push(format!(
-            "selected: {}{}",
-            column_name(self.grid.selected.1),
-            self.grid.selected.0
-        ));
         lines.push(format!(
             "row {} and column {} reachable",
             self.grid.rows,
@@ -200,6 +453,10 @@ impl ExampleApp {
 
     fn grid_value(&self, row: usize, col: usize) -> &str {
         &self.grid.value[self.grid_idx(row, col)]
+    }
+
+    fn grid_text(&self, row: usize, col: usize) -> &str {
+        &self.grid.text[self.grid_idx(row, col)]
     }
 
     fn grid_idx(&self, row: usize, col: usize) -> usize {
@@ -371,7 +628,7 @@ impl ExampleApp {
 
     fn parse_cell_ref_tuple(&self, text: &str) -> Option<(usize, usize)> {
         let mut chars = text.chars();
-        let col = chars.next()?;
+        let col = chars.next()?.to_ascii_uppercase();
         if !col.is_ascii_uppercase() {
             return None;
         }
@@ -698,9 +955,34 @@ impl BoonApp for ExampleApp {
                     }
                 }
                 results.push(self.emit_frame(&["cells.selected"], metrics));
+            } else if event.path.ends_with("store.sources.paddle.event.key_down.key") {
+                if let SourceValue::Tag(key) = &event.value {
+                    if self.program.title.contains("Arkanoid") {
+                        match key.as_str() {
+                            "ArrowLeft" | "ArrowUp" => {
+                                self.game.paddle_x = (self.game.paddle_x - 8).max(0);
+                            }
+                            "ArrowRight" | "ArrowDown" => {
+                                self.game.paddle_x = (self.game.paddle_x + 8).min(100);
+                            }
+                            _ => {}
+                        }
+                    } else {
+                        match key.as_str() {
+                            "ArrowUp" | "ArrowLeft" => {
+                                self.game.paddle_y = (self.game.paddle_y - 8).max(0);
+                            }
+                            "ArrowDown" | "ArrowRight" => {
+                                self.game.paddle_y = (self.game.paddle_y + 8).min(100);
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                results.push(self.emit_frame(&["game.paddle"], metrics));
             } else {
-                self.game_frame += 1;
-                results.push(self.emit_frame(&["frame"], metrics));
+                self.advance_game_frame();
+                results.push(self.emit_frame(&["frame", "game.ball"], metrics));
             }
         }
         if results.is_empty() && !changed_paths.is_empty() {
@@ -774,11 +1056,55 @@ impl BoonApp for ExampleApp {
             );
         }
         values.insert("game.frame".to_string(), json!(self.game_frame));
+        values.insert("game.paddle_y".to_string(), json!(self.game.paddle_y));
+        values.insert("game.paddle_x".to_string(), json!(self.game.paddle_x));
+        values.insert(
+            "game.right_paddle_y".to_string(),
+            json!(self.game.right_paddle_y),
+        );
+        values.insert("game.ball_x".to_string(), json!(self.game.ball_x));
+        values.insert("game.ball_y".to_string(), json!(self.game.ball_y));
+        values.insert("game.ball_dx".to_string(), json!(self.game.ball_dx));
+        values.insert("game.ball_dy".to_string(), json!(self.game.ball_dy));
+        values.insert(
+            "game.bricks_rows".to_string(),
+            json!(self.game.bricks_rows as i64),
+        );
+        values.insert(
+            "game.bricks_cols".to_string(),
+            json!(self.game.bricks_cols as i64),
+        );
+        values.insert(
+            "game.bricks_live_count".to_string(),
+            json!(self.game.bricks.iter().filter(|live| **live).count() as i64),
+        );
+        values.insert("game.score".to_string(), json!(self.game.score));
+        values.insert("game.lives".to_string(), json!(self.game.lives));
         values.insert("cells.A1".to_string(), json!(self.grid_value(1, 1)));
         values.insert("cells.A2".to_string(), json!(self.grid_value(2, 1)));
         values.insert("cells.A3".to_string(), json!(self.grid_value(3, 1)));
         values.insert("cells.B1".to_string(), json!(self.grid_value(1, 2)));
         values.insert("cells.B2".to_string(), json!(self.grid_value(2, 2)));
+        for (row, col, name) in [
+            (1, 1, "A1"),
+            (2, 1, "A2"),
+            (3, 1, "A3"),
+            (1, 2, "B1"),
+            (2, 2, "B2"),
+        ] {
+            values.insert(
+                format!("cells.{name}.formula"),
+                json!(self.grid_text(row, col)),
+            );
+        }
+        values.insert(
+            "cells.selected_formula".to_string(),
+            json!(self.grid_text(self.grid.selected.0, self.grid.selected.1)),
+        );
+        values.insert(
+            "cells.selected_value".to_string(),
+            json!(self.grid_value(self.grid.selected.0, self.grid.selected.1)),
+        );
         values.insert(
             "cells.selected".to_string(),
             json!(format!(
@@ -804,6 +1130,37 @@ impl BoonApp for ExampleApp {
 
 fn column_name(col: usize) -> char {
     (b'A' + (col as u8).saturating_sub(1)) as char
+}
+
+fn paddle_top_from_position(position: i64, arena_h: i64, paddle_h: i64) -> i64 {
+    ((arena_h - paddle_h).max(0) * position.clamp(0, 100) / 100).clamp(0, arena_h - paddle_h)
+}
+
+fn paddle_left_from_position(position: i64, arena_w: i64, paddle_w: i64) -> i64 {
+    ((arena_w - paddle_w).max(0) * position.clamp(0, 100) / 100).clamp(0, arena_w - paddle_w)
+}
+
+fn position_from_paddle_top(top: i64, arena_h: i64, paddle_h: i64) -> i64 {
+    let span = (arena_h - paddle_h).max(1);
+    (top.clamp(0, span) * 100 / span).clamp(0, 100)
+}
+
+fn ranges_overlap(a0: i64, a1: i64, b0: i64, b1: i64) -> bool {
+    a0 < b1 && b0 < a1
+}
+
+#[allow(clippy::too_many_arguments)]
+fn rects_overlap(
+    ax: i64,
+    ay: i64,
+    aw: i64,
+    ah: i64,
+    bx: i64,
+    by: i64,
+    bw: i64,
+    bh: i64,
+) -> bool {
+    ax < bx + bw && bx < ax + aw && ay < by + bh && by < ay + ah
 }
 
 fn source_state_key(emission: &SourceEmission) -> String {

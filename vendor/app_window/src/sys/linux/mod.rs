@@ -183,6 +183,10 @@ impl Surface {
         self.size_scale_impl()
     }
 
+    pub fn is_closed(&self) -> bool {
+        self.window_internal.lock().unwrap().is_closed()
+    }
+
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         RawWindowHandle::Wayland(WaylandWindowHandle::new(
             NonNull::new(self.wl_surface.id().as_ptr() as *mut c_void)

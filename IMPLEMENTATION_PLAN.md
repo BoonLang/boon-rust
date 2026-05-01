@@ -1658,6 +1658,22 @@ TodoMVC must have multiple playground scenarios covering add, whitespace reject,
 edit, remove, checkbox toggle, filters, clear completed, and outside-click
 non-mutation.
 
+The live native playground fast-present path must be exercised separately from
+the slower verification readback path whenever native presentation changes.
+Queued GPU uploads must be submitted before present; a black window, loading-only
+surface, stale frame, or readback-only pass is a failure. TodoMVC footer text
+such as `items left` must not be parsed as a todo row; filter hit boxes must
+select their intended filters; Clear completed must be visible/clickable only
+when completed todos exist. Cells native scenarios must prove 7GUIs-style cell
+editing with a formula bar, raw values, formulas, ranges, and dependent
+recalculation through human-like clicks/typing. Pong/Arkanoid native scenarios
+must assert keyboard input moves the correct paddle axis, ball physics advances
+from runtime state, collisions reverse velocity, Pong has no extra horizontal
+paddle, and Arkanoid fills the brick field while removing bricks on collision.
+Held keyboard input must repeat continuously in the native playground: arrow
+keys must keep moving paddles while held, and text editing keys such as
+Backspace must keep deleting while held.
+
 ### 9.4 GPU text rendering
 
 Text rendering is required early because TodoMVC and Cells depend on it.
@@ -2568,9 +2584,17 @@ Success criteria:
 - `cargo xtask playground native --example todo_mvc` displays a graphical
   TodoMVC-like preview with actual visible input, checkbox, filter, row, and
   clear-completed regions,
+- native presentation changes are verified with a hold-based
+  `cargo xtask playground native --example <name> --hold-ms <ms>` smoke on the
+  live fast-present path in addition to internal app_window surface readback,
 - interval examples tick from live host time in manual native playground mode,
 - `pong` and `arkanoid` advance automatically in manual native playground mode
-  and accept keyboard control,
+  and accept keyboard control. Pong must bounce off walls and both vertical
+  paddles without rendering a bottom paddle. Arkanoid must fill the available
+  brick area, bounce off walls/paddle/bricks, and remove bricks on collision,
+- closing the native app_window through the window close button must stop
+  presentation before the Wayland surface is destroyed and must not panic or
+  segfault,
 - no winit fallback added.
 
 ### Phase 11: Browser wgpu backend
