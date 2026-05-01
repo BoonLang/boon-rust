@@ -8,6 +8,15 @@ This plan extends `IMPLEMENTATION_PLAN.md` for the native/browser playground exp
 - The playground has a graphical shell with an example sidebar, toolbar/status area, preview surface, and visible control hints.
 - The maintained examples are selectable and interactive: `counter`, `counter_hold`, `interval`, `interval_hold`, `todo_mvc`, `todo_mvc_physical`, `cells`, `pong`, and `arkanoid`.
 - Example business logic stays in Boon source files. Rust may implement only generic runtime, rendering, timing, hit testing, input dispatch, and verification plumbing.
+- This is a hard honesty gate, not guidance. The native playground must not be
+  powered by Rust-side TodoMVC, Cells, Pong, Arkanoid, counter, or interval
+  branches hidden in templates or renderers. Example behavior and view structure
+  must come from `examples/<name>/source.bn` lowered through Boon compiler IR
+  and executed by the generated/interpreted Boon runtime.
+- `cargo test --workspace` must include
+  `boon_powered_gate::runtime_codegen_and_renderers_do_not_embed_example_business_logic`.
+  Do not weaken or delete that test; make it pass by replacing handwritten
+  example logic/renderers with real Boon lowering/execution.
 
 ## Native GUI Requirements
 

@@ -22,6 +22,48 @@ The current focus examples are:
 
 All examples must eventually run and be automatically verified on Ratatui, native wgpu, and Firefox browser wgpu. Do not add Chromium tests or Chromium harnesses unless this plan is explicitly updated.
 
+## Current Critical Milestone: Make The Playground Honestly Boon-Powered
+
+`docs/plans/boon_powered_migration_plan.md` is a focused source-of-truth
+addendum for this milestone and must be followed together with this file.
+
+The current checked-in native playground is useful as a UI/backend verification
+harness, but it is not acceptable as the final implementation because too much
+example behavior is still handwritten in Rust. The next unattended
+implementation run must replace the Rust-side example semantics with real
+Boon-powered execution.
+
+Definition of done for this milestone:
+
+- `examples/<name>/source.bn` owns the business behavior and view structure for
+  every maintained example: counter, counter_hold, interval, interval_hold,
+  todo_mvc, todo_mvc_physical, cells, pong, and arkanoid.
+- The compiler parses those programs into AST/HIR, lowers them into a
+  renderer-neutral Boon IR, performs SOURCE binding/shape checks, and either
+  interprets that IR or generates Rust from it.
+- `crates/boon_codegen_rust/src/example_runtime_template.rs` must stop being a
+  switchboard for TodoMVC, Cells, Pong, Arkanoid, counters, or intervals.
+- `crates/boon_backend_wgpu/src/lib.rs` must stop drawing handcrafted
+  TodoMVC/Cells/Pong/Arkanoid preview screens. It should render generic Boon
+  render IR / scene nodes produced by the compiler/runtime.
+- Rust may keep only generic language/runtime primitives, generic render IR
+  application, backend drawing primitives, hit testing, input dispatch,
+  app_window/wgpu/browser plumbing, timing, and verification harnesses.
+- Verification scenarios may still be example-aware because they are tests, but
+  they must drive public SOURCE/input boundaries and assert Boon-owned state,
+  not private Rust template fields.
+- `cargo test --workspace` and `cargo xtask verify all` must include an
+  anti-cheat gate that fails while runtime/codegen/rendering files contain
+  example-specific behavior or handcrafted example renderers.
+- Do not weaken, delete, or whitelist the anti-cheat gate to pass. Make it pass
+  by removing the cheats and implementing real Boon lowering/execution.
+- The user-visible native playground should behave at least as well as the
+  current one after the migration: same or better visuals, smooth held-key
+  controls, clean app_window close, and human-like scenario coverage.
+- TodoMVC speed gates are non-negotiable: the migrated Boon-powered TodoMVC
+  must still satisfy the plan's typing, checkbox, and toggle-all budgets on the
+  required platforms.
+
 ---
 
 ## 0. Non-negotiable design constraints
@@ -2402,14 +2444,20 @@ Deliverables:
 - keep all example business logic in Boon; do not add TodoMVC, Cells, Pong, or Arkanoid logic to runtime or stdlib,
 - add parser fixture tests that snapshot AST/HIR for each `source.bn`,
 - add source inventory snapshots for each `source.bn`,
-- add a rule that the compiler must not silently change Boon semantics to make examples easier.
+- add a rule that the compiler must not silently change Boon semantics to make examples easier,
+- add and keep the anti-cheat test gate
+  `crates/boon_verify/tests/boon_powered_gate.rs`, which must fail while
+  runtime/codegen/rendering files contain example-specific behavior or
+  handcrafted example renderers.
 
 Success criteria:
 
 - all target examples have `examples/<name>/source.bn`,
 - `cargo xtask examples list` shows them,
 - parser tests fail if example syntax is not supported,
-- source inventory snapshots fail if SOURCE migration changes accidentally.
+- source inventory snapshots fail if SOURCE migration changes accidentally,
+- the anti-cheat gate passes because examples are truly powered by Boon
+  lowering/execution, not because the gate was weakened.
 
 ### Phase 1: Workspace and minimal compiler skeleton
 
@@ -2652,9 +2700,17 @@ Deliverables:
 
 Success criteria:
 
+- `cargo test --workspace` includes and passes
+  `boon_powered_gate::runtime_codegen_and_renderers_do_not_embed_example_business_logic`,
 - `cargo xtask verify all` bootstraps missing repo-local tools in the current
   development checkout and runs the Ratatui buffer, Ratatui PTY, native headless
   wgpu, native app_window, and Firefox WebGPU gates,
+- runtime/codegen/rendering files do not contain TodoMVC, Cells, Pong, or
+  Arkanoid app semantics, physics, formula evaluation, list filtering, todo
+  editing, or handcrafted example preview renderers,
+- native playground behavior is produced from `examples/<name>/source.bn`
+  through compiler IR and runtime execution, while Rust remains generic
+  host/backend plumbing,
 - TodoMVC and Cells pass the hard timing budgets and deterministic frame/hash
   checkpoints from Sections 12.4, 12.5, and 13,
 - missing PTY support, missing stable Firefox WebGPU, or missing native app_window
