@@ -23,6 +23,7 @@ use base64::Engine as _;
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Backend {
     QualityGate,
+    BoonPowered,
     RatatuiBuffer,
     RatatuiPty,
     NativeWgpuHeadless,
@@ -46,6 +47,48 @@ pub struct VerifyReport {
     pub results: Vec<GateResult>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BoonPoweredGateReport {
+    pub passed: bool,
+    pub scanned_files: Vec<String>,
+    pub violations: Vec<BoonPoweredViolation>,
+    pub mutation_probes: Vec<BoonPoweredMutationProbe>,
+    pub generated_provenance: BoonPoweredGeneratedProvenance,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BoonPoweredViolation {
+    pub check: String,
+    pub path: String,
+    pub line: usize,
+    pub column: usize,
+    pub evidence: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BoonPoweredMutationProbe {
+    pub example: String,
+    pub mutation: String,
+    pub original_compile_ok: bool,
+    pub mutated_compile_ok: bool,
+    pub changed_compiled_output: bool,
+    pub original_sha256: Option<String>,
+    pub mutated_sha256: Option<String>,
+    pub passed: bool,
+    pub detail: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BoonPoweredGeneratedProvenance {
+    pub path: String,
+    pub exists: bool,
+    pub required: bool,
+    pub has_source_sha256: bool,
+    pub has_ir_sha256: bool,
+    pub has_source_span_table: bool,
+    pub passed: bool,
+}
+
 fn prepare_artifact_dir(dir: &Path) -> Result<()> {
     if dir.exists() {
         fs::remove_dir_all(dir).with_context(|| {
@@ -55,6 +98,331 @@ fn prepare_artifact_dir(dir: &Path) -> Result<()> {
     fs::create_dir_all(dir)
         .with_context(|| format!("failed to create artifact directory {}", dir.display()))?;
     Ok(())
+}
+
+pub fn verify_boon_powered(artifacts: &Path) -> Result<VerifyReport> {
+    let root = repo_root()?;
+    let dir = artifacts.join("boon-powered");
+    prepare_artifact_dir(&dir)?;
+    let report = boon_powered_gate_report(&root, true)?;
+    let report_path = dir.join("boon-powered-gate.json");
+    fs::write(&report_path, serde_json::to_vec_pretty(&report)?)?;
+    Ok(VerifyReport {
+        command: "verify boon-powered".to_string(),
+        results: vec![GateResult {
+            backend: Backend::BoonPowered,
+            example: "all".to_string(),
+            passed: report.passed,
+            frame_hash: None,
+            artifact_dir: dir,
+            message: if report.passed {
+                "passed Boon-powered anti-cheat gate".to_string()
+            } else {
+                format!(
+                    "Boon-powered anti-cheat gate failed: {} handwritten Rust violations, {} failed mutation/provenance checks; see {}",
+                    report.violations.len(),
+                    report
+                        .mutation_probes
+                        .iter()
+                        .filter(|probe| !probe.passed)
+                        .count()
+                        + usize::from(!report.generated_provenance.passed),
+                    report_path.display()
+                )
+            },
+        }],
+    })
+}
+
+pub fn boon_powered_gate_report(
+    root: &Path,
+    require_generated: bool,
+) -> Result<BoonPoweredGateReport> {
+    let scanned_files = handwritten_rust_files(root)?;
+    let mut violations = Vec::new();
+    for rel in &scanned_files {
+        scan_boon_powered_file(root, rel, &mut violations)?;
+    }
+    let mutation_probes = source_mutation_probes(root)?;
+    let generated_provenance = generated_provenance(root, require_generated)?;
+    let passed = violations.is_empty()
+        && mutation_probes.iter().all(|probe| probe.passed)
+        && generated_provenance.passed;
+    Ok(BoonPoweredGateReport {
+        passed,
+        scanned_files,
+        violations,
+        mutation_probes,
+        generated_provenance,
+    })
+}
+
+fn repo_root() -> Result<PathBuf> {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .map(Path::to_path_buf)
+        .context("boon_verify crate is expected under <repo>/crates/boon_verify")
+}
+
+fn handwritten_rust_files(root: &Path) -> Result<Vec<String>> {
+    let mut files = Vec::new();
+    for rel in [
+        "crates/boon_compiler/src",
+        "crates/boon_runtime/src",
+        "crates/boon_codegen_rust/src",
+        "crates/boon_backend_wgpu/src",
+        "crates/boon_backend_ratatui/src",
+    ] {
+        collect_rust_files(root, Path::new(rel), &mut files)?;
+    }
+    files.sort();
+    Ok(files)
+}
+
+fn collect_rust_files(root: &Path, rel: &Path, files: &mut Vec<String>) -> Result<()> {
+    let dir = root.join(rel);
+    for entry in fs::read_dir(&dir).with_context(|| format!("reading {}", dir.display()))? {
+        let entry = entry?;
+        let path = entry.path();
+        let rel_path = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if path.is_dir() {
+            collect_rust_files(root, Path::new(&rel_path), files)?;
+        } else if path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
+            files.push(rel_path);
+        }
+    }
+    Ok(())
+}
+
+fn scan_boon_powered_file(
+    root: &Path,
+    rel: &str,
+    violations: &mut Vec<BoonPoweredViolation>,
+) -> Result<()> {
+    let path = root.join(rel);
+    let text = fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
+    let deny = boon_powered_forbidden_needles();
+    for (line_index, line) in text.lines().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("//") {
+            continue;
+        }
+        for (check, needle) in &deny {
+            if let Some(column) = line.find(needle) {
+                violations.push(BoonPoweredViolation {
+                    check: (*check).to_string(),
+                    path: rel.to_string(),
+                    line: line_index + 1,
+                    column: column + 1,
+                    evidence: line.trim().to_string(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn boon_powered_forbidden_needles() -> Vec<(&'static str, &'static str)> {
+    vec![
+        (
+            "example/domain model in handwritten Rust",
+            "CollectionBinding",
+        ),
+        ("example/domain model in handwritten Rust", "TableBinding"),
+        (
+            "example/domain model in handwritten Rust",
+            "FormulaTableState",
+        ),
+        ("example/domain model in handwritten Rust", "PlayfieldState"),
+        ("example/domain model in handwritten Rust", "CollectionSpec"),
+        ("example/domain model in handwritten Rust", "TableSpec"),
+        ("example/domain model in handwritten Rust", "PlayfieldSpec"),
+        ("example/domain model in handwritten Rust", "PaddleSpec"),
+        ("example/domain model in handwritten Rust", "BrickFieldSpec"),
+        (
+            "example/domain model in handwritten Rust",
+            "SurfaceKind::Collection",
+        ),
+        (
+            "example/domain model in handwritten Rust",
+            "SurfaceKind::Table",
+        ),
+        (
+            "example/domain model in handwritten Rust",
+            "SurfaceKind::Playfield",
+        ),
+        (
+            "handcrafted renderer in handwritten Rust",
+            "render_collection_scene",
+        ),
+        (
+            "handcrafted renderer in handwritten Rust",
+            "render_table_scene",
+        ),
+        (
+            "handcrafted renderer in handwritten Rust",
+            "render_playfield_scene",
+        ),
+        ("handcrafted renderer in handwritten Rust", "draw_todomvc"),
+        ("handcrafted renderer in handwritten Rust", "draw_cells"),
+        ("handcrafted renderer in handwritten Rust", "draw_game"),
+        (
+            "source text heuristic in compiler/runtime",
+            "source.contains(",
+        ),
+        ("source text heuristic in compiler/runtime", "source.find("),
+        ("source text heuristic in compiler/runtime", "named_block("),
+        (
+            "source text heuristic in compiler/runtime",
+            "extract_initial_collection_titles",
+        ),
+        (
+            "source text heuristic in compiler/runtime",
+            "extract_formula_functions",
+        ),
+        (
+            "source text heuristic in compiler/runtime",
+            "extract_hold_increment",
+        ),
+        (
+            "source text heuristic in compiler/runtime",
+            "extract_text_record_field",
+        ),
+        (
+            "source text heuristic in compiler/runtime",
+            "static_view_names",
+        ),
+        (
+            "source text heuristic in compiler/runtime",
+            "playfield_spec(",
+        ),
+        ("source text heuristic in compiler/runtime", "paddle_spec("),
+        ("todo business logic in handwritten Rust", "new_todo"),
+        ("todo business logic in handwritten Rust", "toggle_all"),
+        ("todo business logic in handwritten Rust", "clear_completed"),
+        ("todo business logic in handwritten Rust", "selected_filter"),
+        ("todo business logic in handwritten Rust", "completed_todos"),
+        ("todo business logic in handwritten Rust", "active_todos"),
+        ("cells business logic in handwritten Rust", "formula"),
+        ("cells business logic in handwritten Rust", "Formula"),
+        ("cells business logic in handwritten Rust", "grid_text"),
+        ("game business logic in handwritten Rust", "paddle"),
+        ("game business logic in handwritten Rust", "Paddle"),
+        ("game business logic in handwritten Rust", "brick"),
+        ("game business logic in handwritten Rust", "Brick"),
+        ("game business logic in handwritten Rust", "Arkanoid"),
+        ("game business logic in handwritten Rust", "Pong"),
+        ("example-name branch in handwritten Rust", "todo_mvc"),
+        ("example-name branch in handwritten Rust", "arkanoid"),
+    ]
+}
+
+fn source_mutation_probes(root: &Path) -> Result<Vec<BoonPoweredMutationProbe>> {
+    let probes = [
+        ("counter", "state + 1", "state + 2"),
+        ("counter_hold", "state + 1", "state + 2"),
+        ("interval", "state + 1", "state + 2"),
+        ("interval_hold", "state + 1", "state + 2"),
+        ("todo_mvc", "List/append", "List/append_broken"),
+        ("todo_mvc_physical", "List/append", "List/append_broken"),
+        ("cells", "Math/sum", "Math/sum_broken"),
+        ("pong", "dx: -12", "dx: -13"),
+        ("arkanoid", "columns: 12", "columns: 11"),
+    ];
+    probes
+        .iter()
+        .map(|(example, needle, replacement)| {
+            source_mutation_probe(root, example, needle, replacement)
+        })
+        .collect()
+}
+
+fn source_mutation_probe(
+    root: &Path,
+    example: &str,
+    needle: &str,
+    replacement: &str,
+) -> Result<BoonPoweredMutationProbe> {
+    let path = root.join("examples").join(example).join("source.bn");
+    let source =
+        fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
+    let Some(_) = source.find(needle) else {
+        return Ok(BoonPoweredMutationProbe {
+            example: example.to_string(),
+            mutation: format!("replace `{needle}` with `{replacement}`"),
+            original_compile_ok: false,
+            mutated_compile_ok: false,
+            changed_compiled_output: false,
+            original_sha256: None,
+            mutated_sha256: None,
+            passed: false,
+            detail: format!("source did not contain mutation needle `{needle}`"),
+        });
+    };
+    let mutated = source.replacen(needle, replacement, 1);
+    let original = compile_and_hash(example, &source);
+    let mutated_result = compile_and_hash(example, &mutated);
+    let changed = match (&original, &mutated_result) {
+        (Ok(original_hash), Ok(mutated_hash)) => original_hash != mutated_hash,
+        (Ok(_), Err(_)) => true,
+        _ => false,
+    };
+    Ok(BoonPoweredMutationProbe {
+        example: example.to_string(),
+        mutation: format!("replace `{needle}` with `{replacement}`"),
+        original_compile_ok: original.is_ok(),
+        mutated_compile_ok: mutated_result.is_ok(),
+        changed_compiled_output: changed,
+        original_sha256: original.as_ref().ok().cloned(),
+        mutated_sha256: mutated_result.as_ref().ok().cloned(),
+        passed: original.is_ok() && changed,
+        detail: match (&original, &mutated_result) {
+            (Ok(_), Ok(_)) if changed => {
+                "mutated source compiled to a different Boon output".to_string()
+            }
+            (Ok(_), Err(err)) => format!("mutated source failed to compile: {err}"),
+            (Ok(_), Ok(_)) => "mutated source compiled to identical Boon output".to_string(),
+            (Err(err), _) => format!("original source failed to compile: {err}"),
+        },
+    })
+}
+
+fn compile_and_hash(example: &str, source: &str) -> Result<String> {
+    let compiled = boon_compiler::compile_source(example, source)?;
+    let bytes = serde_json::to_vec(&compiled)?;
+    Ok(hex::encode(Sha256::digest(bytes)))
+}
+
+fn generated_provenance(root: &Path, required: bool) -> Result<BoonPoweredGeneratedProvenance> {
+    let path = root.join("target/generated-examples/generated_examples.rs");
+    let exists = path.exists();
+    let text = if exists {
+        fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?
+    } else {
+        String::new()
+    };
+    let has_source_sha256 = text.contains("SOURCE_SHA256");
+    let has_ir_sha256 = text.contains("IR_SHA256");
+    let has_source_span_table = text.contains("SOURCE_SPANS") || text.contains("SourceSpan");
+    let passed = if required {
+        exists && has_source_sha256 && has_ir_sha256 && has_source_span_table
+    } else {
+        !exists || (has_source_sha256 && has_ir_sha256 && has_source_span_table)
+    };
+    Ok(BoonPoweredGeneratedProvenance {
+        path: path.to_string_lossy().to_string(),
+        exists,
+        required,
+        has_source_sha256,
+        has_ir_sha256,
+        has_source_span_table,
+        passed,
+    })
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -841,6 +1209,15 @@ pub fn verify_native_wgpu_headless(artifacts: &Path) -> Result<VerifyReport> {
 
 pub fn verify_all(artifacts: &Path) -> Result<VerifyReport> {
     let mut results = Vec::new();
+    let boon_powered = verify_boon_powered(artifacts)?;
+    let failed = boon_powered.results.iter().any(|r| !r.passed);
+    results.extend(boon_powered.results);
+    if failed {
+        return Ok(VerifyReport {
+            command: "verify all".to_string(),
+            results,
+        });
+    }
     results.extend(verify_ratatui(artifacts, false)?.results);
     results.extend(verify_ratatui(artifacts, true)?.results);
     let native = verify_native_wgpu_headless(artifacts)?;

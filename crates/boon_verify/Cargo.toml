@@ -15,6 +15,7 @@ boon_backend_app_window = { path = "../boon_backend_app_window" }
 boon_backend_browser = { path = "../boon_backend_browser" }
 boon_backend_ratatui = { path = "../boon_backend_ratatui" }
 boon_backend_wgpu = { path = "../boon_backend_wgpu" }
+boon_compiler = { path = "../boon_compiler" }
 boon_examples = { path = "../boon_examples" }
 boon_runtime = { path = "../boon_runtime" }
 hex.workspace = true

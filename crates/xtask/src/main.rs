@@ -4,8 +4,8 @@ use boon_examples::list_examples;
 use boon_verify::{
     Backend, GateResult, VerifyReport, native_close_probe_helper,
     native_visible_surface_probe_helper, run_native_app_window_example, run_native_playground,
-    verify_all, verify_browser_firefox, verify_native_app_window, verify_native_wgpu_headless,
-    verify_ratatui,
+    verify_all, verify_boon_powered, verify_browser_firefox, verify_native_app_window,
+    verify_native_wgpu_headless, verify_ratatui,
 };
 use serde_json::json;
 use std::env;
@@ -60,7 +60,7 @@ fn main() -> Result<()> {
         Some("bench") => bench(&args[1..]),
         _ => {
             eprintln!(
-                "commands: examples list | bootstrap [--check] | generate | shaders | verify <all|ratatui|native-wgpu|browser-wgpu> | run <native|ratatui|browser> --example <name> [--hold-ms <ms>] | playground native [--example <name>] [--hold-ms <ms>] | doctor firefox-webgpu | firefox reset-profile"
+                "commands: examples list | bootstrap [--check] | generate | shaders | verify <all|boon-powered|ratatui|native-wgpu|browser-wgpu> | run <native|ratatui|browser> --example <name> [--hold-ms <ms>] | playground native [--example <name>] [--hold-ms <ms>] | doctor firefox-webgpu | firefox reset-profile"
             );
             bail!("unknown xtask command")
         }
@@ -361,6 +361,15 @@ fn verify(args: &[String]) -> Result<()> {
     }
     generate()?;
     shaders()?;
+    if args.first().map(String::as_str) == Some("all") {
+        let boon_report = verify_boon_powered(&artifacts)?;
+        if let Some(failed) = boon_report.results.iter().find(|result| !result.passed) {
+            let report_path = artifacts.join("verify-report.json");
+            fs::write(&report_path, serde_json::to_vec_pretty(&boon_report)?)?;
+            println!("wrote {}", report_path.display());
+            bail!("{}", failed.message);
+        }
+    }
     if args.first().map(String::as_str) == Some("all")
         && let Err(err) = quality_gates(&root)
     {
@@ -383,13 +392,14 @@ fn verify(args: &[String]) -> Result<()> {
 
     let report = match args.first().map(String::as_str) {
         Some("all") => verify_all(&artifacts)?,
+        Some("boon-powered") => verify_boon_powered(&artifacts)?,
         Some("ratatui") => verify_ratatui(&artifacts, args.iter().any(|arg| arg == "--pty"))?,
         Some("native-wgpu") if args.iter().any(|arg| arg == "--app-window") => {
             verify_native_app_window(&artifacts)?
         }
         Some("native-wgpu") => verify_native_wgpu_headless(&artifacts)?,
         Some("browser-wgpu") => verify_browser_firefox(&artifacts)?,
-        _ => bail!("expected verify target all|ratatui|native-wgpu|browser-wgpu"),
+        _ => bail!("expected verify target all|boon-powered|ratatui|native-wgpu|browser-wgpu"),
     };
 
     let report_path = artifacts.join("verify-report.json");

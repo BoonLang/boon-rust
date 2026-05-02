@@ -676,6 +676,7 @@ dependencies = [
  "boon_backend_browser",
  "boon_backend_ratatui",
  "boon_backend_wgpu",
+ "boon_compiler",
  "boon_examples",
  "boon_runtime",
  "hex",
