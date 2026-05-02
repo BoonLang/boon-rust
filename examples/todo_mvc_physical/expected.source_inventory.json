@@ -71,7 +71,7 @@
       ],
       "owner": {
         "DynamicFamily": {
-          "owner_path": "store.todos item"
+          "owner_path": "todos item"
         }
       }
     },
@@ -85,7 +85,7 @@
       ],
       "owner": {
         "DynamicFamily": {
-          "owner_path": "store.todos item"
+          "owner_path": "todos item"
         }
       }
     },
@@ -99,7 +99,7 @@
       ],
       "owner": {
         "DynamicFamily": {
-          "owner_path": "store.todos item"
+          "owner_path": "todos item"
         }
       }
     },
@@ -113,7 +113,7 @@
       ],
       "owner": {
         "DynamicFamily": {
-          "owner_path": "store.todos item"
+          "owner_path": "todos item"
         }
       }
     },
@@ -138,7 +138,7 @@
       ],
       "owner": {
         "DynamicFamily": {
-          "owner_path": "store.todos item"
+          "owner_path": "todos item"
         }
       }
     },
@@ -152,7 +152,7 @@
       ],
       "owner": {
         "DynamicFamily": {
-          "owner_path": "store.todos item"
+          "owner_path": "todos item"
         }
       }
     }

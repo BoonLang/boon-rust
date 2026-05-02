@@ -634,7 +634,9 @@ name = "boon_runtime"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "boon_compiler",
  "boon_render_ir",
+ "boon_shape",
  "boon_source",
  "serde",
  "serde_json",

@@ -1,4 +1,5 @@
-use boon_examples::app;
+use boon_compiler::compile_source;
+use boon_examples::{ExampleApp, app, definition};
 use boon_runtime::{BoonApp, SourceBatch, SourceEmission, SourceValue};
 
 #[test]
@@ -182,6 +183,114 @@ fn cells_recompute_dirty_dependents_and_cycles_deterministically() {
     assert_eq!(
         app.snapshot().values.get("cells.A1"),
         Some(&serde_json::json!("#CYCLE"))
+    );
+}
+
+#[test]
+fn behavior_changes_when_source_reducer_expression_is_removed() {
+    let source = definition("counter")
+        .expect("counter definition")
+        .source
+        .replace("state + 1", "state");
+    let mut app =
+        ExampleApp::new(compile_source("counter_no_increment", &source).expect("source compiles"));
+
+    app.dispatch_batch(SourceBatch {
+        state_updates: Vec::new(),
+        events: vec![emission(
+            "store.sources.increment_button.event.press",
+            SourceValue::EmptyRecord,
+        )],
+    })
+    .expect("counter dispatch succeeds");
+
+    assert_eq!(
+        app.snapshot().values.get("counter"),
+        Some(&serde_json::json!(0)),
+        "removing the Boon increment expression must change behavior"
+    );
+}
+
+#[test]
+fn behavior_changes_when_source_list_append_pipeline_is_removed() {
+    let source = definition("todo_mvc")
+        .expect("todo_mvc definition")
+        .source
+        .replace("|> List/append(", "|> Disabled_append(");
+    let mut app =
+        ExampleApp::new(compile_source("todo_mvc_no_append", &source).expect("source compiles"));
+
+    app.dispatch_batch(SourceBatch {
+        state_updates: vec![emission(
+            "store.sources.new_todo_input.text",
+            SourceValue::Text("Should not append".to_string()),
+        )],
+        events: vec![emission(
+            "store.sources.new_todo_input.event.key_down.key",
+            SourceValue::Tag("Enter".to_string()),
+        )],
+    })
+    .expect("todo dispatch succeeds");
+
+    assert_ne!(
+        app.snapshot().values.get("store.todos_count"),
+        Some(&serde_json::json!(3)),
+        "removing the Boon List/append pipeline must not preserve append behavior through a fallback"
+    );
+}
+
+#[test]
+fn behavior_changes_when_source_formula_function_is_removed() {
+    let source = definition("cells")
+        .expect("cells definition")
+        .source
+        .replace("        sum: Math/sum\n", "");
+    let mut app =
+        ExampleApp::new(compile_source("cells_without_sum", &source).expect("source compiles"));
+
+    for (owner, value) in [("A1", "1"), ("A2", "2"), ("B1", "=sum(A1:A2)")] {
+        app.dispatch_batch(SourceBatch {
+            state_updates: vec![dynamic_emission(
+                "cells[*].sources.editor.text",
+                owner,
+                0,
+                SourceValue::Text(value.to_string()),
+            )],
+            events: Vec::new(),
+        })
+        .expect("cell update succeeds");
+    }
+
+    assert_eq!(
+        app.snapshot().values.get("cells.B1"),
+        Some(&serde_json::json!("#ERR")),
+        "removing Math/sum from Boon source must disable sum formulas"
+    );
+}
+
+#[test]
+fn behavior_changes_when_source_brick_field_is_removed() {
+    let source = definition("arkanoid")
+        .expect("arkanoid definition")
+        .source
+        .replace("    bricks:", "    disabled_bricks:");
+    let mut app = ExampleApp::new(
+        compile_source("arkanoid_without_bricks", &source).expect("source compiles"),
+    );
+
+    app.dispatch_batch(SourceBatch {
+        state_updates: Vec::new(),
+        events: vec![emission(
+            "store.sources.tick.event.frame",
+            SourceValue::EmptyRecord,
+        )],
+    })
+    .expect("frame dispatch succeeds");
+
+    assert_eq!(
+        app.snapshot().values.get("game.bricks_cols"),
+        Some(&serde_json::json!(0)),
+        "removing the brick field from Boon source must remove brick behavior"
     );
 }
 

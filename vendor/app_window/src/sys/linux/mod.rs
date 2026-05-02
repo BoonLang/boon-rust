@@ -187,6 +187,10 @@ impl Surface {
         self.window_internal.lock().unwrap().is_closed()
     }
 
+    pub fn request_close_for_test(&self) {
+        self.window_internal.lock().unwrap().request_close();
+    }
+
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         RawWindowHandle::Wayland(WaylandWindowHandle::new(
             NonNull::new(self.wl_surface.id().as_ptr() as *mut c_void)

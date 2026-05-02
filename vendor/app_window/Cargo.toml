@@ -207,7 +207,7 @@ version = "0.31.11"
 
 [target.'cfg(target_os="linux")'.dependencies.wayland-protocols]
 version = "0.32.9"
-features = ["client"]
+features = ["client", "staging"]
 
 [target.'cfg(target_os="linux")'.dependencies.zune-png]
 version = "0.5.1"

@@ -137,6 +137,16 @@ impl Surface {
         self.sys.is_closed()
     }
 
+    /// Requests the same close path used by native window decorations.
+    ///
+    /// This is intentionally Linux-only for now because the local verification
+    /// gate targets the vendored Wayland backend and must avoid external window
+    /// automation tools.
+    #[cfg(target_os = "linux")]
+    pub fn request_close_for_test(&self) {
+        self.sys.request_close_for_test();
+    }
+
     /// Returns the raw window handle for this surface.
     ///
     /// This handle can be used with graphics APIs like wgpu to create a rendering surface.

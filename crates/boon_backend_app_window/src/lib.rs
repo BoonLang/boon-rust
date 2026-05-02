@@ -63,6 +63,15 @@ pub struct AppWindowSurfaceFrameProof {
     pub passed: bool,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AppWindowCloseProof {
+    pub requested_close: bool,
+    pub observed_closed: bool,
+    pub presented_before_close: bool,
+    pub iterations_after_close: u32,
+    pub passed: bool,
+}
+
 pub fn smoke_test() -> Result<AppWindowSmoke> {
     smoke_test_with_title("Boon app_window smoke", Duration::ZERO)
 }
@@ -332,6 +341,98 @@ where
     session.map_err(anyhow::Error::msg)
 }
 
+pub fn run_close_probe<G>(title: impl Into<String>, frame_rgba: G) -> Result<AppWindowCloseProof>
+where
+    G: FnMut(u32, u32) -> Result<RgbaFrame> + Send + 'static,
+{
+    let result = Arc::new(Mutex::new(None));
+    let result_for_closure = Arc::clone(&result);
+    let title = title.into();
+    app_window::test_support::integration_test_harness(move || {
+        let close = pollster::block_on(close_probe_session(title, frame_rgba))
+            .map_err(|err| err.to_string());
+        *result_for_closure.lock().expect("close result lock") = Some(close);
+    });
+
+    let close = result
+        .lock()
+        .expect("close result lock")
+        .take()
+        .context("app_window close probe did not return a result")?;
+    close.map_err(anyhow::Error::msg)
+}
+
+async fn close_probe_session<G>(title: String, mut frame_rgba: G) -> Result<AppWindowCloseProof>
+where
+    G: FnMut(u32, u32) -> Result<RgbaFrame> + Send + 'static,
+{
+    use app_window::coordinates::{Position, Size};
+    use app_window::window::Window;
+
+    let mut window = Window::new(Position::new(24.0, 24.0), Size::new(640.0, 420.0), title).await;
+    let surface = window.surface().await;
+    let (size, _) = surface.size_scale().await;
+    if size.width() <= 0.0 || size.height() <= 0.0 {
+        bail!("app_window close probe created a non-positive surface: {size:?}");
+    }
+    let width = size.width() as u32;
+    let height = size.height() as u32;
+
+    let instance = wgpu::Instance::default();
+    let wgpu_surface = unsafe {
+        instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::RawHandle {
+            raw_display_handle: Some(surface.raw_display_handle()),
+            raw_window_handle: surface.raw_window_handle(),
+        })?
+    };
+    let adapter = instance
+        .request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::default(),
+            force_fallback_adapter: false,
+            compatible_surface: Some(&wgpu_surface),
+        })
+        .await?;
+    let (device, queue) = adapter
+        .request_device(&wgpu::DeviceDescriptor {
+            label: Some("boon-app-window-close-probe-device"),
+            required_features: wgpu::Features::empty(),
+            required_limits: wgpu::Limits::downlevel_defaults().using_resolution(adapter.limits()),
+            experimental_features: wgpu::ExperimentalFeatures::disabled(),
+            memory_hints: wgpu::MemoryHints::MemoryUsage,
+            trace: wgpu::Trace::Off,
+        })
+        .await?;
+    let mut config = wgpu_surface
+        .get_default_config(&adapter, width, height)
+        .context("app_window close probe surface did not provide a default config")?;
+    config.usage |= wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::COPY_SRC;
+    wgpu_surface.configure(&device, &config);
+
+    let frame = frame_rgba(width, height)?;
+    present_rgba_frame_fast(&queue, &wgpu_surface, config.format, frame)?;
+
+    let requested_close = true;
+    surface.request_close_for_test();
+    let mut observed_closed = surface.is_closed();
+    let mut iterations_after_close = 0u32;
+    while !observed_closed && iterations_after_close < 20 {
+        iterations_after_close += 1;
+        std::thread::sleep(Duration::from_millis(10));
+        observed_closed = surface.is_closed();
+    }
+    drop(wgpu_surface);
+    drop(device);
+    drop(queue);
+
+    Ok(AppWindowCloseProof {
+        requested_close,
+        observed_closed,
+        presented_before_close: true,
+        iterations_after_close,
+        passed: requested_close && observed_closed,
+    })
+}
+
 async fn surface_smoke(title: String, hold: Duration) -> Result<AppWindowSmoke> {
     use app_window::coordinates::{Position, Size};
     use app_window::window::Window;
@@ -454,20 +555,13 @@ where
     let deadline = started + hold;
     loop {
         present_smoke_frame(&device, &queue, &wgpu_surface)?;
-        let pressed_keys = keys
-            .iter()
-            .copied()
-            .filter(|key| keyboard.is_pressed(*key))
-            .map(|key| format!("{key:?}"))
-            .collect::<BTreeSet<_>>();
-        let newly_pressed_keys = pressed_keys
-            .difference(&previous_keys)
-            .cloned()
-            .collect::<Vec<_>>();
+        let (pressed_keys, newly_pressed_keys) =
+            collect_keyboard_state(&keyboard, &keys, &previous_keys);
         let repeated_keys =
             update_key_repeats(&pressed_keys, &newly_pressed_keys, &mut key_repeats);
         let left_pressed = mouse.button_state(MOUSE_BUTTON_LEFT);
-        let left_clicked = left_pressed && !previous_left;
+        let left_down_count = mouse.load_clear_button_down_count(MOUSE_BUTTON_LEFT);
+        let left_clicked = left_down_count > 0 || (left_pressed && !previous_left);
         let location = mouse.window_pos();
         let (scroll_x, scroll_y) = mouse.load_clear_scroll_delta();
         let sample = AppWindowInputSample {
@@ -584,23 +678,16 @@ where
             size.height() as u32,
             &text,
         )?;
-        let pressed_keys = keys
-            .iter()
-            .copied()
-            .filter(|key| keyboard.is_pressed(*key))
-            .map(|key| format!("{key:?}"))
-            .collect::<BTreeSet<_>>();
-        let newly_pressed_keys = pressed_keys
-            .difference(&previous_keys)
-            .cloned()
-            .collect::<Vec<_>>();
+        let (pressed_keys, newly_pressed_keys) =
+            collect_keyboard_state(&keyboard, &keys, &previous_keys);
         let repeated_keys =
             update_key_repeats(&pressed_keys, &newly_pressed_keys, &mut key_repeats);
         if newly_pressed_keys.iter().any(|key| key == "Escape") {
             break;
         }
         let left_pressed = mouse.button_state(MOUSE_BUTTON_LEFT);
-        let left_clicked = left_pressed && !previous_left;
+        let left_down_count = mouse.load_clear_button_down_count(MOUSE_BUTTON_LEFT);
+        let left_clicked = left_down_count > 0 || (left_pressed && !previous_left);
         let location = mouse.window_pos();
         let (scroll_x, scroll_y) = mouse.load_clear_scroll_delta();
         let sample = AppWindowInputSample {
@@ -730,23 +817,16 @@ where
             config.height = height;
             wgpu_surface.configure(&device, &config);
         }
-        let pressed_keys = keys
-            .iter()
-            .copied()
-            .filter(|key| keyboard.is_pressed(*key))
-            .map(|key| format!("{key:?}"))
-            .collect::<BTreeSet<_>>();
-        let newly_pressed_keys = pressed_keys
-            .difference(&previous_keys)
-            .cloned()
-            .collect::<Vec<_>>();
+        let (pressed_keys, newly_pressed_keys) =
+            collect_keyboard_state(&keyboard, &keys, &previous_keys);
         let repeated_keys =
             update_key_repeats(&pressed_keys, &newly_pressed_keys, &mut key_repeats);
         if newly_pressed_keys.iter().any(|key| key == "Escape") {
             break;
         }
         let left_pressed = mouse.button_state(MOUSE_BUTTON_LEFT);
-        let left_clicked = left_pressed && !previous_left;
+        let left_down_count = mouse.load_clear_button_down_count(MOUSE_BUTTON_LEFT);
+        let left_clicked = left_down_count > 0 || (left_pressed && !previous_left);
         let location = mouse.window_pos();
         let (scroll_x, scroll_y) = mouse.load_clear_scroll_delta();
         let sample = AppWindowInputSample {
@@ -788,8 +868,44 @@ where
         std::thread::sleep(tick);
     }
 
-    let (final_size, _) = surface.size_scale().await;
+    let (mut final_size, mut final_scale) = surface.size_scale().await;
     let mut last_surface_proof = surface_proofs.pop();
+    if capture_surface_proof {
+        for _ in 0..3 {
+            let final_width = final_size.width() as u32;
+            let final_height = final_size.height() as u32;
+            if final_width == 0 || final_height == 0 {
+                break;
+            }
+            let needs_recapture = match &last_surface_proof {
+                Some(proof) => {
+                    proof.configured_width != final_width || proof.configured_height != final_height
+                }
+                None => true,
+            };
+            if !needs_recapture {
+                break;
+            }
+            width = final_width;
+            height = final_height;
+            config.width = width;
+            config.height = height;
+            wgpu_surface.configure(&device, &config);
+            let frame = frame_rgba(&mut state, width, height)?;
+            last_surface_proof = Some(present_rgba_frame(
+                &device,
+                &queue,
+                &wgpu_surface,
+                config.format,
+                frame,
+            )?);
+            let settled = surface.size_scale().await;
+            final_size = settled.0;
+            final_scale = settled.1;
+        }
+        size = final_size;
+        scale = final_scale;
+    }
     if let Some(proof) = &mut last_surface_proof {
         proof.final_surface_width = final_size.width() as u32;
         proof.final_surface_height = final_size.height() as u32;
@@ -820,13 +936,34 @@ struct KeyRepeatState {
     last_repeat_at: Instant,
 }
 
+fn collect_keyboard_state(
+    keyboard: &app_window::input::keyboard::Keyboard,
+    keys: &[app_window::input::keyboard::key::KeyboardKey],
+    previous_keys: &BTreeSet<String>,
+) -> (BTreeSet<String>, Vec<String>) {
+    let mut pressed_keys = BTreeSet::new();
+    let mut newly_pressed_keys = Vec::new();
+    for key in keys {
+        let name = format!("{key:?}");
+        let pressed = keyboard.is_pressed(*key);
+        let down_count = keyboard.load_clear_key_down_count(*key);
+        if down_count > 0 || (pressed && !previous_keys.contains(&name)) {
+            newly_pressed_keys.push(name.clone());
+        }
+        if pressed {
+            pressed_keys.insert(name);
+        }
+    }
+    (pressed_keys, newly_pressed_keys)
+}
+
 fn update_key_repeats(
     pressed_keys: &BTreeSet<String>,
     newly_pressed_keys: &[String],
     key_repeats: &mut BTreeMap<String, KeyRepeatState>,
 ) -> Vec<String> {
-    const INITIAL_REPEAT_DELAY: Duration = Duration::from_millis(260);
-    const REPEAT_INTERVAL: Duration = Duration::from_millis(42);
+    const INITIAL_REPEAT_DELAY: Duration = Duration::from_millis(180);
+    const REPEAT_INTERVAL: Duration = Duration::from_millis(28);
 
     let now = Instant::now();
     key_repeats.retain(|key, _| pressed_keys.contains(key));
@@ -856,11 +993,16 @@ fn update_key_repeats(
             );
             continue;
         };
-        if now.saturating_duration_since(state.pressed_at) >= INITIAL_REPEAT_DELAY
-            && now.saturating_duration_since(state.last_repeat_at) >= REPEAT_INTERVAL
-        {
-            state.last_repeat_at = now;
+        let first_due = state.pressed_at + INITIAL_REPEAT_DELAY;
+        let mut next_due = if state.last_repeat_at < first_due {
+            first_due
+        } else {
+            state.last_repeat_at + REPEAT_INTERVAL
+        };
+        while now >= next_due {
+            state.last_repeat_at = next_due;
             repeated.push(key.clone());
+            next_due += REPEAT_INTERVAL;
         }
     }
     repeated

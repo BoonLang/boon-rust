@@ -10,3 +10,13 @@
   verification by default.
 - Keep `target/` and `.boon-local/` local to this machine; do not duplicate them
   into temporary checkouts for routine verification.
+- Commands that open GUI windows must be launched through
+  `cosmic-background-launch -- <command> [args...]` so COSMIC receives a
+  background-launch activation token and can place them away from the user's
+  active workspace without stealing focus. This includes native playgrounds,
+  app_window verification helpers, browsers, and WebExtension harnesses.
+- Apply `cosmic-background-launch` at the actual window-creating process, not
+  only around a parent command that later spawns app_window or browser helpers.
+- If a GUI command still opens in the active workspace or steals focus, treat it
+  as a windowing/activation bug to fix before continuing routine visible-window
+  testing.

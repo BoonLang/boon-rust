@@ -1,9 +1,43 @@
 {
-  "counter": false,
-  "interval": false,
-  "keyed_list": null,
-  "grid": null,
-  "frame_counter": true,
-  "physical_debug": false,
-  "title": "Pong"
+  "title": "Pong",
+  "scene": "playfield",
+  "scalar_counter": null,
+  "timer_counter": null,
+  "collection": null,
+  "table": null,
+  "playfield": {
+    "frame_event_path": "store.sources.tick.event.frame",
+    "control_event_path": "store.sources.paddle.event.key_down.key",
+    "arena_width": 1000,
+    "arena_height": 700,
+    "ball": {
+      "x": 84,
+      "y": 350,
+      "dx": -12,
+      "dy": 8,
+      "size": 22
+    },
+    "player": {
+      "axis": "vertical",
+      "position": 50,
+      "step": 8,
+      "x": 38,
+      "y": 0,
+      "width": 18,
+      "height": 128,
+      "auto_track": false
+    },
+    "opponent": {
+      "axis": "vertical",
+      "position": 50,
+      "step": 8,
+      "x": 944,
+      "y": 0,
+      "width": 18,
+      "height": 128,
+      "auto_track": true
+    },
+    "bricks": null
+  },
+  "physical_debug": false
 }

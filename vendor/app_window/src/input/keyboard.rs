@@ -91,7 +91,7 @@
 use std::ffi::c_void;
 use std::hash::Hash;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicPtr};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64};
 
 /// Keyboard key definitions and enumerations.
 pub mod key;
@@ -134,6 +134,8 @@ struct Shared {
     /// Array of atomic booleans tracking the pressed state of each key.
     /// Indexed by the numeric value of `KeyboardKey`.
     key_states: Vec<AtomicBool>,
+    /// Key-down edge counts preserve short key presses between render-loop polls.
+    key_down_counts: Vec<AtomicU64>,
     /// Platform-specific window pointer that received the most recent keyboard event.
     window_ptr: AtomicPtr<c_void>,
 }
@@ -144,11 +146,14 @@ impl Shared {
     /// Allocates an array of atomic booleans, one for each possible key variant.
     fn new() -> Self {
         let mut vec = Vec::with_capacity(key::KeyboardKey::all_keys().len());
+        let mut key_down_counts = Vec::with_capacity(key::KeyboardKey::all_keys().len());
         for _ in 0..key::KeyboardKey::all_keys().len() {
             vec.push(AtomicBool::new(false));
+            key_down_counts.push(AtomicU64::new(0));
         }
         Shared {
             key_states: vec,
+            key_down_counts,
             window_ptr: AtomicPtr::new(std::ptr::null_mut()),
         }
     }
@@ -175,6 +180,9 @@ impl Shared {
         self.window_ptr
             .store(window_ptr, std::sync::atomic::Ordering::Relaxed);
         self.key_states[key as usize].store(state, std::sync::atomic::Ordering::Relaxed);
+        if state {
+            self.key_down_counts[key as usize].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
     }
 }
 
@@ -340,6 +348,14 @@ impl Keyboard {
     ///
     pub fn is_pressed(&self, key: KeyboardKey) -> bool {
         self.shared.key_states[key as usize].load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Returns how many key-down events occurred since the previous call.
+    ///
+    /// This preserves short key presses even when a render loop is too busy to
+    /// observe the pressed state by polling.
+    pub fn load_clear_key_down_count(&self, key: KeyboardKey) -> u64 {
+        self.shared.key_down_counts[key as usize].swap(0, std::sync::atomic::Ordering::Relaxed)
     }
 }
 

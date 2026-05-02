@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use boon_render_ir::{FrameInfo, FrameSnapshot, HostPatch};
+use boon_render_ir::{DrawCommand, FrameInfo, FrameScene, FrameSnapshot, HostPatch};
 use boon_runtime::{BoonApp, SourceBatch};
 use glyphon::{
     Attrs, Buffer, Cache, Color, Family, FontSystem, Metrics, Resolution, Shaping, SwashCache,
@@ -7,7 +7,6 @@ use glyphon::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeSet;
 use std::fs;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
@@ -43,6 +42,7 @@ pub struct FrameImageArtifact {
 
 pub struct WgpuBackend {
     frame_text: String,
+    frame_scene: Option<FrameScene>,
     width: u32,
     height: u32,
     metadata: WgpuMetadata,
@@ -58,20 +58,11 @@ pub fn rasterize_native_gui_frame(
     height: u32,
     examples: &[&str],
     current_index: usize,
-    frame_text: &str,
+    frame_scene: Option<&FrameScene>,
+    fallback_text: &str,
     controls: &str,
 ) -> Vec<u8> {
-    let mut rgba = vec![0u8; width as usize * height as usize * 4];
-    draw_rect(
-        &mut rgba,
-        width,
-        height,
-        0,
-        0,
-        width,
-        height,
-        [16, 20, 26, 255],
-    );
+    let mut rgba = solid_frame(width, height, [16, 20, 26, 255]);
     let sidebar_w = 236u32.min(width / 2);
     let toolbar_h = 54u32.min(height / 3);
     draw_rect(
@@ -171,7 +162,9 @@ pub fn rasterize_native_gui_frame(
         sidebar_w + 22,
         21,
         2,
-        current_example_title(frame_text),
+        frame_scene
+            .map(|scene| scene.title.as_str())
+            .unwrap_or_else(|| current_example_title(fallback_text)),
         [236, 244, 247, 255],
     );
     draw_text(
@@ -213,8 +206,8 @@ pub fn rasterize_native_gui_frame(
         [78, 98, 112, 255],
     );
 
-    if frame_text.contains("TodoMVC") || frame_text.contains("What needs to be done") {
-        draw_todomvc_preview(
+    if let Some(scene) = frame_scene {
+        draw_frame_scene(
             &mut rgba,
             width,
             height,
@@ -222,51 +215,7 @@ pub fn rasterize_native_gui_frame(
             content_y,
             content_side,
             content_side,
-            frame_text,
-        );
-    } else if frame_text.contains("Cells") || frame_text.contains("selected:") {
-        draw_cells_preview(
-            &mut rgba,
-            width,
-            height,
-            content_x,
-            content_y,
-            content_side,
-            content_side,
-            frame_text,
-        );
-    } else if frame_text.contains("Pong") || frame_text.contains("Arkanoid") {
-        draw_game_preview(
-            &mut rgba,
-            width,
-            height,
-            content_x,
-            content_y,
-            content_side,
-            content_side,
-            frame_text,
-        );
-    } else if frame_text.contains("Counter") {
-        draw_counter_preview(
-            &mut rgba,
-            width,
-            height,
-            content_x,
-            content_y,
-            content_side,
-            content_side,
-            frame_text,
-        );
-    } else if frame_text.contains("Interval") {
-        draw_interval_preview(
-            &mut rgba,
-            width,
-            height,
-            content_x,
-            content_y,
-            content_side,
-            content_side,
-            frame_text,
+            scene,
         );
     } else {
         draw_text(
@@ -276,7 +225,7 @@ pub fn rasterize_native_gui_frame(
             content_x + 32,
             content_y + 32,
             2,
-            frame_text,
+            fallback_text,
             [28, 42, 52, 255],
         );
     }
@@ -298,6 +247,7 @@ impl WgpuBackend {
     pub fn headless(width: u32, height: u32) -> Self {
         Self {
             frame_text: String::new(),
+            frame_scene: None,
             width,
             height,
             metadata: WgpuMetadata {
@@ -337,6 +287,7 @@ impl WgpuBackend {
         let glyphon = GlyphonRenderer::new(&device, &queue)?;
         Ok(Self {
             frame_text: String::new(),
+            frame_scene: None,
             width,
             height,
             metadata: WgpuMetadata {
@@ -384,8 +335,14 @@ impl WgpuBackend {
 
     pub fn apply_patches(&mut self, patches: &[HostPatch]) -> Result<()> {
         for patch in patches {
-            if let HostPatch::ReplaceFrameText { text } = patch {
-                self.frame_text = text.clone();
+            match patch {
+                HostPatch::ReplaceFrameText { text } => {
+                    self.frame_text = text.clone();
+                }
+                HostPatch::ReplaceFrameScene { scene } => {
+                    self.frame_scene = Some(scene.clone());
+                }
+                _ => {}
             }
         }
         Ok(())
@@ -471,6 +428,10 @@ impl WgpuBackend {
         &self.frame_text
     }
 
+    pub fn frame_scene(&self) -> Option<&FrameScene> {
+        self.frame_scene.as_ref()
+    }
+
     fn render_offscreen_frame(&mut self) -> Result<()> {
         self.submit_offscreen_frame(true)?
             .context("offscreen readback did not produce an RGBA hash")?;
@@ -507,7 +468,12 @@ impl WgpuBackend {
                 | wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
         });
-        let rgba = rasterize_frame_background(self.width, self.height, &self.frame_text);
+        let rgba = rasterize_frame_background(
+            self.width,
+            self.height,
+            &self.frame_text,
+            self.frame_scene.as_ref(),
+        );
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &texture,
@@ -535,6 +501,7 @@ impl WgpuBackend {
             &view,
             self.width,
             self.height,
+            self.frame_scene.as_ref(),
             &self.frame_text,
         )?;
         if !readback {
@@ -703,9 +670,10 @@ impl GlyphonRenderer {
         view: &wgpu::TextureView,
         width: u32,
         height: u32,
+        frame_scene: Option<&FrameScene>,
         frame_text: &str,
     ) -> Result<()> {
-        if is_graphical_preview_frame(frame_text) {
+        if frame_scene.is_some() {
             return Ok(());
         }
         self.viewport.update(queue, Resolution { width, height });
@@ -899,9 +867,14 @@ fn clip_frame_text(frame_text: &str) -> String {
         .join("\n")
 }
 
-fn rasterize_frame_background(width: u32, height: u32, frame_text: &str) -> Vec<u8> {
-    if is_graphical_preview_frame(frame_text) {
-        return rasterize_native_gui_frame(width, height, &[], 0, frame_text, "");
+fn rasterize_frame_background(
+    width: u32,
+    height: u32,
+    frame_text: &str,
+    frame_scene: Option<&FrameScene>,
+) -> Vec<u8> {
+    if frame_scene.is_some() {
+        return rasterize_native_gui_frame(width, height, &[], 0, frame_scene, frame_text, "");
     }
     let mut rgba = vec![0u8; width as usize * height as usize * 4];
     for y in 0..height as usize {
@@ -993,838 +966,94 @@ fn rasterize_frame_background(width: u32, height: u32, frame_text: &str) -> Vec<
     rgba
 }
 
-fn is_graphical_preview_frame(frame_text: &str) -> bool {
-    frame_text.contains("TodoMVC")
-        || frame_text.contains("What needs to be done")
-        || frame_text.contains("Cells")
-        || frame_text.contains("Pong")
-        || frame_text.contains("Arkanoid")
-        || frame_text.contains("Counter")
-        || frame_text.contains("Interval")
-}
-
 fn current_example_title(frame_text: &str) -> &str {
     frame_text.lines().next().unwrap_or("Boon")
 }
 
 #[allow(clippy::too_many_arguments)]
-fn draw_todomvc_preview(
+fn draw_frame_scene(
     rgba: &mut [u8],
     width: u32,
     height: u32,
-    x: u32,
-    y: u32,
-    w: u32,
-    h: u32,
-    frame_text: &str,
+    origin_x: u32,
+    origin_y: u32,
+    target_w: u32,
+    target_h: u32,
+    scene: &FrameScene,
 ) {
-    let input = frame_text
-        .lines()
-        .find_map(|line| line.strip_prefix("input: "))
-        .unwrap_or("");
-    let filter = frame_text
-        .lines()
-        .find_map(|line| line.strip_prefix("filter: "))
-        .unwrap_or("all");
-    let items = frame_text
-        .lines()
-        .filter_map(parse_todo_line)
-        .collect::<Vec<_>>();
-    let completed_count = items.iter().filter(|(_, completed, _)| *completed).count();
-    let panel_w = w.min(700).saturating_mul(550) / 700;
-    let panel_x = x + (w.saturating_sub(panel_w)) / 2;
-    let heading_y = y + 28;
-    draw_text(
-        rgba,
-        width,
-        height,
-        panel_x + panel_w / 2 - 150,
-        heading_y,
-        8,
-        "todos",
-        [184, 63, 69, 95],
-    );
-    let main_y = y + (h.min(700).saturating_mul(130) / 700).max(96);
-    draw_rect(
-        rgba,
-        width,
-        height,
-        panel_x,
-        main_y,
-        panel_w,
-        64,
-        [255, 255, 255, 255],
-    );
-    draw_rect_outline(
-        rgba,
-        width,
-        height,
-        panel_x,
-        main_y,
-        panel_w,
-        64,
-        [229, 229, 229, 255],
-    );
-    draw_text(
-        rgba,
-        width,
-        height,
-        panel_x + 56,
-        main_y + 23,
-        2,
-        if input.is_empty() {
-            "What needs to be done?"
-        } else {
-            input
-        },
-        [85, 85, 85, 255],
-    );
-    if !items.is_empty() {
-        draw_text(
-            rgba,
-            width,
-            height,
-            panel_x + 18,
-            main_y + 24,
-            2,
-            "v",
-            [115, 115, 115, 255],
-        );
-    }
-    for (idx, (_, completed, title)) in items.iter().enumerate() {
-        let row_y = main_y + 64 + idx as u32 * 58;
-        draw_rect(
-            rgba,
-            width,
-            height,
-            panel_x,
-            row_y,
-            panel_w,
-            58,
-            [255, 255, 255, 255],
-        );
-        draw_rect(
-            rgba,
-            width,
-            height,
-            panel_x,
-            row_y,
-            panel_w,
-            1,
-            [237, 237, 237, 255],
-        );
-        draw_rect_outline(
-            rgba,
-            width,
-            height,
-            panel_x + 14,
-            row_y + 14,
-            30,
-            30,
-            if *completed {
-                [80, 180, 140, 255]
-            } else {
-                [205, 215, 215, 255]
-            },
-        );
-        if *completed {
-            draw_text(
+    let sx = |x: u32| origin_x + x.saturating_mul(target_w) / 1000;
+    let sy = |y: u32| origin_y + y.saturating_mul(target_h) / 1000;
+    let sw = |w: u32| w.saturating_mul(target_w) / 1000;
+    let sh = |h: u32| h.saturating_mul(target_h) / 1000;
+    for command in &scene.commands {
+        match command {
+            DrawCommand::Rect {
+                x,
+                y,
+                width: rect_w,
+                height: rect_h,
+                color,
+            } => draw_rect(
                 rgba,
                 width,
                 height,
-                panel_x + 20,
-                row_y + 21,
-                1,
-                "OK",
-                [80, 180, 140, 255],
-            );
-        }
-        draw_text(
-            rgba,
-            width,
-            height,
-            panel_x + 62,
-            row_y + 19,
-            2,
-            title,
-            if *completed {
-                [150, 150, 150, 255]
-            } else {
-                [72, 72, 72, 255]
-            },
-        );
-        if *completed {
-            draw_rect(
+                sx(*x),
+                sy(*y),
+                sw(*rect_w).max(1),
+                sh(*rect_h).max(1),
+                *color,
+            ),
+            DrawCommand::RectOutline {
+                x,
+                y,
+                width: rect_w,
+                height: rect_h,
+                color,
+            } => draw_rect_outline(
                 rgba,
                 width,
                 height,
-                panel_x + 62,
-                row_y + 29,
-                panel_w.saturating_sub(128),
-                2,
-                [190, 190, 190, 255],
-            );
-        }
-        draw_text(
-            rgba,
-            width,
-            height,
-            panel_x + panel_w.saturating_sub(42),
-            row_y + 20,
-            2,
-            "x",
-            [175, 47, 47, 210],
-        );
-    }
-    let footer_y = main_y + 64 + items.len() as u32 * 58;
-    draw_rect(
-        rgba,
-        width,
-        height,
-        panel_x,
-        footer_y,
-        panel_w,
-        42,
-        [255, 255, 255, 255],
-    );
-    draw_rect(
-        rgba,
-        width,
-        height,
-        panel_x,
-        footer_y,
-        panel_w,
-        1,
-        [237, 237, 237, 255],
-    );
-    let active = items.iter().filter(|(_, done, _)| !*done).count();
-    draw_text(
-        rgba,
-        width,
-        height,
-        panel_x + 16,
-        footer_y + 16,
-        1,
-        &format!("{active} items left"),
-        [80, 80, 80, 255],
-    );
-    let filters = [
-        ("all", 214, 42),
-        ("active", 268, 62),
-        ("completed", 336, 92),
-    ];
-    for (name, dx, button_w) in filters {
-        let selected = filter == name;
-        if selected {
-            draw_rect_outline(
+                sx(*x),
+                sy(*y),
+                sw(*rect_w).max(1),
+                sh(*rect_h).max(1),
+                *color,
+            ),
+            DrawCommand::Text {
+                x,
+                y,
+                scale,
+                text,
+                color,
+            } => draw_text(
                 rgba,
                 width,
                 height,
-                panel_x + dx,
-                footer_y + 10,
-                button_w,
-                20,
-                [235, 213, 213, 255],
-            );
-        }
-        draw_text(
-            rgba,
-            width,
-            height,
-            panel_x + dx + 7,
-            footer_y + 16,
-            1,
-            name,
-            [80, 80, 80, 255],
-        );
-    }
-    if completed_count > 0 {
-        draw_text(
-            rgba,
-            width,
-            height,
-            panel_x + panel_w.saturating_sub(120),
-            footer_y + 16,
-            1,
-            "Clear completed",
-            [80, 80, 80, 255],
-        );
-    }
-    draw_text(
-        rgba,
-        width,
-        height,
-        panel_x + panel_w / 2 - 110,
-        footer_y + 78,
-        1,
-        "Double-click to edit a todo",
-        [77, 77, 77, 255],
-    );
-    draw_text(
-        rgba,
-        width,
-        height,
-        panel_x + panel_w / 2 - 96,
-        footer_y + 100,
-        1,
-        "Created by Martin Kavik",
-        [77, 77, 77, 255],
-    );
-}
-
-fn parse_todo_line(line: &str) -> Option<(String, bool, String)> {
-    let trimmed = line.trim();
-    let (id, rest) = trimmed.split_once(' ')?;
-    id.parse::<u64>().ok()?;
-    if !rest.starts_with("[x]") && !rest.starts_with("[ ]") {
-        return None;
-    }
-    let completed = rest.starts_with("[x]");
-    let title = rest.get(4..)?.trim().to_string();
-    Some((id.to_string(), completed, title))
-}
-
-#[allow(clippy::too_many_arguments)]
-fn draw_counter_preview(
-    rgba: &mut [u8],
-    width: u32,
-    height: u32,
-    x: u32,
-    y: u32,
-    w: u32,
-    h: u32,
-    frame_text: &str,
-) {
-    let count = frame_text
-        .lines()
-        .find_map(|line| line.strip_prefix("count: "))
-        .unwrap_or("0");
-    draw_rect(rgba, width, height, x, y, w, h, [238, 244, 248, 255]);
-    let bx = x + w / 2 - 110;
-    let by = y + h / 2 - 48;
-    draw_rect(
-        rgba,
-        width,
-        height,
-        bx + 5,
-        by + 6,
-        220,
-        82,
-        [190, 202, 210, 255],
-    );
-    draw_rect(rgba, width, height, bx, by, 220, 82, [55, 130, 150, 255]);
-    draw_rect_outline(rgba, width, height, bx, by, 220, 82, [34, 92, 110, 255]);
-    draw_text(
-        rgba,
-        width,
-        height,
-        bx + 38,
-        by + 30,
-        3,
-        "Increment",
-        [245, 252, 255, 255],
-    );
-    draw_text(
-        rgba,
-        width,
-        height,
-        bx + 70,
-        by + 116,
-        4,
-        count,
-        [26, 42, 50, 255],
-    );
-}
-
-#[allow(clippy::too_many_arguments)]
-fn draw_interval_preview(
-    rgba: &mut [u8],
-    width: u32,
-    height: u32,
-    x: u32,
-    y: u32,
-    w: u32,
-    h: u32,
-    frame_text: &str,
-) {
-    draw_rect(rgba, width, height, x, y, w, h, [234, 240, 244, 255]);
-    let ticks = frame_text
-        .lines()
-        .find_map(|line| line.strip_prefix("ticks: "))
-        .unwrap_or("0");
-    let ms = frame_text
-        .lines()
-        .find_map(|line| line.strip_prefix("fake_clock_ms: "))
-        .unwrap_or("0");
-    draw_text(
-        rgba,
-        width,
-        height,
-        x + 52,
-        y + 52,
-        4,
-        "Live interval",
-        [33, 67, 82, 255],
-    );
-    draw_rect(
-        rgba,
-        width,
-        height,
-        x + 54,
-        y + 128,
-        w.saturating_sub(108),
-        84,
-        [255, 255, 255, 255],
-    );
-    draw_rect_outline(
-        rgba,
-        width,
-        height,
-        x + 54,
-        y + 128,
-        w.saturating_sub(108),
-        84,
-        [190, 206, 214, 255],
-    );
-    draw_text(
-        rgba,
-        width,
-        height,
-        x + 86,
-        y + 160,
-        3,
-        &format!("ticks {ticks}"),
-        [40, 94, 112, 255],
-    );
-    draw_text(
-        rgba,
-        width,
-        height,
-        x + 86,
-        y + 232,
-        2,
-        &format!("{ms} ms"),
-        [98, 116, 126, 255],
-    );
-}
-
-#[allow(clippy::too_many_arguments)]
-fn draw_game_preview(
-    rgba: &mut [u8],
-    width: u32,
-    height: u32,
-    x: u32,
-    y: u32,
-    w: u32,
-    h: u32,
-    frame_text: &str,
-) {
-    let title = current_example_title(frame_text);
-    let frame = frame_u32(frame_text, "frame").unwrap_or(0);
-    let paddle_y = frame_u32(frame_text, "paddle_y").unwrap_or(50).min(100);
-    let paddle_x = frame_u32(frame_text, "paddle_x").unwrap_or(50).min(100);
-    let right_paddle_y = frame_u32(frame_text, "right_paddle_y")
-        .unwrap_or(50)
-        .min(100);
-    let ball_x = frame_u32(frame_text, "ball_x").unwrap_or(500).min(1000);
-    let ball_y = frame_u32(frame_text, "ball_y").unwrap_or(350).min(700);
-    let ball_dx = frame_i32(frame_text, "ball_dx").unwrap_or(0);
-    let ball_dy = frame_i32(frame_text, "ball_dy").unwrap_or(0);
-    let bricks_rows = frame_u32(frame_text, "bricks_rows").unwrap_or(0);
-    let bricks_cols = frame_u32(frame_text, "bricks_cols").unwrap_or(0);
-    let live_bricks = frame_text
-        .lines()
-        .find_map(|line| line.strip_prefix("bricks_live: "))
-        .unwrap_or("")
-        .split(',')
-        .filter_map(|value| value.parse::<u32>().ok())
-        .collect::<BTreeSet<_>>();
-    draw_rect(rgba, width, height, x, y, w, h, [8, 12, 18, 255]);
-    draw_rect_outline(
-        rgba,
-        width,
-        height,
-        x + 24,
-        y + 24,
-        w.saturating_sub(48),
-        h.saturating_sub(48),
-        [70, 96, 122, 255],
-    );
-    draw_text(
-        rgba,
-        width,
-        height,
-        x + 42,
-        y + 42,
-        3,
-        title,
-        [218, 236, 245, 255],
-    );
-    let arena_x = x + 52;
-    let arena_y = y + 96;
-    let arena_w = w.saturating_sub(104);
-    let arena_h = h.saturating_sub(148);
-    draw_rect(
-        rgba,
-        width,
-        height,
-        arena_x,
-        arena_y,
-        arena_w,
-        arena_h,
-        [14, 26, 38, 255],
-    );
-    if title.contains("Arkanoid") {
-        let rows = bricks_rows.max(1);
-        let cols = bricks_cols.max(1);
-        let gap = 6;
-        let top = arena_y + 28;
-        let brick_h = 22;
-        let brick_w = arena_w
-            .saturating_sub(24)
-            .saturating_sub(gap * cols.saturating_sub(1))
-            / cols;
-        for row in 0..rows {
-            for col in 0..cols {
-                let idx = row * cols + col;
-                if live_bricks.contains(&idx) {
-                    draw_rect(
-                        rgba,
-                        width,
-                        height,
-                        arena_x + 12 + col * (brick_w + gap),
-                        top + row * (brick_h + gap),
-                        brick_w.saturating_sub(1).max(8),
-                        brick_h,
-                        [180, 92u8.saturating_add(row as u8 * 24), 80, 255],
-                    );
-                }
-            }
-        }
-        let paddle_w = 124;
-        draw_rect(
-            rgba,
-            width,
-            height,
-            arena_x + arena_w.saturating_sub(paddle_w) * paddle_x / 100,
-            arena_y + arena_h.saturating_sub(38),
-            paddle_w,
-            14,
-            [220, 235, 240, 255],
-        );
-    } else {
-        draw_rect(
-            rgba,
-            width,
-            height,
-            arena_x + arena_w / 2,
-            arena_y + 16,
-            2,
-            arena_h.saturating_sub(32),
-            [52, 72, 88, 255],
-        );
-        let left_span = arena_h.saturating_sub(120).max(1);
-        let right_span = arena_h.saturating_sub(180).max(1);
-        let left_y = arena_y + 18 + left_span * paddle_y / 100;
-        let right_y = arena_y + 18 + right_span * right_paddle_y / 100;
-        draw_rect(
-            rgba,
-            width,
-            height,
-            arena_x + 24,
-            left_y,
-            12,
-            84,
-            [210, 236, 240, 255],
-        );
-        draw_rect(
-            rgba,
-            width,
-            height,
-            arena_x + arena_w.saturating_sub(36),
-            right_y,
-            12,
-            84,
-            [210, 236, 240, 255],
-        );
-    }
-    let ball_px = arena_x + arena_w.saturating_sub(18) * ball_x / 1000;
-    let ball_py = arena_y + arena_h.saturating_sub(18) * ball_y / 700;
-    draw_rect(
-        rgba,
-        width,
-        height,
-        ball_px,
-        ball_py,
-        14,
-        14,
-        [96, 224, 230, 255],
-    );
-    draw_text(
-        rgba,
-        width,
-        height,
-        x + 42,
-        y + h.saturating_sub(32),
-        1,
-        &format!(
-            "frame {frame} | ball {ball_x},{ball_y} d {ball_dx},{ball_dy} | arrows control paddle"
-        ),
-        [156, 188, 204, 255],
-    );
-}
-
-fn frame_u32(frame_text: &str, key: &str) -> Option<u32> {
-    frame_text
-        .lines()
-        .find_map(|line| line.strip_prefix(&format!("{key}: ")))
-        .and_then(|value| value.parse::<u32>().ok())
-}
-
-fn frame_i32(frame_text: &str, key: &str) -> Option<i32> {
-    frame_text
-        .lines()
-        .find_map(|line| line.strip_prefix(&format!("{key}: ")))
-        .and_then(|value| value.parse::<i32>().ok())
-}
-
-#[allow(clippy::too_many_arguments)]
-fn draw_cells_preview(
-    rgba: &mut [u8],
-    width: u32,
-    height: u32,
-    x: u32,
-    y: u32,
-    w: u32,
-    h: u32,
-    frame_text: &str,
-) {
-    draw_rect(rgba, width, height, x, y, w, h, [248, 250, 252, 255]);
-    let selected = frame_text
-        .lines()
-        .find_map(|line| line.strip_prefix("selected: "))
-        .unwrap_or("A1");
-    let formula = frame_text
-        .lines()
-        .find_map(|line| line.strip_prefix("formula: "))
-        .unwrap_or("");
-    let value = frame_text
-        .lines()
-        .find_map(|line| line.strip_prefix("value: "))
-        .unwrap_or("");
-    draw_text(
-        rgba,
-        width,
-        height,
-        x + 32,
-        y + 28,
-        3,
-        "Cells",
-        [34, 65, 80, 255],
-    );
-    let name_box_x = x + 32;
-    let formula_y = y + 68;
-    draw_rect(
-        rgba,
-        width,
-        height,
-        name_box_x,
-        formula_y,
-        72,
-        30,
-        [238, 242, 245, 255],
-    );
-    draw_rect_outline(
-        rgba,
-        width,
-        height,
-        name_box_x,
-        formula_y,
-        72,
-        30,
-        [178, 194, 204, 255],
-    );
-    draw_text(
-        rgba,
-        width,
-        height,
-        name_box_x + 16,
-        formula_y + 11,
-        1,
-        selected,
-        [36, 56, 68, 255],
-    );
-    draw_text(
-        rgba,
-        width,
-        height,
-        name_box_x + 88,
-        formula_y + 11,
-        1,
-        "fx",
-        [83, 105, 118, 255],
-    );
-    let formula_x = name_box_x + 118;
-    let formula_w = w.saturating_sub(170).min(510);
-    draw_rect(
-        rgba,
-        width,
-        height,
-        formula_x,
-        formula_y,
-        formula_w,
-        30,
-        [255, 255, 255, 255],
-    );
-    draw_rect_outline(
-        rgba,
-        width,
-        height,
-        formula_x,
-        formula_y,
-        formula_w,
-        30,
-        [178, 194, 204, 255],
-    );
-    let formula_label = if formula.is_empty() { value } else { formula };
-    draw_text(
-        rgba,
-        width,
-        height,
-        formula_x + 10,
-        formula_y + 11,
-        1,
-        formula_label,
-        [35, 52, 62, 255],
-    );
-    let grid_x = x + 48;
-    let grid_y = y + 120;
-    let cell_w = 92;
-    let cell_h = 34;
-    for col in 0..6 {
-        draw_rect(
-            rgba,
-            width,
-            height,
-            grid_x + col * cell_w,
-            grid_y,
-            cell_w,
-            cell_h,
-            [224, 232, 236, 255],
-        );
-        draw_text(
-            rgba,
-            width,
-            height,
-            grid_x + col * cell_w + 36,
-            grid_y + 12,
-            1,
-            &format!("{}", (b'A' + col as u8) as char),
-            [54, 73, 84, 255],
-        );
-    }
-    for row in 1..=12 {
-        draw_rect(
-            rgba,
-            width,
-            height,
-            grid_x.saturating_sub(42),
-            grid_y + row * cell_h,
-            42,
-            cell_h,
-            [224, 232, 236, 255],
-        );
-        draw_text(
-            rgba,
-            width,
-            height,
-            grid_x.saturating_sub(30),
-            grid_y + row * cell_h + 12,
-            1,
-            &row.to_string(),
-            [54, 73, 84, 255],
-        );
-        for col in 0..6 {
-            let cx = grid_x + col * cell_w;
-            let cy = grid_y + row * cell_h;
-            let cell_name = format!("{}{}", (b'A' + col as u8) as char, row);
-            draw_rect(
-                rgba,
-                width,
-                height,
-                cx,
-                cy,
-                cell_w,
-                cell_h,
-                [255, 255, 255, 255],
-            );
-            draw_rect_outline(
-                rgba,
-                width,
-                height,
-                cx,
-                cy,
-                cell_w,
-                cell_h,
-                [213, 222, 228, 255],
-            );
-            if cell_name == selected {
-                draw_rect_outline(
-                    rgba,
-                    width,
-                    height,
-                    cx + 1,
-                    cy + 1,
-                    cell_w.saturating_sub(2),
-                    cell_h.saturating_sub(2),
-                    [33, 115, 70, 255],
-                );
-            }
-            if let Some(text) = cell_preview_value(frame_text, row as usize, col as usize) {
-                draw_text(
-                    rgba,
-                    width,
-                    height,
-                    cx + 8,
-                    cy + 12,
-                    1,
-                    text,
-                    [33, 48, 58, 255],
-                );
-            }
+                sx(*x),
+                sy(*y),
+                (*scale).max(1),
+                text,
+                *color,
+            ),
         }
     }
-    draw_text(
-        rgba,
-        width,
-        height,
-        x + 32,
-        y + h.saturating_sub(32),
-        1,
-        "Type numbers or formulas like =add(A1, A2) and =sum(A1:A3)",
-        [76, 98, 112, 255],
-    );
 }
 
-fn cell_preview_value(frame_text: &str, row: usize, col: usize) -> Option<&str> {
-    let prefix = format!("row {row}: ");
-    let line = frame_text
-        .lines()
-        .find_map(|line| line.strip_prefix(&prefix))?;
-    let name = match col {
-        0 => "A",
-        1 => "B",
-        2 => "C",
-        _ => return None,
-    };
-    for part in line.split('|') {
-        let part = part.trim();
-        let (key, value) = part.split_once('=')?;
-        if key.trim() == name {
-            return Some(value.trim());
-        }
+fn solid_frame(width: u32, height: u32, color: [u8; 4]) -> Vec<u8> {
+    let row_len = width as usize * 4;
+    let mut row = vec![0u8; row_len];
+    fill_row(&mut row, color);
+    let mut rgba = vec![0u8; row_len * height as usize];
+    for chunk in rgba.chunks_exact_mut(row_len) {
+        chunk.copy_from_slice(&row);
     }
-    None
+    rgba
+}
+
+fn fill_row(row: &mut [u8], color: [u8; 4]) {
+    for pixel in row.chunks_exact_mut(4) {
+        pixel.copy_from_slice(&color);
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1840,11 +1069,32 @@ fn draw_rect(
 ) {
     let x1 = x.saturating_add(w).min(width);
     let y1 = y.saturating_add(h).min(height);
-    for py in y.min(height)..y1 {
-        for px in x.min(width)..x1 {
-            let idx = ((py * width + px) * 4) as usize;
-            rgba[idx..idx + 4].copy_from_slice(&color);
+    let x0 = x.min(width);
+    let y0 = y.min(height);
+    let rect_w = x1.saturating_sub(x0);
+    let rect_h = y1.saturating_sub(y0);
+    if rect_w == 0 || rect_h == 0 {
+        return;
+    }
+
+    if rect_w.saturating_mul(rect_h) <= 512 {
+        for py in y0..y1 {
+            for px in x0..x1 {
+                let idx = ((py * width + px) * 4) as usize;
+                rgba[idx..idx + 4].copy_from_slice(&color);
+            }
         }
+        return;
+    }
+
+    let row_len = rect_w as usize * 4;
+    let mut row = vec![0u8; row_len];
+    fill_row(&mut row, color);
+    let stride = width as usize * 4;
+    let start_x = x0 as usize * 4;
+    for py in y0 as usize..y1 as usize {
+        let idx = py * stride + start_x;
+        rgba[idx..idx + row_len].copy_from_slice(&row);
     }
 }
 
@@ -2143,25 +1393,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn todomvc_parser_does_not_treat_footer_as_todo() {
-        assert_eq!(
-            parse_todo_line("1 [ ] Buy groceries"),
-            Some(("1".to_string(), false, "Buy groceries".to_string()))
-        );
-        assert_eq!(
-            parse_todo_line("2 [x] Clean room"),
-            Some(("2".to_string(), true, "Clean room".to_string()))
-        );
-        assert_eq!(parse_todo_line("2 items left"), None);
-        assert_eq!(parse_todo_line("filter: completed"), None);
-    }
-
-    #[test]
-    fn cells_preview_parser_reads_rendered_grid_rows() {
-        let frame_text = "Cells\nselected: B1\nformula: =add(a1, a2)\nvalue: 3\ncolumns: A B C D E F ... Z\nrow 1: A=1 | B=3 | C=\nrow 2: A=2 | B=3 | C=\n";
-        assert_eq!(cell_preview_value(frame_text, 1, 0), Some("1"));
-        assert_eq!(cell_preview_value(frame_text, 1, 1), Some("3"));
-        assert_eq!(cell_preview_value(frame_text, 2, 1), Some("3"));
-        assert_eq!(cell_preview_value(frame_text, 3, 1), None);
+    fn scene_renderer_draws_generic_commands() {
+        let scene = FrameScene {
+            title: "scene".to_string(),
+            commands: vec![
+                DrawCommand::Rect {
+                    x: 0,
+                    y: 0,
+                    width: 1000,
+                    height: 1000,
+                    color: [1, 2, 3, 255],
+                },
+                DrawCommand::Rect {
+                    x: 500,
+                    y: 500,
+                    width: 100,
+                    height: 100,
+                    color: [240, 10, 20, 255],
+                },
+            ],
+        };
+        let mut rgba = vec![0; 100 * 100 * 4];
+        draw_frame_scene(&mut rgba, 100, 100, 0, 0, 100, 100, &scene);
+        let center = ((55 * 100 + 55) * 4) as usize;
+        assert_eq!(&rgba[center..center + 4], &[240, 10, 20, 255]);
     }
 }

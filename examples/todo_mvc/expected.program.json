@@ -1,7 +1,9 @@
 {
-  "counter": false,
-  "interval": false,
-  "keyed_list": {
+  "title": "todo mvc",
+  "scene": "collection",
+  "scalar_counter": null,
+  "timer_counter": null,
+  "collection": {
     "initial_titles": [
       "Buy groceries",
       "Clean room"
@@ -17,8 +19,7 @@
     "item_checkbox_toggle": true,
     "item_remove_button": true
   },
-  "grid": null,
-  "frame_counter": false,
-  "physical_debug": false,
-  "title": "todo mvc"
+  "table": null,
+  "playfield": null,
+  "physical_debug": false
 }

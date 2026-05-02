@@ -28,7 +28,7 @@ use crate::application::is_main_thread_running;
 use crate::input::Window;
 use atomic_float::AtomicF64;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, Ordering};
 
 /// Mouse button constant for the left mouse button.
 ///
@@ -198,6 +198,7 @@ struct Shared {
     window: std::sync::Mutex<Option<MouseWindowLocation>>,
 
     buttons: [AtomicBool; 255],
+    button_down_counts: [AtomicU64; 255],
     scroll_delta_x: AtomicF64,
     scroll_delta_y: AtomicF64,
     last_window: AtomicPtr<c_void>,
@@ -207,6 +208,7 @@ impl Shared {
         Shared {
             window: std::sync::Mutex::new(None),
             buttons: [const { AtomicBool::new(false) }; 255],
+            button_down_counts: [const { AtomicU64::new(0) }; 255],
             scroll_delta_x: AtomicF64::new(0.0),
             scroll_delta_y: AtomicF64::new(0.0),
             last_window: AtomicPtr::new(std::ptr::null_mut()),
@@ -227,6 +229,9 @@ impl Shared {
     fn set_key_state(&self, key: u8, down: bool, window: *mut c_void) {
         logwise::debuginternal_sync!("Set mouse key {key} state {down}", key = key, down = down);
         self.buttons[key as usize].store(down, std::sync::atomic::Ordering::Relaxed);
+        if down {
+            self.button_down_counts[key as usize].fetch_add(1, Ordering::Relaxed);
+        }
         self.last_window
             .store(window, std::sync::atomic::Ordering::Relaxed);
     }
@@ -355,6 +360,14 @@ impl Mouse {
     /// ```
     pub fn button_state(&self, button: u8) -> bool {
         self.shared.buttons[button as usize].load(Ordering::Relaxed)
+    }
+
+    /// Returns how many button-down events occurred since the previous call.
+    ///
+    /// This preserves fast clicks even when a render loop is too busy to observe
+    /// both the pressed and released states by polling.
+    pub fn load_clear_button_down_count(&mut self, button: u8) -> u64 {
+        self.shared.button_down_counts[button as usize].swap(0, Ordering::Relaxed)
     }
 
     /// Returns the accumulated scroll delta and resets it to zero.

@@ -47,6 +47,9 @@ pub enum HostPatch {
     ReplaceFrameText {
         text: String,
     },
+    ReplaceFrameScene {
+        scene: FrameScene,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -61,4 +64,36 @@ pub struct FrameSnapshot {
 pub struct FrameInfo {
     pub hash: String,
     pub nonblank: bool,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct FrameScene {
+    pub title: String,
+    pub commands: Vec<DrawCommand>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub enum DrawCommand {
+    Rect {
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+        color: [u8; 4],
+    },
+    RectOutline {
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+        color: [u8; 4],
+    },
+    Text {
+        x: u32,
+        y: u32,
+        scale: u32,
+        text: String,
+        color: [u8; 4],
+    },
 }

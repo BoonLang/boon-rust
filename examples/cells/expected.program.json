@@ -1,8 +1,10 @@
 {
-  "counter": false,
-  "interval": false,
-  "keyed_list": null,
-  "grid": {
+  "title": "cells",
+  "scene": "table",
+  "scalar_counter": null,
+  "timer_counter": null,
+  "collection": null,
+  "table": {
     "rows": 100,
     "columns": 26,
     "editor_source_family": "cells[*].sources.editor",
@@ -11,7 +13,6 @@
       "sum"
     ]
   },
-  "frame_counter": false,
-  "physical_debug": false,
-  "title": "cells"
+  "playfield": null,
+  "physical_debug": false
 }

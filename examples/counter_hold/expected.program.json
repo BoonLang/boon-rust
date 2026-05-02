@@ -1,9 +1,16 @@
 {
-  "counter": true,
-  "interval": false,
-  "keyed_list": null,
-  "grid": null,
-  "frame_counter": false,
-  "physical_debug": false,
-  "title": "counter hold"
+  "title": "counter hold",
+  "scene": "action_value",
+  "scalar_counter": {
+    "event_path": "store.sources.increment_button.event.press",
+    "state_path": "counter",
+    "initial": 0,
+    "step": 1,
+    "button_label": "Increment"
+  },
+  "timer_counter": null,
+  "collection": null,
+  "table": null,
+  "playfield": null,
+  "physical_debug": false
 }

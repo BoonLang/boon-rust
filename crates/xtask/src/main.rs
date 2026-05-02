@@ -2,6 +2,7 @@ use anyhow::{Context, Result, bail};
 use boon_codegen_rust::{generate_manifest, generate_program_spec};
 use boon_examples::list_examples;
 use boon_verify::{
+    Backend, GateResult, VerifyReport, native_close_probe_helper,
     native_visible_surface_probe_helper, run_native_app_window_example, run_native_playground,
     verify_all, verify_browser_firefox, verify_native_app_window, verify_native_wgpu_headless,
     verify_ratatui,
@@ -53,7 +54,9 @@ fn main() -> Result<()> {
         Some("playground") if args.get(1).map(String::as_str) == Some("native") => {
             playground_native(&args[2..])
         }
+        Some("__playground-native-window") => playground_native_window(&args[1..]),
         Some("__native-surface-probe") => native_surface_probe_helper(&args[1..]),
+        Some("__native-close-probe") => native_close_probe_helper_cmd(&args[1..]),
         Some("bench") => bench(&args[1..]),
         _ => {
             eprintln!(
@@ -76,6 +79,20 @@ fn native_surface_probe_helper(args: &[String]) -> Result<()> {
         .map(|pair| PathBuf::from(&pair[1]))
         .context("--out <path> is required")?;
     native_visible_surface_probe_helper(example, &out)
+}
+
+fn native_close_probe_helper_cmd(args: &[String]) -> Result<()> {
+    let example = args
+        .windows(2)
+        .find(|pair| pair[0] == "--example")
+        .map(|pair| pair[1].as_str())
+        .context("--example <name> is required")?;
+    let out = args
+        .windows(2)
+        .find(|pair| pair[0] == "--out")
+        .map(|pair| PathBuf::from(&pair[1]))
+        .context("--out <path> is required")?;
+    native_close_probe_helper(example, &out)
 }
 
 fn examples_list() -> Result<()> {
@@ -344,8 +361,24 @@ fn verify(args: &[String]) -> Result<()> {
     }
     generate()?;
     shaders()?;
-    if args.first().map(String::as_str) == Some("all") {
-        quality_gates(&root)?;
+    if args.first().map(String::as_str) == Some("all")
+        && let Err(err) = quality_gates(&root)
+    {
+        let report_path = artifacts.join("verify-report.json");
+        let report = VerifyReport {
+            command: "verify all".to_string(),
+            results: vec![GateResult {
+                backend: Backend::QualityGate,
+                example: "quality-gates".to_string(),
+                passed: false,
+                frame_hash: None,
+                artifact_dir: artifacts.clone(),
+                message: err.to_string(),
+            }],
+        };
+        fs::write(&report_path, serde_json::to_vec_pretty(&report)?)?;
+        println!("wrote {}", report_path.display());
+        return Err(err);
     }
 
     let report = match args.first().map(String::as_str) {
@@ -463,10 +496,101 @@ fn playground_native(args: &[String]) -> Result<()> {
     bootstrap(false)?;
     generate()?;
     shaders()?;
+    if env::var_os("COSMIC_BACKGROUND_LAUNCH_ID").is_none()
+        && command_exists("cosmic-background-launch")
+    {
+        return launch_cosmic_background_and_wait(&[
+            "__playground-native-window".to_string(),
+            "--example".to_string(),
+            example.to_string(),
+            "--hold-ms".to_string(),
+            hold_ms.to_string(),
+        ]);
+    }
+    playground_native_window(&[
+        "--example".to_string(),
+        example.to_string(),
+        "--hold-ms".to_string(),
+        hold_ms.to_string(),
+    ])
+}
+
+fn playground_native_window(args: &[String]) -> Result<()> {
+    let (example, hold_ms) = parse_playground_args(args)?;
+    let status_out = args
+        .windows(2)
+        .find(|pair| pair[0] == "--status-out")
+        .map(|pair| PathBuf::from(&pair[1]));
     println!(
         "starting native playground with example `{example}`; press Esc in the window to quit"
     );
-    run_native_playground(example, Duration::from_millis(hold_ms))
+    let result = run_native_playground(example, Duration::from_millis(hold_ms));
+    if let Some(path) = status_out {
+        let status = match &result {
+            Ok(()) => json!({"ok": true}),
+            Err(err) => json!({"ok": false, "error": err.to_string()}),
+        };
+        fs::write(path, serde_json::to_vec_pretty(&status)?)?;
+    }
+    result
+}
+
+fn launch_cosmic_background_and_wait(args: &[String]) -> Result<()> {
+    let status_path = env::temp_dir().join(format!(
+        "boon-cosmic-background-status-{}-{}.json",
+        std::process::id(),
+        chrono_like_millis()
+    ));
+    let mut child_args = args.to_vec();
+    child_args.push("--status-out".to_string());
+    child_args.push(status_path.to_string_lossy().to_string());
+    let mut command = Command::new("cosmic-background-launch");
+    command.arg("--").arg(env::current_exe()?);
+    command.args(&child_args);
+    let output = command
+        .output()
+        .context("launching window command through cosmic-background-launch")?;
+    if !output.status.success() {
+        bail!(
+            "cosmic-background-launch failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    print!("{}", String::from_utf8_lossy(&output.stdout));
+    let pid = String::from_utf8_lossy(&output.stdout)
+        .split_whitespace()
+        .next()
+        .and_then(|pid| pid.parse::<u32>().ok())
+        .context("cosmic-background-launch did not print a child pid")?;
+    while Path::new(&format!("/proc/{pid}")).exists() && !status_path.exists() {
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    let status = fs::read_to_string(&status_path).with_context(|| {
+        format!(
+            "background window command exited without status file {}",
+            status_path.display()
+        )
+    })?;
+    let _ = fs::remove_file(&status_path);
+    let value: serde_json::Value = serde_json::from_str(&status)?;
+    if value.get("ok").and_then(|value| value.as_bool()) == Some(true) {
+        Ok(())
+    } else {
+        bail!(
+            "{}",
+            value
+                .get("error")
+                .and_then(|value| value.as_str())
+                .unwrap_or("background window command failed")
+        )
+    }
+}
+
+fn chrono_like_millis() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
 }
 
 fn run_ratatui(args: &[String]) -> Result<()> {

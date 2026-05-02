@@ -6,6 +6,10 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 use std::time::Duration;
 
+mod compiled_app;
+
+pub use compiled_app::ExampleApp;
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum SourceValue {
     EmptyRecord,

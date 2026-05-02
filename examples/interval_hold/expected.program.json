@@ -1,9 +1,14 @@
 {
-  "counter": false,
-  "interval": true,
-  "keyed_list": null,
-  "grid": null,
-  "frame_counter": false,
-  "physical_debug": false,
-  "title": "interval hold"
+  "title": "interval hold",
+  "scene": "clock_value",
+  "scalar_counter": null,
+  "timer_counter": {
+    "event_path": "store.sources.clock.event.tick",
+    "state_path": "interval_count",
+    "quantum_ms": 1000
+  },
+  "collection": null,
+  "table": null,
+  "playfield": null,
+  "physical_debug": false
 }

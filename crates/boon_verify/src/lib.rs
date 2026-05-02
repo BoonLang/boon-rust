@@ -1,7 +1,8 @@
 use anyhow::{Context, Result, bail};
 use boon_backend_app_window::{
-    AppWindowInputSample, AppWindowSurfaceFrameProof, RgbaFrame, run_rgba_input_session,
-    run_rgba_input_session_with_proof, smoke_test_with_title as app_window_smoke_test_with_title,
+    AppWindowCloseProof, AppWindowInputSample, AppWindowSurfaceFrameProof, RgbaFrame,
+    run_close_probe, run_rgba_input_session, run_rgba_input_session_with_proof,
+    smoke_test_with_title as app_window_smoke_test_with_title,
 };
 use boon_backend_browser::BrowserScenarioInput;
 use boon_backend_ratatui::RatatuiBackend;
@@ -21,6 +22,7 @@ use base64::Engine as _;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Backend {
+    QualityGate,
     RatatuiBuffer,
     RatatuiPty,
     NativeWgpuHeadless,
@@ -42,6 +44,17 @@ pub struct GateResult {
 pub struct VerifyReport {
     pub command: String,
     pub results: Vec<GateResult>,
+}
+
+fn prepare_artifact_dir(dir: &Path) -> Result<()> {
+    if dir.exists() {
+        fs::remove_dir_all(dir).with_context(|| {
+            format!("failed to clear stale artifact directory {}", dir.display())
+        })?;
+    }
+    fs::create_dir_all(dir)
+        .with_context(|| format!("failed to create artifact directory {}", dir.display()))?;
+    Ok(())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -284,7 +297,7 @@ pub fn verify_ratatui(artifacts: &Path, pty: bool) -> Result<VerifyReport> {
         let dir = artifacts
             .join(name)
             .join(if pty { "ratatui-pty" } else { "ratatui" });
-        fs::create_dir_all(&dir)?;
+        prepare_artifact_dir(&dir)?;
         fs::write(dir.join("frames.txt"), &frame.text)?;
         let frame_png = write_text_frame_png(&frame.text, &dir.join("frame.png"))?;
         if let Some(capture) = &pty_capture {
@@ -755,7 +768,7 @@ pub fn verify_native_wgpu_headless(artifacts: &Path) -> Result<VerifyReport> {
         let mut app = app(name)?;
         let mut backend = WgpuBackend::headless_real(1280, 720)?;
         let dir = artifacts.join(name).join("native-wgpu-headless");
-        fs::create_dir_all(&dir)?;
+        prepare_artifact_dir(&dir)?;
         match backend.load(&mut app) {
             Ok(info) => {
                 run_core_scenario_wgpu(name, &mut app, &mut backend)?;
@@ -865,7 +878,7 @@ pub fn verify_all(artifacts: &Path) -> Result<VerifyReport> {
 
 pub fn verify_browser_firefox(artifacts: &Path) -> Result<VerifyReport> {
     let root_dir = artifacts.join("browser-firefox-extension");
-    fs::create_dir_all(&root_dir)?;
+    prepare_artifact_dir(&root_dir)?;
     match boon_backend_browser::doctor_firefox_webgpu() {
         Ok(capability) => {
             fs::write(
@@ -877,7 +890,7 @@ pub fn verify_browser_firefox(artifacts: &Path) -> Result<VerifyReport> {
                 let mut app = app(name)?;
                 let mut backend = WgpuBackend::headless_real(1280, 720)?;
                 let dir = artifacts.join(name).join("browser-firefox-extension");
-                fs::create_dir_all(&dir)?;
+                prepare_artifact_dir(&dir)?;
                 let initial = backend.load(&mut app)?;
                 run_core_scenario_wgpu(name, &mut app, &mut backend)?;
                 let timing = browser_timing_gate(name, &mut app, &mut backend)?;
@@ -1135,7 +1148,7 @@ fn browser_timing_gate(
                 "todomvc_check_one_item_30",
                 5.0,
                 10.0,
-                None,
+                Some(16.0),
                 |i| {
                     let owner_id = if i == 0 { 1 } else { i + 3 }.to_string();
                     dynamic_event(
@@ -1342,7 +1355,7 @@ fn ratatui_timing_gate(
                 "todomvc_check_one_item_30",
                 5.0,
                 10.0,
-                None,
+                Some(16.0),
                 |i| {
                     let owner_id = if i == 0 { 1 } else { i + 3 }.to_string();
                     dynamic_event(
@@ -1823,7 +1836,7 @@ fn percentile(sorted: &[f64], quantile: f64) -> f64 {
 
 pub fn verify_native_app_window(artifacts: &Path) -> Result<VerifyReport> {
     let root_dir = artifacts.join("native-app-window");
-    fs::create_dir_all(&root_dir)?;
+    prepare_artifact_dir(&root_dir)?;
     let smoke = match app_window_smoke_test_with_title(
         "Boon native app_window verification",
         Duration::ZERO,
@@ -1847,7 +1860,7 @@ pub fn verify_native_app_window(artifacts: &Path) -> Result<VerifyReport> {
     let mut results = Vec::new();
     for name in list_examples() {
         let dir = artifacts.join(name).join("native-app-window");
-        fs::create_dir_all(&dir)?;
+        prepare_artifact_dir(&dir)?;
         let surface_frame = match run_native_visible_surface_probe(name, &dir) {
             Ok(surface_frame) => surface_frame,
             Err(err) => {
@@ -1863,6 +1876,18 @@ pub fn verify_native_app_window(artifacts: &Path) -> Result<VerifyReport> {
                 break;
             }
         };
+        if let Err(err) = run_native_close_probe(name, &dir) {
+            fs::write(dir.join("close-button-failure.txt"), err.to_string())?;
+            results.push(GateResult {
+                backend: Backend::NativeAppWindow,
+                example: (*name).to_string(),
+                passed: false,
+                frame_hash: None,
+                artifact_dir: dir,
+                message: format!("native app_window close-button proof failed: {err}"),
+            });
+            break;
+        }
         match run_native_app_window_example_into(
             name,
             &dir,
@@ -1903,7 +1928,7 @@ pub fn run_native_app_window_example(
     hold: Duration,
 ) -> Result<GateResult> {
     let dir = artifacts.join(example).join("native-app-window-run");
-    fs::create_dir_all(&dir)?;
+    prepare_artifact_dir(&dir)?;
     let mut surface_frame = None;
     let smoke = if hold.is_zero() {
         app_window_smoke_test_with_title(format!("Boon {example} native app_window"), hold)?
@@ -2010,7 +2035,7 @@ impl NativeManualState {
         };
         match self.example.as_str() {
             "counter" | "counter_hold" => {
-                if (240.0..=460.0).contains(&x) && (302.0..=384.0).contains(&y) {
+                if (338.0..=662.0).contains(&x) && (388.0..=480.0).contains(&y) {
                     self.dispatch_labeled(
                         "native mouse click increment button",
                         event(
@@ -2031,10 +2056,10 @@ impl NativeManualState {
     }
 
     fn handle_todo_click(&mut self, x: f64, y: f64) -> Result<()> {
-        let panel_x = 75.0;
-        let main_y = 130.0;
-        let panel_w = 550.0;
-        if (main_y..main_y + 64.0).contains(&y) && (panel_x + 54.0..=panel_x + panel_w).contains(&x)
+        let panel_x = 206.0;
+        let main_y = 160.0;
+        let panel_w = 588.0;
+        if (main_y..main_y + 72.0).contains(&y) && (panel_x + 54.0..=panel_x + panel_w).contains(&x)
         {
             self.focused = Some(NativeFocus::NewTodo);
             self.text_buffer = self
@@ -2056,7 +2081,7 @@ impl NativeManualState {
             }
             return Ok(());
         }
-        if (main_y..main_y + 64.0).contains(&y)
+        if (main_y..main_y + 72.0).contains(&y)
             && (panel_x..panel_x + 54.0).contains(&x)
             && self.has_source("store.sources.toggle_all_checkbox.event.click")
         {
@@ -2069,9 +2094,10 @@ impl NativeManualState {
             );
         }
         let visible_ids = self.visible_todo_ids();
-        let footer_y = main_y + 64.0 + visible_ids.len() as f64 * 58.0;
-        if (footer_y..footer_y + 42.0).contains(&y) {
-            if x >= panel_x + panel_w - 120.0
+        let row_h = 62.0;
+        let footer_y = main_y + 72.0 + visible_ids.len() as f64 * row_h;
+        if (footer_y..footer_y + 54.0).contains(&y) {
+            if (panel_x + 474.0..=panel_x + panel_w).contains(&x)
                 && self.completed_todo_count() > 0
                 && self.has_source("store.sources.clear_completed_button.event.press")
             {
@@ -2083,11 +2109,11 @@ impl NativeManualState {
                     ),
                 );
             }
-            let filter = if (panel_x + 214.0..panel_x + 256.0).contains(&x) {
+            let filter = if (panel_x + 124.0..panel_x + 214.0).contains(&x) {
                 "all"
-            } else if (panel_x + 268.0..panel_x + 330.0).contains(&x) {
+            } else if (panel_x + 214.0..panel_x + 319.0).contains(&x) {
                 "active"
-            } else if (panel_x + 336.0..panel_x + 428.0).contains(&x) {
+            } else if (panel_x + 319.0..panel_x + 459.0).contains(&x) {
                 "completed"
             } else {
                 return Ok(());
@@ -2101,10 +2127,10 @@ impl NativeManualState {
             }
             return Ok(());
         }
-        if y < main_y + 64.0 {
+        if y < main_y + 72.0 {
             return Ok(());
         }
-        let row = ((y - (main_y + 64.0)) / 58.0).floor() as usize;
+        let row = ((y - (main_y + 72.0)) / row_h).floor() as usize;
         let Some(owner_id) = visible_ids.get(row).cloned() else {
             return Ok(());
         };
@@ -2149,8 +2175,8 @@ impl NativeManualState {
     }
 
     fn handle_cells_click(&mut self, x: f64, y: f64) -> Result<()> {
-        let col = ((x - 48.0) / 92.0).floor() as i64 + 1;
-        let row = ((y - 154.0) / 34.0).floor() as i64 + 1;
+        let col = ((x - 100.0) / 92.0).floor() as i64 + 1;
+        let row = ((y - 200.0) / 38.0).floor() as i64 + 1;
         if !(1..=26).contains(&col) || !(1..=100).contains(&row) {
             return Ok(());
         }
@@ -2305,6 +2331,7 @@ impl NativeManualState {
                 height,
                 examples,
                 current_index,
+                self.backend.frame_scene(),
                 self.backend.frame_text(),
                 &controls,
             ),
@@ -2512,6 +2539,40 @@ fn run_native_visible_surface_probe(
     Ok(surface_frame)
 }
 
+fn run_native_close_probe(example: &str, dir: &Path) -> Result<AppWindowCloseProof> {
+    let out = dir.join("close-button.json");
+    let output = Command::new(std::env::current_exe()?)
+        .arg("__native-close-probe")
+        .arg("--example")
+        .arg(example)
+        .arg("--out")
+        .arg(&out)
+        .stdin(Stdio::null())
+        .output()
+        .context("spawning native app_window close-button probe helper")?;
+    fs::write(
+        dir.join("close-button-helper.log"),
+        [output.stdout.as_slice(), output.stderr.as_slice()].concat(),
+    )?;
+    if !output.status.success() {
+        bail!(
+            "native app_window close-button probe helper exited with {}",
+            output.status
+        );
+    }
+    let close: AppWindowCloseProof = serde_json::from_slice(&fs::read(&out)?)?;
+    if !close.passed {
+        bail!(
+            "close-button proof failed: requested={} observed_closed={} presented_before_close={} iterations={}",
+            close.requested_close,
+            close.observed_closed,
+            close.presented_before_close,
+            close.iterations_after_close,
+        );
+    }
+    Ok(close)
+}
+
 pub fn native_visible_surface_probe_helper(example: &str, out: &Path) -> Result<()> {
     let dir = out
         .parent()
@@ -2531,6 +2592,26 @@ pub fn native_visible_surface_probe_helper(example: &str, out: &Path) -> Result<
             surface_frame.configured_height,
             surface_frame.final_surface_width,
             surface_frame.final_surface_height,
+        );
+    }
+    Ok(())
+}
+
+pub fn native_close_probe_helper(example: &str, out: &Path) -> Result<()> {
+    let examples = list_examples().to_vec();
+    let mut state = NativeManualState::new_for_playground(example)?;
+    let proof = run_close_probe(
+        format!("Boon {example} close probe"),
+        move |width, height| state.render_gui_frame(width, height, &examples, 0),
+    )?;
+    fs::write(out, serde_json::to_vec_pretty(&proof)?)?;
+    if !proof.passed {
+        bail!(
+            "close-button proof failed: requested={} observed_closed={} presented_before_close={} iterations={}",
+            proof.requested_close,
+            proof.observed_closed,
+            proof.presented_before_close,
+            proof.iterations_after_close,
         );
     }
     Ok(())
@@ -2743,8 +2824,8 @@ impl NativeGuiLayout {
             return None;
         }
         Some((
-            (x - self.content_x) * 700.0 / self.content_side,
-            (y - self.content_y) * 700.0 / self.content_side,
+            (x - self.content_x) * 1000.0 / self.content_side,
+            (y - self.content_y) * 1000.0 / self.content_side,
         ))
     }
 
@@ -2990,6 +3071,7 @@ struct NativePlaygroundInteractionProof {
     window_width: u32,
     window_height: u32,
     scenarios: Vec<NativePlaygroundScenarioProof>,
+    timing: Option<serde_json::Value>,
     passed: bool,
 }
 
@@ -3040,14 +3122,108 @@ fn run_todomvc_native_playground_scenarios(name: &str) -> Result<NativePlaygroun
         todomvc_playground_edit_remove(name)?,
         todomvc_playground_reject_empty_and_outside_click(name)?,
     ];
-    let passed = scenarios.iter().all(|scenario| scenario.passed);
+    let timing = todomvc_native_playground_mouse_timing(name)?;
+    let timing_passed = timing
+        .get("passed")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    let passed = scenarios.iter().all(|scenario| scenario.passed) && timing_passed;
     Ok(NativePlaygroundInteractionProof {
         example: name.to_string(),
         window_width: 1020,
         window_height: 1082,
         scenarios,
+        timing: Some(timing),
         passed,
     })
+}
+
+fn todomvc_native_playground_mouse_timing(name: &str) -> Result<serde_json::Value> {
+    let cases = vec![
+        measure_todomvc_native_mouse_rerender(
+            name,
+            "native_todomvc_mouse_check_one_100_under_16ms",
+            16.0,
+            |_, _| preview_click_sample(1020.0, 1082.0, 236.0, 262.0),
+        )?,
+        measure_todomvc_native_mouse_rerender(
+            name,
+            "native_todomvc_mouse_toggle_all_100_under_25ms",
+            25.0,
+            |_, _| preview_click_sample(1020.0, 1082.0, 236.0, 196.0),
+        )?,
+    ];
+    Ok(timing_cases(cases))
+}
+
+fn measure_todomvc_native_mouse_rerender(
+    name: &str,
+    scenario: &str,
+    max_budget_ms: f64,
+    mut sample: impl FnMut(&mut NativePlaygroundState, usize) -> AppWindowInputSample,
+) -> Result<serde_json::Value> {
+    let mut state = todomvc_playground_state(name)?;
+    ensure_todo_count_native_playground(&mut state, 100)?;
+    for i in 0..5 {
+        let click = sample(&mut state, i);
+        state.handle_sample(click)?;
+        let _ = state.render_gui_frame(1020, 1082)?;
+    }
+    let mut samples = Vec::new();
+    for i in 0..30 {
+        let click = sample(&mut state, i + 5);
+        let start = Instant::now();
+        state.handle_sample(click)?;
+        let _ = state.render_gui_frame(1020, 1082)?;
+        samples.push(start.elapsed().as_secs_f64() * 1000.0);
+    }
+    timing_sample(
+        scenario,
+        max_budget_ms,
+        max_budget_ms,
+        Some(max_budget_ms),
+        samples,
+    )
+}
+
+fn ensure_todo_count_native_playground(
+    playground: &mut NativePlaygroundState,
+    target: i64,
+) -> Result<()> {
+    loop {
+        let current = playground
+            .snapshot()?
+            .values
+            .get("store.todos_count")
+            .and_then(|value| value.as_i64())
+            .unwrap_or(0);
+        if current >= target {
+            return Ok(());
+        }
+        let title = format!("Todo {next:03}", next = current + 1);
+        dispatch_native_manual(
+            playground.current_state_mut()?,
+            state(
+                "store.sources.new_todo_input.text",
+                SourceValue::Text(title),
+            ),
+        )?;
+        dispatch_native_manual(
+            playground.current_state_mut()?,
+            event(
+                "store.sources.new_todo_input.event.key_down.key",
+                SourceValue::Tag("Enter".to_string()),
+            ),
+        )?;
+    }
+}
+
+fn dispatch_native_manual(manual: &mut NativeManualState, batch: SourceBatch) -> Result<()> {
+    for result in manual.app.dispatch_batch(batch)? {
+        manual.backend.apply_patches(&result.patches)?;
+    }
+    manual.backend.render_frame_ready()?;
+    Ok(())
 }
 
 fn run_counter_native_playground_scenarios(name: &str) -> Result<NativePlaygroundInteractionProof> {
@@ -3075,8 +3251,8 @@ fn run_counter_native_playground_scenarios(name: &str) -> Result<NativePlaygroun
         &mut state,
         &mut steps,
         "click visible increment button",
-        350.0,
-        343.0,
+        500.0,
+        434.0,
     )?;
     expect(
         state.snapshot()?.values.get("counter"),
@@ -3145,7 +3321,7 @@ fn run_interval_native_playground_scenarios(
 fn run_cells_native_playground_scenarios(name: &str) -> Result<NativePlaygroundInteractionProof> {
     let mut state = playground_state_for(name)?;
     let mut steps = Vec::new();
-    play_click(&mut state, &mut steps, "click A1 grid cell", 90.0, 172.0)?;
+    play_click(&mut state, &mut steps, "click A1 grid cell", 146.0, 219.0)?;
     play_text(
         &mut state,
         &mut steps,
@@ -3163,7 +3339,7 @@ fn run_cells_native_playground_scenarios(name: &str) -> Result<NativePlaygroundI
         json!("1"),
         "cells A1 after native playground edit",
     )?;
-    play_click(&mut state, &mut steps, "click A2 grid cell", 90.0, 206.0)?;
+    play_click(&mut state, &mut steps, "click A2 grid cell", 146.0, 257.0)?;
     play_text(
         &mut state,
         &mut steps,
@@ -3176,7 +3352,7 @@ fn run_cells_native_playground_scenarios(name: &str) -> Result<NativePlaygroundI
         "press Enter in A2 cell editor",
         "Return",
     )?;
-    play_click(&mut state, &mut steps, "click B1 grid cell", 182.0, 172.0)?;
+    play_click(&mut state, &mut steps, "click B1 grid cell", 238.0, 219.0)?;
     play_text(
         &mut state,
         &mut steps,
@@ -3199,7 +3375,7 @@ fn run_cells_native_playground_scenarios(name: &str) -> Result<NativePlaygroundI
         json!("=add(a1, a2)"),
         "cells formula bar shows selected B1 formula",
     )?;
-    play_click(&mut state, &mut steps, "click B2 grid cell", 182.0, 206.0)?;
+    play_click(&mut state, &mut steps, "click B2 grid cell", 238.0, 257.0)?;
     play_text(
         &mut state,
         &mut steps,
@@ -3221,8 +3397,8 @@ fn run_cells_native_playground_scenarios(name: &str) -> Result<NativePlaygroundI
         &mut state,
         &mut steps,
         "click A2 grid cell for update",
-        90.0,
-        206.0,
+        146.0,
+        257.0,
     )?;
     play_key(
         &mut state,
@@ -3277,10 +3453,10 @@ fn run_game_native_playground_scenarios(name: &str) -> Result<NativePlaygroundIn
     let initial_y = snapshot_i64(&initial_snapshot, "game.ball_y")?;
     let initial_dx = snapshot_i64(&initial_snapshot, "game.ball_dx")?;
     let initial_dy = snapshot_i64(&initial_snapshot, "game.ball_dy")?;
-    let initial_bricks = snapshot_i64(&initial_snapshot, "game.bricks_live_count").unwrap_or(0);
+    let initial_bricks = snapshot_i64(&initial_snapshot, "game.obstacles_live_count").unwrap_or(0);
     let (axis, first_key, second_key, first_label, second_label) = if name == "arkanoid" {
         (
-            "game.paddle_x",
+            "game.control_x",
             "LeftArrow",
             "RightArrow",
             "press ArrowLeft horizontal paddle control",
@@ -3288,7 +3464,7 @@ fn run_game_native_playground_scenarios(name: &str) -> Result<NativePlaygroundIn
         )
     } else {
         (
-            "game.paddle_y",
+            "game.control_y",
             "UpArrow",
             "DownArrow",
             "press ArrowUp vertical paddle control",
@@ -3344,7 +3520,7 @@ fn run_game_native_playground_scenarios(name: &str) -> Result<NativePlaygroundIn
         saw_ball_move |= x != initial_x || y != initial_y;
         saw_collision |= dx.signum() != initial_dx.signum() || dy.signum() != initial_dy.signum();
         if name == "arkanoid" {
-            saw_brick_hit |= snapshot_i64(&snapshot, "game.bricks_live_count")? < initial_bricks;
+            saw_brick_hit |= snapshot_i64(&snapshot, "game.obstacles_live_count")? < initial_bricks;
         }
     }
     let frame = state
@@ -3406,6 +3582,7 @@ fn single_playground_proof(
         window_width: 1020,
         window_height: 1082,
         scenarios: vec![scenario],
+        timing: None,
         passed,
     }
 }
@@ -3442,7 +3619,7 @@ fn todomvc_playground_add_toggle_filter_clear(name: &str) -> Result<NativePlaygr
         "sidebar click selects TodoMVC",
         click_sample(40.0, sidebar_y),
     )?;
-    play_click(&mut state, &mut steps, "click new todo input", 220.0, 162.0)?;
+    play_click(&mut state, &mut steps, "click new todo input", 320.0, 196.0)?;
     play_text(
         &mut state,
         &mut steps,
@@ -3459,8 +3636,8 @@ fn todomvc_playground_add_toggle_filter_clear(name: &str) -> Result<NativePlaygr
         &mut state,
         &mut steps,
         "click first todo checkbox",
-        96.0,
-        224.0,
+        236.0,
+        262.0,
     )?;
     expect(
         state.snapshot()?.values.get("store.completed_todos_count"),
@@ -3468,26 +3645,26 @@ fn todomvc_playground_add_toggle_filter_clear(name: &str) -> Result<NativePlaygr
         "TodoMVC completed count after playground checkbox",
     )?;
     if name == "todo_mvc" {
-        play_todo_footer_click(&mut state, &mut steps, "click completed filter", 456.0)?;
+        play_todo_footer_click(&mut state, &mut steps, "click completed filter", 592.0)?;
         expect(
             state.snapshot()?.values.get("store.selected_filter"),
             json!("completed"),
             "TodoMVC completed filter selected",
         )?;
-        play_todo_footer_click(&mut state, &mut steps, "click active filter", 374.0)?;
+        play_todo_footer_click(&mut state, &mut steps, "click active filter", 482.0)?;
         expect(
             state.snapshot()?.values.get("store.selected_filter"),
             json!("active"),
             "TodoMVC active filter selected",
         )?;
-        play_todo_footer_click(&mut state, &mut steps, "click all filter", 310.0)?;
+        play_todo_footer_click(&mut state, &mut steps, "click all filter", 386.0)?;
         expect(
             state.snapshot()?.values.get("store.selected_filter"),
             json!("all"),
             "TodoMVC all filter selected",
         )?;
     }
-    play_todo_footer_click(&mut state, &mut steps, "click clear completed", 565.0)?;
+    play_todo_footer_click(&mut state, &mut steps, "click clear completed", 720.0)?;
     expect(
         state.snapshot()?.values.get("store.todos_count"),
         json!(2),
@@ -3512,8 +3689,8 @@ fn todomvc_playground_edit_remove(name: &str) -> Result<NativePlaygroundScenario
         &mut state,
         &mut steps,
         "click first todo row text",
-        260.0,
-        224.0,
+        320.0,
+        262.0,
     )?;
     play_text(
         &mut state,
@@ -3546,8 +3723,8 @@ fn todomvc_playground_edit_remove(name: &str) -> Result<NativePlaygroundScenario
         &mut state,
         &mut steps,
         "click second todo remove button",
-        596.0,
-        282.0,
+        760.0,
+        324.0,
     )?;
     expect(
         state.snapshot()?.values.get("store.todos_count"),
@@ -3593,7 +3770,7 @@ fn todomvc_playground_reject_empty_and_outside_click(
         &mut state,
         &mut steps,
         "click hidden clear-completed area with no completed todos",
-        565.0,
+        720.0,
     )?;
     expect(
         state.snapshot()?.values.get("store.todos_count"),
@@ -3604,8 +3781,8 @@ fn todomvc_playground_reject_empty_and_outside_click(
         &mut state,
         &mut steps,
         "click new todo input for whitespace",
-        220.0,
-        162.0,
+        320.0,
+        196.0,
     )?;
     play_text(&mut state, &mut steps, "type whitespace-only text", "   ")?;
     for idx in 0..3 {
@@ -3690,7 +3867,7 @@ fn play_todo_footer_click(
     virtual_x: f64,
 ) -> Result<()> {
     let visible_count = state.visible_todo_ids()?.len();
-    let footer_y = 130.0 + 64.0 + visible_count as f64 * 58.0 + 21.0;
+    let footer_y = 160.0 + 72.0 + visible_count as f64 * 62.0 + 27.0;
     play_click(state, steps, action, virtual_x, footer_y)
 }
 
@@ -3752,8 +3929,8 @@ fn preview_click_sample(
     };
     let layout = NativeGuiLayout::from_sample(&base);
     click_sample_at(
-        layout.content_x + virtual_x * layout.content_side / 700.0,
-        layout.content_y + virtual_y * layout.content_side / 700.0,
+        layout.content_x + virtual_x * layout.content_side / 1000.0,
+        layout.content_y + virtual_y * layout.content_side / 1000.0,
         window_width,
         window_height,
     )
@@ -4964,4 +5141,35 @@ fn stable_sha(text: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(text.as_bytes());
     hex::encode(hasher.finalize())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn native_playground_hit_targets_cover_todomvc_controls() {
+        let proof = run_todomvc_native_playground_scenarios("todo_mvc")
+            .expect("TodoMVC native playground scenarios should run without a visible window");
+        assert!(proof.passed, "{proof:#?}");
+        let scenario_names = proof
+            .scenarios
+            .iter()
+            .map(|scenario| scenario.name.as_str())
+            .collect::<Vec<_>>();
+        assert!(scenario_names.contains(&"todo_mvc_add_toggle_filter_clear"));
+        assert!(scenario_names.contains(&"todo_mvc_edit_remove"));
+        assert!(scenario_names.contains(&"todo_mvc_reject_empty_and_outside_click"));
+    }
+
+    #[test]
+    fn native_playground_hit_targets_cover_counter_and_cells() {
+        let counter = run_counter_native_playground_scenarios("counter")
+            .expect("counter native playground scenario should run without a visible window");
+        assert!(counter.passed, "{counter:#?}");
+
+        let cells = run_cells_native_playground_scenarios("cells")
+            .expect("cells native playground scenario should run without a visible window");
+        assert!(cells.passed, "{cells:#?}");
+    }
 }

@@ -11,6 +11,35 @@ store:
 game:
     title: TEXT { Pong }
 
+motion:
+    arena:
+        width: 1000
+        height: 700
+    ball:
+        x: 84
+        y: 350
+        dx: -12
+        dy: 8
+        size: 22
+    player:
+        axis: Vertical
+        position: 50
+        step: 8
+        x: 38
+        y: 0
+        width: 18
+        height: 128
+        auto_track: False
+    opponent:
+        axis: Vertical
+        position: 50
+        step: 8
+        x: 944
+        y: 0
+        width: 18
+        height: 128
+        auto_track: True
+
 world:
     0 |> HOLD frame {
         store.sources.tick.event.frame |> THEN { frame + 1 }

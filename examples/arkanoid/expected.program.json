@@ -1,9 +1,42 @@
 {
-  "counter": false,
-  "interval": false,
-  "keyed_list": null,
-  "grid": null,
-  "frame_counter": true,
-  "physical_debug": false,
-  "title": "Arkanoid"
+  "title": "Arkanoid",
+  "scene": "playfield",
+  "scalar_counter": null,
+  "timer_counter": null,
+  "collection": null,
+  "table": null,
+  "playfield": {
+    "frame_event_path": "store.sources.tick.event.frame",
+    "control_event_path": "store.sources.paddle.event.key_down.key",
+    "arena_width": 1000,
+    "arena_height": 700,
+    "ball": {
+      "x": 470,
+      "y": 205,
+      "dx": 10,
+      "dy": -12,
+      "size": 22
+    },
+    "player": {
+      "axis": "horizontal",
+      "position": 50,
+      "step": 8,
+      "x": 0,
+      "y": 646,
+      "width": 160,
+      "height": 18,
+      "auto_track": false
+    },
+    "opponent": null,
+    "bricks": {
+      "rows": 6,
+      "columns": 12,
+      "top": 56,
+      "margin": 36,
+      "gap": 8,
+      "height": 28,
+      "score_per_hit": 10
+    }
+  },
+  "physical_debug": false
 }

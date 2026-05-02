@@ -10,6 +10,7 @@ use wayland_client::protocol::wl_surface::WlSurface;
 use wayland_protocols::xdg::shell::client::xdg_surface::XdgSurface;
 use wayland_protocols::xdg::shell::client::xdg_toplevel::XdgToplevel;
 use wayland_protocols::xdg::shell::client::xdg_wm_base::XdgWmBase;
+use wayland_protocols::xdg::activation::v1::client::xdg_activation_v1::XdgActivationV1;
 
 use super::ax::AX;
 use super::buffer::{AllocatedBuffer, create_shm_buffer_decor};
@@ -218,6 +219,16 @@ impl Window {
                 );
                 let xdg_toplevel =
                     xdg_surface.get_toplevel(&info.queue_handle, window_internal.clone());
+                if let Ok(token) = std::env::var("XDG_ACTIVATION_TOKEN")
+                    && !token.is_empty()
+                    && let Ok(xdg_activation) = info.globals.bind::<XdgActivationV1, _, _>(
+                        &info.queue_handle,
+                        1..=1,
+                        (),
+                    )
+                {
+                    xdg_activation.activate(token, &surface);
+                }
                 window_internal
                     .lock()
                     .unwrap()

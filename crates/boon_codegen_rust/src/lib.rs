@@ -29,19 +29,11 @@ pub fn generate_examples_module(
 ) -> Result<()> {
     let mut code = String::new();
     code.push_str(
-        r#"use anyhow::{Result, bail};
-use boon_compiler::{ProgramSpec, compile_source};
-use boon_render_ir::{HostPatch, NodeId, NodeKind};
-use boon_runtime::{
-    AppSnapshot, BoonApp, FakeClock, SourceBatch, SourceEmission, SourceInventory, SourceValue,
-    StateDelta, TurnId, TurnMetrics, TurnResult,
-};
-use boon_shape::Shape;
-use boon_source::SourceOwner;
+        r#"use anyhow::Result;
+use boon_compiler::compile_source;
+use boon_runtime::SourceInventory;
+pub use boon_runtime::ExampleApp;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
-use std::collections::{BTreeMap, BTreeSet};
-use std::time::Duration;
 
 "#,
     );
@@ -94,7 +86,6 @@ pub fn app(name: &str) -> Result<ExampleApp> {
 
 "#,
     );
-    code.push_str(include_str!("example_runtime_template.rs"));
     fs::write(output_path, code)?;
     Ok(())
 }

@@ -18,6 +18,7 @@ use wayland_protocols::xdg::shell::client::xdg_surface::XdgSurface;
 use wayland_protocols::xdg::shell::client::xdg_toplevel::XdgToplevel;
 use wayland_protocols::xdg::shell::client::xdg_wm_base::XdgWmBase;
 use wayland_protocols::xdg::shell::client::{xdg_surface, xdg_toplevel};
+use wayland_protocols::xdg::activation::v1::client::xdg_activation_v1::XdgActivationV1;
 
 use super::ax;
 use super::buffer::AllocatedBuffer;
@@ -108,6 +109,22 @@ impl Dispatch<WlShm, ()> for App {
     ) {
         logwise::debuginternal_sync!(
             "Got WlShm event {event}",
+            event = logwise::privacy::LogIt(&event)
+        );
+    }
+}
+
+impl Dispatch<XdgActivationV1, ()> for App {
+    fn event(
+        _state: &mut Self,
+        _proxy: &XdgActivationV1,
+        event: <XdgActivationV1 as Proxy>::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qhandle: &QueueHandle<Self>,
+    ) {
+        logwise::debuginternal_sync!(
+            "Got XdgActivationV1 event {event}",
             event = logwise::privacy::LogIt(&event)
         );
     }
