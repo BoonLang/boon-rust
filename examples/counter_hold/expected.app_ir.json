@@ -1,19 +1,33 @@
 {
   "state_cells": [
     {
-      "path": "scalar_value",
+      "path": "counter",
       "initial": {
         "kind": "number",
         "value": 0
       }
     }
   ],
-  "list_views": [
+  "static_records": [
     {
-      "list_path": "records",
-      "title_line": "records",
-      "entry_hint": "",
-      "count_suffix": "items"
+      "path": "view",
+      "fields": [
+        {
+          "key": "action",
+          "value": {
+            "kind": "record",
+            "fields": [
+              {
+                "key": "label",
+                "value": {
+                  "kind": "text",
+                  "value": "Increment"
+                }
+              }
+            ]
+          }
+        }
+      ]
     }
   ],
   "event_handlers": [
@@ -23,12 +37,12 @@
       "effects": [
         {
           "kind": "assign",
-          "state_path": "scalar_value",
+          "state_path": "counter",
           "expr": {
             "kind": "add",
             "left": {
               "kind": "hold",
-              "state_path": "scalar_value"
+              "state_path": "counter"
             },
             "right": {
               "kind": "number",

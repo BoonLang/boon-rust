@@ -1,6 +1,71 @@
 {
   "state_cells": [],
-  "grid_models": [
+  "static_records": [
+    {
+      "path": "cells",
+      "fields": [
+        {
+          "key": "sources",
+          "value": {
+            "kind": "record",
+            "fields": [
+              {
+                "key": "display",
+                "value": {
+                  "kind": "record",
+                  "fields": [
+                    {
+                      "key": "event",
+                      "value": {
+                        "kind": "record",
+                        "fields": []
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "key": "editor",
+                "value": {
+                  "kind": "record",
+                  "fields": [
+                    {
+                      "key": "event",
+                      "value": {
+                        "kind": "record",
+                        "fields": [
+                          {
+                            "key": "key_down",
+                            "value": {
+                              "kind": "record",
+                              "fields": []
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "path": "formulas",
+      "fields": [
+        {
+          "key": "functions",
+          "value": {
+            "kind": "record",
+            "fields": []
+          }
+        }
+      ]
+    }
+  ],
+  "matrix_models": [
     {
       "rows": 100,
       "columns": 26,

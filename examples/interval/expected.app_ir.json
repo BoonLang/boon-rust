@@ -1,7 +1,7 @@
 {
   "state_cells": [
     {
-      "path": "clock_value",
+      "path": "ticks",
       "initial": {
         "kind": "number",
         "value": 0
@@ -15,12 +15,12 @@
       "effects": [
         {
           "kind": "assign",
-          "state_path": "clock_value",
+          "state_path": "ticks",
           "expr": {
             "kind": "add",
             "left": {
               "kind": "hold",
-              "state_path": "clock_value"
+              "state_path": "ticks"
             },
             "right": {
               "kind": "number",

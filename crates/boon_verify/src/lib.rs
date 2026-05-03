@@ -120,6 +120,8 @@ pub fn verify_boon_powered(artifacts: &Path) -> Result<VerifyReport> {
     let report = boon_powered_gate_report(&root, true)?;
     let report_path = dir.join("boon-powered-gate.json");
     fs::write(&report_path, serde_json::to_vec_pretty(&report)?)?;
+    let root_report_path = artifacts.join("boon-powered-gate.json");
+    fs::write(&root_report_path, serde_json::to_vec_pretty(&report)?)?;
     Ok(VerifyReport {
         command: "verify boon-powered".to_string(),
         results: vec![GateResult {
@@ -515,16 +517,52 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
             resolution: "implement List/* semantics as generic app-IR operations",
         },
         GenericityProbe {
+            category: "list model recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "pub struct IrListViewSpec",
+            resolution: "lower list rendering from generic Boon render/view expressions instead of a fixed list view model",
+        },
+        GenericityProbe {
+            category: "list model recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "fn list_view_from_hir(",
+            resolution: "lower list rendering from generic Boon render/view expressions instead of a fixed list view extractor",
+        },
+        GenericityProbe {
             category: "dense grid family recognizer",
             path: "crates/boon_compiler/src/lib.rs",
             needle: "DenseGridSpec",
             resolution: "implement grid/formula behavior through generic state/list/render semantics",
         },
         GenericityProbe {
+            category: "dense grid family recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "pub struct IrGridModel",
+            resolution: "implement grid/formula behavior through generic state/list/render semantics instead of a fixed grid model",
+        },
+        GenericityProbe {
+            category: "dense grid family recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "fn grid_model_from_hir(",
+            resolution: "lower grid behavior from generic Boon state/render expressions instead of recognizing Element/grid as a fixed app model",
+        },
+        GenericityProbe {
             category: "kinematics family recognizer",
             path: "crates/boon_compiler/src/lib.rs",
             needle: "KinematicSpec",
             resolution: "express game physics through generic Boon state/frame/list semantics",
+        },
+        GenericityProbe {
+            category: "kinematics family recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "pub struct IrMotionModel",
+            resolution: "express game physics through generic Boon state/frame/list semantics instead of a fixed motion model",
+        },
+        GenericityProbe {
+            category: "kinematics family recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "fn motion_model_from_record(",
+            resolution: "lower frame/control/collision behavior through generic Boon handlers instead of recognizing a kinematics record",
         },
         GenericityProbe {
             category: "family based runtime rendering",
@@ -575,6 +613,18 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
             resolution: "route list/input behavior through generic source handlers and list values",
         },
         GenericityProbe {
+            category: "list model runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "ListRuntimeBinding",
+            resolution: "route list/input behavior through generic source handlers, state cells, and render tree execution",
+        },
+        GenericityProbe {
+            category: "list model runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn render_list_model_scene",
+            resolution: "render list UI by executing generic render tree nodes instead of a fixed list renderer",
+        },
+        GenericityProbe {
             category: "dense grid family runtime",
             path: "crates/boon_runtime/src/compiled_app.rs",
             needle: "DenseGridState",
@@ -587,6 +637,18 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
             resolution: "route cell formulas through generic state and dependency graph semantics",
         },
         GenericityProbe {
+            category: "dense grid family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "GridModelState",
+            resolution: "route cell formulas through generic state and dependency graph semantics instead of a fixed grid runtime model",
+        },
+        GenericityProbe {
+            category: "dense grid family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn render_grid_model_scene",
+            resolution: "render grid UI by executing generic render tree nodes instead of a fixed grid renderer",
+        },
+        GenericityProbe {
             category: "kinematics family runtime",
             path: "crates/boon_runtime/src/compiled_app.rs",
             needle: "KinematicState",
@@ -597,6 +659,18 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
             path: "crates/boon_runtime/src/compiled_app.rs",
             needle: "MotionRuntimeState",
             resolution: "route frame/control physics through generic Boon event handlers",
+        },
+        GenericityProbe {
+            category: "kinematics family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "MotionModelState",
+            resolution: "route frame/control/collision physics through generic Boon event handlers instead of a fixed motion runtime model",
+        },
+        GenericityProbe {
+            category: "kinematics family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn render_motion_model_scene",
+            resolution: "render game primitives by executing generic render tree nodes instead of a fixed motion renderer",
         },
     ];
     let mut gaps = Vec::new();
@@ -3383,6 +3457,16 @@ impl NativeManualState {
 
     fn dispatch_labeled(&mut self, action: &str, batch: SourceBatch) -> Result<()> {
         let batch_value = serde_json::to_value(&batch)?;
+        if let Err(err) = self.app.validate_source_batch(&batch) {
+            if is_stale_dynamic_owner_error(&err) {
+                self.focused = None;
+                self.text_buffer.clear();
+                self.backend.render_frame_ready()?;
+                return Ok(());
+            }
+            self.errors.push(format!("{action}: {err}"));
+            return Err(err);
+        }
         match self.backend.dispatch_frame_ready(&mut self.app, batch) {
             Ok(info) => {
                 self.dispatches.push(json!({
@@ -3419,6 +3503,11 @@ impl NativeManualState {
             errors: self.errors,
         })
     }
+}
+
+fn is_stale_dynamic_owner_error(err: &anyhow::Error) -> bool {
+    let message = err.to_string();
+    message.starts_with("dynamic record owner ") && message.ends_with(" is not live")
 }
 
 fn run_native_manual_input_session(

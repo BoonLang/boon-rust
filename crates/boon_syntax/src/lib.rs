@@ -151,6 +151,9 @@ pub enum AstExprKind {
     When {
         arms: Vec<AstWhenArm>,
     },
+    While {
+        arms: Vec<AstWhenArm>,
+    },
     Then {
         body: Box<AstExpr>,
     },
@@ -584,6 +587,7 @@ fn is_expression_start(text: &str) -> bool {
         || text.starts_with("BLOCK {")
         || text.starts_with("LATEST {")
         || text.starts_with("WHEN {")
+        || text.starts_with("WHILE {")
         || text.starts_with("THEN {")
         || text.starts_with("Document/")
         || text.starts_with("Element/")
@@ -675,6 +679,10 @@ fn parse_expr(raw: &str, span: Span) -> AstExpr {
         }
     } else if let Some((_, body)) = parse_wrapped_keyword(raw, "WHEN") {
         AstExprKind::When {
+            arms: parse_when_arms(body, span),
+        }
+    } else if let Some((_, body)) = parse_wrapped_keyword(raw, "WHILE") {
+        AstExprKind::While {
             arms: parse_when_arms(body, span),
         }
     } else if let Some((_, body)) = parse_wrapped_keyword(raw, "LATEST") {
@@ -853,7 +861,7 @@ fn parse_when_item_arms(item: &str, span: Span) -> Vec<AstWhenArm> {
     if let Some((pattern, value)) = item.split_once("=>")
         && matches!(
             value.split_whitespace().next(),
-            Some("BLOCK" | "THEN" | "WHEN" | "LATEST" | "LIST")
+            Some("BLOCK" | "THEN" | "WHEN" | "WHILE" | "LATEST" | "LIST")
         )
     {
         return vec![AstWhenArm {
@@ -1102,6 +1110,13 @@ title:
         __ => SKIP
     }
 
+branch:
+    title
+    |> WHILE {
+        Ready => TEXT { ready }
+        __ => TEXT { waiting }
+    }
+
 items:
     LIST {
         build(title: TEXT { First })
@@ -1140,6 +1155,13 @@ items:
                 AstExprKind::When { .. }
             )),
             "WHEN should be represented in AST"
+        );
+        assert!(
+            contains_expr(&parsed.ast, |expr| matches!(
+                expr.kind,
+                AstExprKind::While { .. }
+            )),
+            "WHILE should be represented in AST"
         );
         assert!(
             contains_expr(&parsed.ast, |expr| matches!(
@@ -1194,7 +1216,7 @@ items:
             AstExprKind::Block { bindings } => bindings
                 .iter()
                 .any(|binding| expr_contains(&binding.value, predicate)),
-            AstExprKind::When { arms } => {
+            AstExprKind::When { arms } | AstExprKind::While { arms } => {
                 arms.iter().any(|arm| expr_contains(&arm.value, predicate))
             }
             AstExprKind::Then { body } | AstExprKind::Hold { body, .. } => {

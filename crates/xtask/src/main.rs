@@ -117,6 +117,21 @@ fn bootstrap(check: bool) -> Result<()> {
         "user_pref(\"dom.webgpu.enabled\", true);\n",
     )?;
 
+    let node = repo_tool_or_command_path(&tools, "node").with_context(|| {
+        "missing Node 22.22.0 needed for repo-local web-ext; install it, for example `fnm install 22.22.0 && fnm use 22.22.0` or `sudo apt install nodejs npm`"
+    })?;
+    let npm = repo_tool_or_command_path(&tools, "npm").with_context(|| {
+        "missing npm 10.9.4 needed for repo-local web-ext; install it, for example `fnm install 22.22.0 && fnm use 22.22.0` or `sudo apt install nodejs npm`"
+    })?;
+    ensure_command_version(&node, "--version", "v22.22.0", "node")?;
+    ensure_command_version(&npm, "--version", "10.9.4", "npm")?;
+    if node != tools.join("bin/node") {
+        install_repo_tool_link(&tools, "node", &node)?;
+    }
+    if npm != tools.join("bin/npm") {
+        install_repo_tool_link(&tools, "npm", &npm)?;
+    }
+
     if command_exists("rustup") {
         if check {
             let installed =
@@ -140,17 +155,9 @@ fn bootstrap(check: bool) -> Result<()> {
         if check {
             bail!("missing or wrong repo-local web-ext@10.1.0; run `cargo xtask bootstrap`");
         }
-        if !command_exists("npm") {
-            bail!(
-                "missing npm needed for repo-local web-ext; install Node/npm, for example `sudo apt install nodejs npm`"
-            );
-        }
-        run(Command::new("npm").current_dir(&root).args([
-            "--prefix",
-            ".boon-local/tools",
-            "install",
-            "web-ext@10.1.0",
-        ]))?;
+        run(Command::new(tools.join("bin/npm"))
+            .current_dir(&root)
+            .args(["--prefix", ".boon-local/tools", "install", "web-ext@10.1.0"]))?;
     }
 
     if !command_exists("firefox") {
@@ -777,6 +784,89 @@ fn command_exists(name: &str) -> bool {
         .arg(format!("command -v {name} >/dev/null 2>&1"))
         .status()
         .is_ok_and(|status| status.success())
+}
+
+fn command_path(name: &str) -> Result<PathBuf> {
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(format!("command -v {name}"))
+        .output()?;
+    if !output.status.success() {
+        bail!("command `{name}` not found");
+    }
+    Ok(PathBuf::from(
+        String::from_utf8_lossy(&output.stdout).trim().to_string(),
+    ))
+}
+
+fn repo_tool_or_command_path(tools: &Path, name: &str) -> Result<PathBuf> {
+    let local = tools.join("bin").join(name);
+    if fs::symlink_metadata(&local).is_ok_and(|metadata| metadata.file_type().is_file())
+        && Command::new(&local)
+            .arg("--version")
+            .output()
+            .is_ok_and(|output| output.status.success())
+    {
+        return Ok(local);
+    }
+    command_path(name)
+}
+
+fn ensure_command_version(command: &Path, flag: &str, expected: &str, name: &str) -> Result<()> {
+    let actual = command_stdout(Command::new(command).arg(flag))?;
+    if actual != expected {
+        bail!(
+            "{name} version mismatch: expected {expected}, got {actual}; install the pinned version before running bootstrap"
+        );
+    }
+    Ok(())
+}
+
+fn install_repo_tool_link(tools: &Path, name: &str, source: &Path) -> Result<()> {
+    let bin = tools.join("bin");
+    fs::create_dir_all(&bin)?;
+    let destination = bin.join(name);
+    if fs::symlink_metadata(&destination).is_ok() {
+        fs::remove_file(&destination)?;
+    }
+    #[cfg(unix)]
+    {
+        let quoted_source = shell_quote_path(source)?;
+        fs::write(
+            &destination,
+            format!(
+                "#!/bin/sh\nPATH=\"$(dirname \"$0\"):$PATH\"\nexport PATH\nexec {quoted_source} \"$@\"\n"
+            ),
+        )
+        .with_context(|| {
+            format!(
+                "writing repo-local tool wrapper {} -> {}",
+                destination.display(),
+                source.display()
+            )
+        })?;
+        let mut permissions = fs::metadata(&destination)?.permissions();
+        std::os::unix::fs::PermissionsExt::set_mode(&mut permissions, 0o755);
+        fs::set_permissions(&destination, permissions)?;
+    }
+    #[cfg(not(unix))]
+    {
+        fs::copy(source, &destination).with_context(|| {
+            format!(
+                "copying repo-local tool {} -> {}",
+                source.display(),
+                destination.display()
+            )
+        })?;
+    }
+    Ok(())
+}
+
+fn shell_quote_path(path: &Path) -> Result<String> {
+    let raw = path
+        .to_str()
+        .with_context(|| format!("tool path is not valid UTF-8: {}", path.display()))?;
+    Ok(format!("'{}'", raw.replace('\'', "'\\''")))
 }
 
 fn repo_local_web_ext_version(tools: &Path) -> Result<Option<String>> {

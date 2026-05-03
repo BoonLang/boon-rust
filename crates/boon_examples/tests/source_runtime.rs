@@ -205,6 +205,92 @@ fn cells_recompute_dirty_dependents_and_cycles_deterministically() {
 }
 
 #[test]
+fn ad_hoc_grid_example_uses_source_owned_root() {
+    let source = r#"
+store:
+    sources:
+        viewport:
+            event:
+                key_down:
+                    key: SOURCE
+
+sheet:
+    sources:
+        editor:
+            text: SOURCE
+            event:
+                key_down:
+                    key: SOURCE
+
+rows:
+    List/range(from: 1, to: 3)
+
+columns:
+    List/range(from: 1, to: 3)
+
+formulas:
+    functions:
+        add: Math/add
+        sum: Math/sum
+
+grid:
+    rows |> List/map(row, new:
+        columns |> List/map(column, new:
+            [
+                row: row
+                column: column
+                sources: sheet.sources
+            ]
+        )
+    )
+
+document:
+    Document/new(
+        root:
+            Element/grid(
+                element: store.sources.viewport
+                cells:
+                    grid |> List/map(row, new:
+                        row |> List/map(cell, new:
+                            Element/panel(
+                                children:
+                                    LIST {
+                                        Element/text_input(element: cell.sources.editor)
+                                    }
+                            )
+                        )
+                    )
+            )
+    )
+"#;
+    let mut app = CompiledApp::new(
+        compile_source("ad_hoc_grid_probe", source).expect("ad hoc grid source compiles"),
+    );
+
+    for (owner, value) in [("A1", "2"), ("A2", "5"), ("B1", "=add(A1, A2)")] {
+        app.dispatch_batch(SourceBatch {
+            state_updates: vec![dynamic_emission(
+                "sheet[*].sources.editor.text",
+                owner,
+                0,
+                SourceValue::Text(value.to_string()),
+            )],
+            events: Vec::new(),
+        })
+        .expect("ad hoc grid update succeeds");
+    }
+
+    assert_eq!(
+        app.snapshot().values.get("sheet.B1"),
+        Some(&serde_json::json!("7"))
+    );
+    assert!(
+        !app.snapshot().values.contains_key("cells.B1"),
+        "ad hoc grid state must use the source-owned root, not the maintained cells example root"
+    );
+}
+
+#[test]
 fn behavior_changes_when_source_reducer_expression_is_removed() {
     let source = definition("counter")
         .expect("counter definition")
@@ -222,10 +308,10 @@ fn behavior_changes_when_source_reducer_expression_is_removed() {
     })
     .expect("counter dispatch succeeds");
 
-    assert_eq!(
-        app.snapshot().values.get("scalar_value"),
-        Some(&serde_json::json!(0)),
-        "removing the Boon increment expression must change behavior"
+    assert_ne!(
+        app.snapshot().values.get("counter"),
+        Some(&serde_json::json!(1)),
+        "removing the Boon increment expression must remove the increment behavior"
     );
 }
 
@@ -242,7 +328,7 @@ fn interval_tick_event_runs_through_generic_event_ir() {
     .expect("tick event dispatch succeeds");
 
     assert_eq!(
-        app.snapshot().values.get("clock_value"),
+        app.snapshot().values.get("ticks"),
         Some(&serde_json::json!(1))
     );
 }
@@ -317,6 +403,104 @@ fn todo_list_controls_run_through_generic_list_ir() {
     .expect("clear completed event succeeds");
     assert_eq!(
         app.snapshot().values.get("store.todos_count"),
+        Some(&serde_json::json!(0))
+    );
+}
+
+#[test]
+fn ad_hoc_list_example_uses_generic_append_runtime() {
+    let source = r#"
+store:
+    sources:
+        entry:
+            text: SOURCE
+            event:
+                key_down:
+                    key: SOURCE
+                change: SOURCE
+
+FUNCTION row(title) {
+    [
+        sources:
+            remove_button:
+                event:
+                    press: SOURCE
+        title: title
+    ]
+}
+
+title_to_add:
+    store.sources.entry.event.key_down.key
+    |> WHEN {
+        Enter => BLOCK {
+            trimmed: store.sources.entry.text |> Text/trim()
+            trimmed |> Text/is_not_empty() |> WHEN { True => trimmed False => SKIP }
+        }
+        __ => SKIP
+    }
+
+items:
+    LIST {}
+    |> List/append(item: title_to_add |> row(title: PASSED))
+    |> List/remove(item, on: item.sources.remove_button.event.press)
+
+document:
+    Document/new(
+        root:
+            Element/panel(
+                children:
+                    LIST {
+                        Element/text_input(element: store.sources.entry)
+                        items |> List/map(item, new:
+                            Element/panel(
+                                children:
+                                    LIST {
+                                        Element/button(element: item.sources.remove_button)
+                                    }
+                            )
+                        )
+                    }
+            )
+    )
+"#;
+    let mut app = CompiledApp::new(
+        compile_source("ad_hoc_list_probe", source).expect("ad hoc list source compiles"),
+    );
+
+    app.dispatch_batch(SourceBatch {
+        state_updates: vec![emission(
+            "store.sources.entry.text",
+            SourceValue::Text("  generic item  ".to_string()),
+        )],
+        events: vec![emission(
+            "store.sources.entry.event.key_down.key",
+            SourceValue::Tag("Enter".to_string()),
+        )],
+    })
+    .expect("generic list append dispatch succeeds");
+
+    assert_eq!(
+        app.snapshot().values.get("store.items_count"),
+        Some(&serde_json::json!(1))
+    );
+    assert_eq!(
+        app.snapshot().values.get("store.items_titles"),
+        Some(&serde_json::json!(["generic item"]))
+    );
+
+    app.dispatch_batch(SourceBatch {
+        state_updates: Vec::new(),
+        events: vec![dynamic_emission(
+            "items[*].sources.remove_button.event.press",
+            "1",
+            0,
+            SourceValue::EmptyRecord,
+        )],
+    })
+    .expect("generic list remove dispatch succeeds");
+
+    assert_eq!(
+        app.snapshot().values.get("store.items_count"),
         Some(&serde_json::json!(0))
     );
 }

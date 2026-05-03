@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::{Read, Write};
@@ -1102,8 +1103,14 @@ fn launch_web_ext(root: &Path, url: &str, profile: &Path, harness_dir: &Path) ->
         .create(true)
         .append(true)
         .open(harness_dir.join("web-ext.stderr.log"))?;
+    let mut path_entries = vec![root.join(".boon-local/tools/bin")];
+    if let Some(path) = env::var_os("PATH") {
+        path_entries.extend(env::split_paths(&path));
+    }
+    let path = env::join_paths(path_entries).context("joining web-ext PATH")?;
     Command::new(web_ext)
         .current_dir(root)
+        .env("PATH", path)
         .args([
             "run",
             "--source-dir",

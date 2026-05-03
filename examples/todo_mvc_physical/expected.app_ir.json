@@ -15,18 +15,165 @@
       ]
     }
   ],
-  "list_views": [
+  "static_records": [
     {
-      "list_path": "todos",
-      "title_line": "todos",
-      "entry_hint": "What needs to be done?",
-      "count_suffix": "items left",
-      "remove_marked_label": "Clear completed",
-      "auxiliary_lines": [
-        "Double-click to edit an item",
-        "Created by Boon",
-        "Part of the classic app examples",
-        "physical debug: depth bounds and source bindings matrix"
+      "path": "view",
+      "fields": [
+        {
+          "key": "physical_debug",
+          "value": {
+            "kind": "bool",
+            "value": true
+          }
+        },
+        {
+          "key": "title_line",
+          "value": {
+            "kind": "text",
+            "value": "todos"
+          }
+        },
+        {
+          "key": "entry_hint",
+          "value": {
+            "kind": "text",
+            "value": "What needs to be done?"
+          }
+        },
+        {
+          "key": "count_suffix",
+          "value": {
+            "kind": "text",
+            "value": "items left"
+          }
+        },
+        {
+          "key": "actions",
+          "value": {
+            "kind": "record",
+            "fields": [
+              {
+                "key": "mass_mark",
+                "value": {
+                  "kind": "record",
+                  "fields": []
+                }
+              },
+              {
+                "key": "remove_marked",
+                "value": {
+                  "kind": "record",
+                  "fields": [
+                    {
+                      "key": "label",
+                      "value": {
+                        "kind": "text",
+                        "value": "Clear completed"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "key": "auxiliary",
+          "value": {
+            "kind": "record",
+            "fields": [
+              {
+                "key": "hint",
+                "value": {
+                  "kind": "text",
+                  "value": "Double-click to edit an item"
+                }
+              },
+              {
+                "key": "author",
+                "value": {
+                  "kind": "text",
+                  "value": "Created by Boon"
+                }
+              },
+              {
+                "key": "note",
+                "value": {
+                  "kind": "text",
+                  "value": "Part of the classic app examples"
+                }
+              },
+              {
+                "key": "physical_debug",
+                "value": {
+                  "kind": "text",
+                  "value": "physical debug: depth bounds and source bindings matrix"
+                }
+              },
+              {
+                "key": "sources",
+                "value": {
+                  "kind": "record",
+                  "fields": [
+                    {
+                      "key": "checkbox",
+                      "value": {
+                        "kind": "record",
+                        "fields": [
+                          {
+                            "key": "event",
+                            "value": {
+                              "kind": "record",
+                              "fields": []
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "key": "remove_button",
+                      "value": {
+                        "kind": "record",
+                        "fields": [
+                          {
+                            "key": "event",
+                            "value": {
+                              "kind": "record",
+                              "fields": []
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "key": "edit_input",
+                      "value": {
+                        "kind": "record",
+                        "fields": [
+                          {
+                            "key": "event",
+                            "value": {
+                              "kind": "record",
+                              "fields": [
+                                {
+                                  "key": "key_down",
+                                  "value": {
+                                    "kind": "record",
+                                    "fields": []
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
       ]
     }
   ],

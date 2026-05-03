@@ -15,33 +15,163 @@
       ]
     }
   ],
-  "list_views": [
+  "static_records": [
     {
-      "list_path": "todos",
-      "title_line": "todos",
-      "entry_hint": "What needs to be done?",
-      "count_suffix": "items left",
-      "remove_marked_label": "Clear completed",
-      "auxiliary_lines": [
-        "Double-click to edit an item",
-        "Created by Boon",
-        "Part of the classic app examples"
-      ],
-      "selectors": [
+      "path": "view",
+      "fields": [
         {
-          "id": "filter_all",
-          "label": "All",
-          "visibility": "all"
+          "key": "title_line",
+          "value": {
+            "kind": "text",
+            "value": "todos"
+          }
         },
         {
-          "id": "filter_active",
-          "label": "Active",
-          "visibility": "unmarked"
+          "key": "entry_hint",
+          "value": {
+            "kind": "text",
+            "value": "What needs to be done?"
+          }
         },
         {
-          "id": "filter_completed",
-          "label": "Completed",
-          "visibility": "marked"
+          "key": "count_suffix",
+          "value": {
+            "kind": "text",
+            "value": "items left"
+          }
+        },
+        {
+          "key": "selectors",
+          "value": {
+            "kind": "record",
+            "fields": [
+              {
+                "key": "filter_all",
+                "value": {
+                  "kind": "record",
+                  "fields": [
+                    {
+                      "key": "label",
+                      "value": {
+                        "kind": "text",
+                        "value": "All"
+                      }
+                    },
+                    {
+                      "key": "visibility",
+                      "value": {
+                        "kind": "tag",
+                        "value": "All"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "key": "filter_active",
+                "value": {
+                  "kind": "record",
+                  "fields": [
+                    {
+                      "key": "label",
+                      "value": {
+                        "kind": "text",
+                        "value": "Active"
+                      }
+                    },
+                    {
+                      "key": "visibility",
+                      "value": {
+                        "kind": "tag",
+                        "value": "Unmarked"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "key": "filter_completed",
+                "value": {
+                  "kind": "record",
+                  "fields": [
+                    {
+                      "key": "label",
+                      "value": {
+                        "kind": "text",
+                        "value": "Completed"
+                      }
+                    },
+                    {
+                      "key": "visibility",
+                      "value": {
+                        "kind": "tag",
+                        "value": "Marked"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "key": "actions",
+          "value": {
+            "kind": "record",
+            "fields": [
+              {
+                "key": "mass_mark",
+                "value": {
+                  "kind": "record",
+                  "fields": []
+                }
+              },
+              {
+                "key": "remove_marked",
+                "value": {
+                  "kind": "record",
+                  "fields": [
+                    {
+                      "key": "label",
+                      "value": {
+                        "kind": "text",
+                        "value": "Clear completed"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "key": "auxiliary",
+          "value": {
+            "kind": "record",
+            "fields": [
+              {
+                "key": "hint",
+                "value": {
+                  "kind": "text",
+                  "value": "Double-click to edit an item"
+                }
+              },
+              {
+                "key": "author",
+                "value": {
+                  "kind": "text",
+                  "value": "Created by Boon"
+                }
+              },
+              {
+                "key": "note",
+                "value": {
+                  "kind": "text",
+                  "value": "Part of the classic app examples"
+                }
+              }
+            ]
+          }
         }
       ]
     }

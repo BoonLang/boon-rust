@@ -4,8 +4,8 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use boon_compiler::{
-    AppIr, ControlAxis, IrAppMetadata, IrEffect, IrListViewSpec, IrListVisibility, IrPredicate,
-    IrValueExpr,
+    AppIr, ControlAxis, IrAppMetadata, IrEffect, IrPredicate, IrStaticField, IrStaticRecord,
+    IrStaticValue, IrValueExpr,
 };
 use boon_render_ir::{
     DrawCommand, FrameScene, HitTarget, HitTargetAction, HostPatch, NodeId, NodeKind,
@@ -24,8 +24,6 @@ pub struct CompiledApp {
     wiring: RuntimeWiring,
     turn: u64,
     frame_text: String,
-    scalar_value: i64,
-    clock_value: i64,
     clock: RuntimeClock,
     records: Vec<DynamicRecord>,
     next_record_id: u64,
@@ -33,22 +31,29 @@ pub struct CompiledApp {
     source_state: BTreeMap<String, SourceValue>,
     generic_state: BTreeMap<String, i64>,
     view_selector: String,
-    grid: GridModelState,
+    grid: MatrixRuntimeState,
     frame_index: u64,
-    motion: MotionModelState,
+    motion: DynamicsRuntimeState,
 }
 
 #[derive(Clone, Debug, Default)]
 struct RuntimeWiring {
-    scalar_event: Option<String>,
-    list: Option<ListRuntimeBinding>,
+    action_state: Option<StateEventBinding>,
+    clock_state: Option<StateEventBinding>,
+    list: Option<RepeaterBinding>,
     grid: Option<DenseBinding>,
     kinematic_frame_event: Option<String>,
     kinematic_control_event: Option<String>,
 }
 
 #[derive(Clone, Debug)]
-struct ListRuntimeBinding {
+struct StateEventBinding {
+    source_path: String,
+    state_path: String,
+}
+
+#[derive(Clone, Debug)]
+struct RepeaterBinding {
     family: String,
     root: String,
     entry_text: Option<String>,
@@ -67,6 +72,31 @@ struct ListRuntimeBinding {
     dynamic_text_change: Option<String>,
 }
 
+#[derive(Clone, Debug, Default)]
+struct RuntimeListView {
+    title_line: String,
+    entry_hint: String,
+    count_suffix: String,
+    remove_marked_label: Option<String>,
+    auxiliary_lines: Vec<String>,
+    selectors: Vec<RuntimeListSelector>,
+}
+
+#[derive(Clone, Debug)]
+struct RuntimeListSelector {
+    id: String,
+    label: String,
+    visibility: RuntimeListVisibility,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+enum RuntimeListVisibility {
+    #[default]
+    All,
+    Unmarked,
+    Marked,
+}
+
 #[derive(Clone, Debug)]
 struct DenseBinding {
     family: String,
@@ -79,32 +109,40 @@ struct DenseBinding {
 
 impl RuntimeWiring {
     fn from_compiled(app_ir: &AppIr, inventory: &SourceInventory) -> Self {
-        let scalar_event = app_ir.event_handlers.iter().find_map(|handler| {
-            handler
-                .effects
-                .iter()
-                .any(|effect| {
-                    matches!(
-                        effect,
-                        IrEffect::Assign { state_path, .. } if state_path == "scalar_value"
-                    )
-                })
-                .then(|| handler.source_path.clone())
-        });
-        let list = ListRuntimeBinding::from_app_ir(inventory, app_ir);
-        let grid = (!app_ir.grid_models.is_empty())
+        let mut action_state = None;
+        let mut clock_state = None;
+        for handler in &app_ir.event_handlers {
+            let Some(state_path) = handler.effects.iter().find_map(|effect| match effect {
+                IrEffect::Assign { state_path, .. } => Some(state_path.clone()),
+                _ => None,
+            }) else {
+                continue;
+            };
+            let binding = StateEventBinding {
+                source_path: handler.source_path.clone(),
+                state_path,
+            };
+            if source_shape_is_tick(inventory, &handler.source_path) {
+                clock_state.get_or_insert(binding);
+            } else {
+                action_state.get_or_insert(binding);
+            }
+        }
+        let list = RepeaterBinding::from_app_ir(inventory, app_ir);
+        let grid = (!app_ir.matrix_models.is_empty())
             .then(|| DenseBinding::from_inventory(inventory))
             .flatten();
         let kinematic_frame_event = app_ir
-            .motion_models
+            .dynamics_models
             .first()
             .map(|kinematics| kinematics.frame_event_path.clone());
         let kinematic_control_event = app_ir
-            .motion_models
+            .dynamics_models
             .first()
             .map(|kinematics| kinematics.control_event_path.clone());
         Self {
-            scalar_event,
+            action_state,
+            clock_state,
             list,
             grid,
             kinematic_frame_event,
@@ -113,7 +151,7 @@ impl RuntimeWiring {
     }
 }
 
-impl ListRuntimeBinding {
+impl RepeaterBinding {
     fn from_app_ir(inventory: &SourceInventory, app_ir: &AppIr) -> Option<Self> {
         if !app_ir.event_handlers.iter().any(|handler| {
             handler.effects.iter().any(|effect| {
@@ -129,9 +167,14 @@ impl ListRuntimeBinding {
         }) {
             return None;
         }
-        let family = first_dynamic_family(inventory, "Element/checkbox(element.event.click)")
-            .or_else(|| first_dynamic_family(inventory, "Element/text_input(element.text)"))?;
-        let root = dynamic_family_root(&family);
+        let dynamic_family =
+            first_dynamic_family(inventory, "Element/checkbox(element.event.click)")
+                .or_else(|| first_dynamic_family(inventory, "Element/text_input(element.text)"));
+        let root = dynamic_family
+            .as_deref()
+            .map(dynamic_family_root)
+            .or_else(|| first_list_effect_path(app_ir))
+            .or_else(|| app_ir.list_states.first().map(|list| list.path.clone()))?;
         let entry_text = app_ir.event_handlers.iter().find_map(|handler| {
             handler.effects.iter().find_map(|effect| match effect {
                 IrEffect::ListAppendText {
@@ -144,8 +187,9 @@ impl ListRuntimeBinding {
             .as_deref()
             .and_then(source_base_from_path)
             .or_else(|| static_base_for_producer(inventory, "Element/text_input(element.text)"));
-        let dynamic_text_base =
-            dynamic_base_for_producer(inventory, &family, "Element/text_input(element.text)");
+        let dynamic_text_base = dynamic_family.as_deref().and_then(|family| {
+            dynamic_base_for_producer(inventory, family, "Element/text_input(element.text)")
+        });
         let mut view_selector_events = BTreeMap::new();
         let mut static_mass_mark_event = None;
         let mut static_remove_marked_event = None;
@@ -173,6 +217,7 @@ impl ListRuntimeBinding {
                 }
             }
         }
+        let family = dynamic_family.unwrap_or_else(|| format!("{root}[*]"));
         Some(Self {
             family: family.clone(),
             root,
@@ -253,6 +298,13 @@ fn is_static(entry: &SourceEntry) -> bool {
     matches!(&entry.owner, SourceOwner::Static)
 }
 
+fn source_shape_is_tick(inventory: &SourceInventory, path: &str) -> bool {
+    inventory
+        .entries
+        .iter()
+        .any(|entry| entry.path == path && entry.path.ends_with(".event.tick"))
+}
+
 fn existing_path(inventory: &SourceInventory, path: &str) -> Option<String> {
     inventory
         .entries
@@ -290,6 +342,19 @@ fn unique_paths(paths: Vec<String>) -> Vec<String> {
         .into_iter()
         .filter(|path| seen.insert(path.clone()))
         .collect()
+}
+
+fn first_list_effect_path(app_ir: &AppIr) -> Option<String> {
+    app_ir.event_handlers.iter().find_map(|handler| {
+        handler.effects.iter().find_map(|effect| match effect {
+            IrEffect::ListAppendText { list_path, .. }
+            | IrEffect::ListToggleAllMarks { list_path }
+            | IrEffect::ListToggleOwnerMark { list_path }
+            | IrEffect::ListRemoveOwner { list_path }
+            | IrEffect::ListRemoveMarked { list_path } => Some(list_path.clone()),
+            _ => None,
+        })
+    })
 }
 
 fn first_dynamic_family(inventory: &SourceInventory, producer: &str) -> Option<String> {
@@ -358,6 +423,107 @@ fn dynamic_family_root(family: &str) -> String {
         .to_string()
 }
 
+fn runtime_list_view_from_app_ir(app_ir: &AppIr) -> Option<RuntimeListView> {
+    let view = app_ir
+        .static_records
+        .iter()
+        .find(|record| record.path == "view")?;
+    Some(RuntimeListView {
+        title_line: static_text_field(view, "title_line").unwrap_or_default(),
+        entry_hint: static_text_field(view, "entry_hint").unwrap_or_default(),
+        count_suffix: static_text_field(view, "count_suffix").unwrap_or_else(|| "items".into()),
+        remove_marked_label: static_record_field(view, "actions")
+            .and_then(|actions| static_record_value_field(actions, "remove_marked"))
+            .and_then(|action| static_value_text_field(action, "label")),
+        auxiliary_lines: static_record_field(view, "auxiliary")
+            .map(|auxiliary| {
+                auxiliary
+                    .iter()
+                    .filter_map(|field| static_value_text(&field.value))
+                    .filter(|line| !line.is_empty())
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default(),
+        selectors: static_record_field(view, "selectors")
+            .map(|selectors| {
+                selectors
+                    .iter()
+                    .map(|field| RuntimeListSelector {
+                        id: field.key.clone(),
+                        label: static_value_text_field(&field.value, "label")
+                            .unwrap_or_else(|| field.key.clone()),
+                        visibility: static_value_field(&field.value, "visibility")
+                            .and_then(static_value_tag)
+                            .and_then(runtime_list_visibility_from_tag)
+                            .unwrap_or_default(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
+    })
+}
+
+fn static_text_field(record: &IrStaticRecord, field: &str) -> Option<String> {
+    static_record_value_field(&record.fields, field)
+        .and_then(static_value_text)
+        .cloned()
+}
+
+fn static_record_field<'a>(record: &'a IrStaticRecord, field: &str) -> Option<&'a [IrStaticField]> {
+    static_value_record(static_record_value_field(&record.fields, field)?)
+}
+
+fn static_record_value_field<'a>(
+    record: &'a [IrStaticField],
+    field: &str,
+) -> Option<&'a IrStaticValue> {
+    record
+        .iter()
+        .find(|candidate| candidate.key == field)
+        .map(|candidate| &candidate.value)
+}
+
+fn static_value_field<'a>(value: &'a IrStaticValue, field: &str) -> Option<&'a IrStaticValue> {
+    static_record_value_field(static_value_record(value)?, field)
+}
+
+fn static_value_text_field(value: &IrStaticValue, field: &str) -> Option<String> {
+    static_value_field(value, field)
+        .and_then(static_value_text)
+        .cloned()
+}
+
+fn static_value_record(value: &IrStaticValue) -> Option<&[IrStaticField]> {
+    match value {
+        IrStaticValue::Record { fields } => Some(fields),
+        _ => None,
+    }
+}
+
+fn static_value_text(value: &IrStaticValue) -> Option<&String> {
+    match value {
+        IrStaticValue::Text { value } => Some(value),
+        _ => None,
+    }
+}
+
+fn static_value_tag(value: &IrStaticValue) -> Option<&str> {
+    match value {
+        IrStaticValue::Tag { value } => Some(value.as_str()),
+        _ => None,
+    }
+}
+
+fn runtime_list_visibility_from_tag(value: &str) -> Option<RuntimeListVisibility> {
+    match value {
+        "All" => Some(RuntimeListVisibility::All),
+        "Unmarked" => Some(RuntimeListVisibility::Unmarked),
+        "Marked" => Some(RuntimeListVisibility::Marked),
+        _ => None,
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct DynamicRecord {
     id: u64,
@@ -368,7 +534,7 @@ struct DynamicRecord {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct GridModelState {
+struct MatrixRuntimeState {
     rows: usize,
     columns: usize,
     selected: (usize, usize),
@@ -379,7 +545,7 @@ struct GridModelState {
     rev_deps: Vec<Vec<usize>>,
 }
 
-impl GridModelState {
+impl MatrixRuntimeState {
     fn new(rows: usize, columns: usize) -> Self {
         let len = rows * columns;
         Self {
@@ -396,7 +562,7 @@ impl GridModelState {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct MotionModelState {
+struct DynamicsRuntimeState {
     body_x: i64,
     body_y: i64,
     body_dx: i64,
@@ -411,8 +577,8 @@ struct MotionModelState {
     resets_remaining: i64,
 }
 
-impl MotionModelState {
-    fn from_model(model: Option<&boon_compiler::IrMotionModel>) -> Self {
+impl DynamicsRuntimeState {
+    fn from_model(model: Option<&boon_compiler::IrDynamicsModel>) -> Self {
         let Some(model) = model else {
             return Self::default();
         };
@@ -461,7 +627,7 @@ impl MotionModelState {
     }
 }
 
-impl Default for MotionModelState {
+impl Default for DynamicsRuntimeState {
     fn default() -> Self {
         Self {
             body_x: 0,
@@ -492,16 +658,20 @@ impl CompiledApp {
             .map(|list| list.initial_entries.clone())
             .unwrap_or_default();
         let grid = app_ir
-            .grid_models
+            .matrix_models
             .first()
-            .map(|grid| GridModelState::new(grid.rows, grid.columns))
-            .unwrap_or_else(|| GridModelState::new(100, 26));
-        let motion = MotionModelState::from_model(app_ir.motion_models.first());
-        let initial_view_selector = app_ir
-            .list_views
-            .first()
-            .and_then(|view| view.selectors.first().map(|selector| selector.id.clone()))
-            .unwrap_or_else(|| "all".to_string());
+            .map(|grid| MatrixRuntimeState::new(grid.rows, grid.columns))
+            .unwrap_or_else(|| MatrixRuntimeState::new(100, 26));
+        let motion = DynamicsRuntimeState::from_model(app_ir.dynamics_models.first());
+        let initial_view_selector = runtime_list_view_from_app_ir(&app_ir).map_or_else(
+            || "all".to_string(),
+            |view| {
+                view.selectors
+                    .first()
+                    .map(|selector| selector.id.clone())
+                    .unwrap_or_else(|| "all".to_string())
+            },
+        );
         let mut generic_state = BTreeMap::new();
         for cell in &app_ir.state_cells {
             if let Ok(value) = eval_initial_number(&cell.initial) {
@@ -515,8 +685,6 @@ impl CompiledApp {
             wiring,
             turn: 0,
             frame_text: String::new(),
-            scalar_value: *generic_state.get("scalar_value").unwrap_or(&0),
-            clock_value: *generic_state.get("clock_value").unwrap_or(&0),
             clock: RuntimeClock::default(),
             records: initial_records
                 .into_iter()
@@ -541,6 +709,10 @@ impl CompiledApp {
         app.next_record_id = app.records.len() as u64 + 1;
         app.frame_text = app.render_text();
         app
+    }
+
+    pub fn validate_source_batch(&self, batch: &SourceBatch) -> Result<()> {
+        self.validate_batch(batch)
     }
 
     fn emit_frame(&mut self, changed: &[&str], mut metrics: TurnMetrics) -> TurnResult {
@@ -765,11 +937,6 @@ impl CompiledApp {
 
     fn set_generic_number(&mut self, state_path: &str, value: i64) {
         self.generic_state.insert(state_path.to_string(), value);
-        match state_path {
-            "scalar_value" => self.scalar_value = value,
-            "clock_value" => self.clock_value = value,
-            _ => {}
-        }
     }
 
     fn apply_generic_list_append_text(
@@ -895,12 +1062,12 @@ impl CompiledApp {
         );
     }
 
-    fn list_view(&self) -> Option<&IrListViewSpec> {
-        self.app_ir.list_views.first()
+    fn list_view(&self) -> Option<RuntimeListView> {
+        runtime_list_view_from_app_ir(&self.app_ir)
     }
 
-    fn motion_model(&self) -> Option<&boon_compiler::IrMotionModel> {
-        self.app_ir.motion_models.first()
+    fn dynamics_model(&self) -> Option<&boon_compiler::IrDynamicsModel> {
+        self.app_ir.dynamics_models.first()
     }
 
     fn has_render_kind(&self, kind: boon_compiler::IrRenderKind) -> bool {
@@ -910,15 +1077,34 @@ impl CompiledApp {
             .is_some_and(|node| render_node_has_kind(node, &kind))
     }
 
+    fn has_repeater_surface(&self) -> bool {
+        self.wiring.list.is_some()
+            && (self.has_render_kind(boon_compiler::IrRenderKind::ListMap)
+                || self.list_view().is_some())
+    }
+
+    fn action_value(&self) -> Option<i64> {
+        self.wiring
+            .action_state
+            .as_ref()
+            .and_then(|binding| self.generic_state.get(&binding.state_path).copied())
+    }
+
+    fn clock_value(&self) -> Option<i64> {
+        self.wiring
+            .clock_state
+            .as_ref()
+            .and_then(|binding| self.generic_state.get(&binding.state_path).copied())
+    }
+
     fn render_text(&self) -> String {
-        if self.has_render_kind(boon_compiler::IrRenderKind::ListMap) || self.list_view().is_some()
-        {
-            self.render_list_model_text()
+        if self.has_repeater_surface() {
+            self.render_repeater_text()
         } else if self.has_render_kind(boon_compiler::IrRenderKind::Grid) {
-            self.render_grid_model_text()
-        } else if !self.app_ir.motion_models.is_empty() {
-            self.render_motion_model_text()
-        } else if self.generic_state.contains_key("scalar_value") {
+            self.render_matrix_text()
+        } else if !self.app_ir.dynamics_models.is_empty() {
+            self.render_dynamics_text()
+        } else if let Some(value) = self.action_value() {
             let label = self
                 .program
                 .primary_label
@@ -927,12 +1113,12 @@ impl CompiledApp {
                 .unwrap_or("action");
             format!(
                 "{}\nsurface: button-scalar\n[ {label} ]\ncount: {}",
-                self.program.title, self.scalar_value
+                self.program.title, value
             )
-        } else if self.generic_state.contains_key("clock_value") {
+        } else if let Some(value) = self.clock_value() {
             format!(
                 "{}\nsurface: clock-scalar\nruntime_clock_ms: {}\nticks: {}",
-                self.program.title, self.clock.millis, self.clock_value
+                self.program.title, self.clock.millis, value
             )
         } else {
             String::new()
@@ -946,16 +1132,15 @@ impl CompiledApp {
             hit_targets: Vec::new(),
         };
         push_rect(&mut scene, 0, 0, 1000, 1000, [245, 245, 245, 255]);
-        if self.has_render_kind(boon_compiler::IrRenderKind::ListMap) || self.list_view().is_some()
-        {
-            self.render_list_model_scene(&mut scene);
+        if self.has_repeater_surface() {
+            self.render_repeater_scene(&mut scene);
         } else if self.has_render_kind(boon_compiler::IrRenderKind::Grid) {
-            self.render_grid_model_scene(&mut scene);
-        } else if !self.app_ir.motion_models.is_empty() {
-            self.render_motion_model_scene(&mut scene);
-        } else if self.generic_state.contains_key("scalar_value") {
+            self.render_matrix_scene(&mut scene);
+        } else if !self.app_ir.dynamics_models.is_empty() {
+            self.render_dynamics_scene(&mut scene);
+        } else if self.action_value().is_some() {
             self.render_action_value_scene(&mut scene);
-        } else if self.generic_state.contains_key("clock_value") {
+        } else if self.clock_value().is_some() {
             self.render_clock_value_scene(&mut scene);
         }
         scene
@@ -966,7 +1151,12 @@ impl CompiledApp {
         push_text(scene, 84, 108, 3, &self.program.title, [25, 40, 52, 255]);
         push_rect(scene, 338, 388, 324, 92, [46, 125, 166, 255]);
         push_rect_outline(scene, 338, 388, 324, 92, [21, 91, 128, 255]);
-        if let Some(path) = self.wiring.scalar_event.as_deref() {
+        if let Some(path) = self
+            .wiring
+            .action_state
+            .as_ref()
+            .map(|binding| binding.source_path.as_str())
+        {
             push_hit_target(
                 scene,
                 "scalar_action",
@@ -990,7 +1180,7 @@ impl CompiledApp {
             424,
             548,
             3,
-            &format!("count {}", self.scalar_value),
+            &format!("count {}", self.action_value().unwrap_or(0)),
             [35, 55, 68, 255],
         );
     }
@@ -1005,7 +1195,7 @@ impl CompiledApp {
             184,
             348,
             4,
-            &format!("ticks {}", self.clock_value),
+            &format!("ticks {}", self.clock_value().unwrap_or(0)),
             [240, 250, 255, 255],
         );
         push_text(
@@ -1018,7 +1208,7 @@ impl CompiledApp {
         );
     }
 
-    fn render_list_model_scene(&self, scene: &mut FrameScene) {
+    fn render_repeater_scene(&self, scene: &mut FrameScene) {
         let view = self.list_view();
         push_rect(scene, 0, 0, 1000, 1000, [245, 245, 245, 255]);
         push_text(
@@ -1026,7 +1216,8 @@ impl CompiledApp {
             340,
             66,
             4,
-            view.map(|view| view.title_line.as_str())
+            view.as_ref()
+                .map(|view| view.title_line.as_str())
                 .filter(|title_line| !title_line.is_empty())
                 .unwrap_or(&self.program.title),
             [186, 137, 137, 255],
@@ -1071,7 +1262,8 @@ impl CompiledApp {
             186,
             2,
             if self.entry_text.is_empty() {
-                view.map(|view| view.entry_hint.as_str())
+                view.as_ref()
+                    .map(|view| view.entry_hint.as_str())
                     .unwrap_or_default()
             } else {
                 &self.entry_text
@@ -1195,7 +1387,8 @@ impl CompiledApp {
             1,
             &format!(
                 "{unmarked} {}",
-                view.map(|view| view.count_suffix.as_str())
+                view.as_ref()
+                    .map(|view| view.count_suffix.as_str())
                     .unwrap_or("unmarked")
             ),
             [116, 116, 116, 255],
@@ -1225,7 +1418,9 @@ impl CompiledApp {
             push_text(scene, x, y + 21, 1, &label, [116, 116, 116, 255]);
         }
         if mark > 0
-            && let Some(label) = view.and_then(|view| view.remove_marked_label.as_deref())
+            && let Some(label) = view
+                .as_ref()
+                .and_then(|view| view.remove_marked_label.as_deref())
         {
             if let Some(path) = self
                 .wiring
@@ -1262,10 +1457,8 @@ impl CompiledApp {
 
     fn list_view_selector_layout(&self) -> Vec<(String, u32, u32, String)> {
         let view_selectors = self
-            .app_ir
-            .list_views
-            .first()
-            .map(|view| view.selectors.clone())
+            .list_view()
+            .map(|view| view.selectors)
             .unwrap_or_default();
         let mut x = 366;
         view_selectors
@@ -1284,7 +1477,7 @@ impl CompiledApp {
             .collect()
     }
 
-    fn render_grid_model_scene(&self, scene: &mut FrameScene) {
+    fn render_matrix_scene(&self, scene: &mut FrameScene) {
         push_rect(scene, 0, 0, 1000, 1000, [248, 249, 250, 255]);
         let selected = format!(
             "{}{}",
@@ -1307,10 +1500,12 @@ impl CompiledApp {
         let origin_y = 160;
         let row_h = 38;
         let col_w = 92;
+        let visible_cols = self.grid.columns.min(9) as u32;
+        let visible_rows = self.grid.rows.min(15) as u32;
         push_rect(scene, origin_x, origin_y, 904, 40, [229, 235, 241, 255]);
         push_rect(scene, origin_x, origin_y, 52, 760, [229, 235, 241, 255]);
-        for col in 1..=9 {
-            let x = origin_x + 52 + (col as u32 - 1) * col_w;
+        for col in 1..=visible_cols {
+            let x = origin_x + 52 + (col - 1) * col_w;
             push_rect_outline(scene, x, origin_y, col_w, 40, [196, 208, 216, 255]);
             push_text(
                 scene,
@@ -1321,7 +1516,7 @@ impl CompiledApp {
                 [62, 80, 96, 255],
             );
         }
-        for row in 1..=15 {
+        for row in 1..=visible_rows {
             let y = origin_y + 40 + (row - 1) * row_h;
             push_rect_outline(scene, origin_x, y, 52, row_h, [196, 208, 216, 255]);
             push_text(
@@ -1332,7 +1527,7 @@ impl CompiledApp {
                 &row.to_string(),
                 [62, 80, 96, 255],
             );
-            for col in 1..=9 {
+            for col in 1..=visible_cols {
                 let x = origin_x + 52 + (col - 1) * col_w;
                 let selected_slot = self.grid.selected == (row as usize, col as usize);
                 push_rect(
@@ -1395,8 +1590,8 @@ impl CompiledApp {
         }
     }
 
-    fn render_motion_model_scene(&self, scene: &mut FrameScene) {
-        let Some(kinematics) = self.motion_model() else {
+    fn render_dynamics_scene(&self, scene: &mut FrameScene) {
+        let Some(kinematics) = self.dynamics_model() else {
             return;
         };
         push_rect(scene, 0, 0, 1000, 1000, [18, 24, 32, 255]);
@@ -1514,14 +1709,16 @@ impl CompiledApp {
         );
     }
 
-    fn render_list_model_text(&self) -> String {
+    fn render_repeater_text(&self) -> String {
         let view = self.list_view();
         let mark = self.records.iter().filter(|record| record.mark).count();
         let unmarked = self.records.len().saturating_sub(mark);
         let mut lines = vec![
             self.program.title.clone(),
             "surface: sequence".to_string(),
-            view.map(|view| view.entry_hint.clone()).unwrap_or_default(),
+            view.as_ref()
+                .map(|view| view.entry_hint.clone())
+                .unwrap_or_default(),
             format!("input: {}", self.entry_text),
         ];
         for record in self.visible_records() {
@@ -1534,7 +1731,8 @@ impl CompiledApp {
         }
         lines.push(format!(
             "{unmarked} {}",
-            view.map(|view| view.count_suffix.as_str())
+            view.as_ref()
+                .map(|view| view.count_suffix.as_str())
                 .unwrap_or("unmarked")
         ));
         lines.push(format!("view_selector: {}", self.view_selector));
@@ -1544,7 +1742,7 @@ impl CompiledApp {
         lines.join("\n")
     }
 
-    fn render_motion_model_text(&self) -> String {
+    fn render_dynamics_text(&self) -> String {
         let frame_source = self
             .wiring
             .kinematic_frame_event
@@ -1554,7 +1752,7 @@ impl CompiledApp {
             "{}\nsurface: kinematics\nkinematic_mode: {}\nframe: {}\ncontrol_y: {}\ncontrol_x: {}\ntracked_control_y: {}\nbody_x: {}\nbody_y: {}\nbody_dx: {}\nbody_dy: {}\ncontact_field_rows: {}\ncontact_field_cols: {}\ncontact_field_live: {}\ncontact_value: {}\nresets_remaining: {}\ndeterministic input source: {}",
             self.program.title,
             if self
-                .motion_model()
+                .dynamics_model()
                 .and_then(|kinematics| kinematics.contact_field.as_ref())
                 .is_some()
             {
@@ -1582,7 +1780,7 @@ impl CompiledApp {
     fn advance_kinematic_step(&mut self) {
         self.frame_index += 1;
         if self
-            .motion_model()
+            .dynamics_model()
             .and_then(|kinematics| kinematics.contact_field.as_ref())
             .is_some()
         {
@@ -1593,7 +1791,7 @@ impl CompiledApp {
     }
 
     fn advance_bounded_peer_step(&mut self) {
-        let Some(kinematics) = self.motion_model().cloned() else {
+        let Some(kinematics) = self.dynamics_model().cloned() else {
             return;
         };
         let Some(tracked_control) = kinematics.tracked_control.as_ref() else {
@@ -1670,7 +1868,7 @@ impl CompiledApp {
     }
 
     fn advance_bounded_contact_field_step(&mut self) {
-        let Some(kinematics) = self.motion_model().cloned() else {
+        let Some(kinematics) = self.dynamics_model().cloned() else {
             return;
         };
         let Some(contact_field) = kinematics.contact_field.as_ref() else {
@@ -1768,24 +1966,22 @@ impl CompiledApp {
 
     fn visible_records(&self) -> impl Iterator<Item = &DynamicRecord> {
         let visibility = self
-            .app_ir
-            .list_views
-            .first()
+            .list_view()
             .and_then(|view| {
                 view.selectors
-                    .iter()
+                    .into_iter()
                     .find(|selector| selector.id == self.view_selector)
-                    .map(|selector| &selector.visibility)
+                    .map(|selector| selector.visibility)
             })
-            .unwrap_or(&IrListVisibility::All);
+            .unwrap_or_default();
         self.records.iter().filter(move |record| match visibility {
-            IrListVisibility::All => true,
-            IrListVisibility::Unmarked => !record.mark,
-            IrListVisibility::Marked => record.mark,
+            RuntimeListVisibility::All => true,
+            RuntimeListVisibility::Unmarked => !record.mark,
+            RuntimeListVisibility::Marked => record.mark,
         })
     }
 
-    fn render_grid_model_text(&self) -> String {
+    fn render_matrix_text(&self) -> String {
         let mut lines = vec![
             self.program.title.clone(),
             "surface: dense_grid".to_string(),
@@ -1943,7 +2139,7 @@ impl CompiledApp {
     }
 
     fn dense_expression_enabled(&self, name: &str) -> bool {
-        self.app_ir.grid_models.first().is_some_and(|grid| {
+        self.app_ir.matrix_models.first().is_some_and(|grid| {
             grid.expression_functions
                 .iter()
                 .any(|function| function == name)
@@ -2285,7 +2481,7 @@ impl BoonApp for CompiledApp {
                 .is_some_and(|path| event.path == *path)
             {
                 if let SourceValue::Tag(key) = &event.value
-                    && let Some(kinematics) = self.motion_model().cloned()
+                    && let Some(kinematics) = self.dynamics_model().cloned()
                 {
                     match kinematics.primary_control.axis {
                         ControlAxis::Horizontal => match key.as_str() {
@@ -2337,16 +2533,29 @@ impl BoonApp for CompiledApp {
     fn advance_time(&mut self, delta: Duration) -> TurnResult {
         self.clock.advance(delta);
         let ticks = self.clock.millis / 1000;
-        self.clock_value = ticks as i64;
-        self.emit_frame(&["clock", "clock_value"], TurnMetrics::default())
+        let Some(state_path) = self
+            .wiring
+            .clock_state
+            .as_ref()
+            .map(|binding| binding.state_path.clone())
+        else {
+            return self.emit_frame(&["clock"], TurnMetrics::default());
+        };
+        self.set_generic_number(&state_path, ticks as i64);
+        self.emit_frame_owned(
+            vec!["clock".to_string(), state_path],
+            TurnMetrics::default(),
+        )
     }
 
     fn snapshot(&self) -> AppSnapshot {
         let mark = self.records.iter().filter(|record| record.mark).count() as i64;
         let mut values = BTreeMap::new();
-        values.insert("scalar_value".to_string(), json!(self.scalar_value));
         for (path, value) in &self.generic_state {
             values.insert(path.clone(), json!(value));
+        }
+        if let Some(value) = self.action_value() {
+            values.insert("scalar_value".to_string(), json!(value));
         }
         if let Some(root) = self.record_root() {
             values.insert(
@@ -2359,7 +2568,9 @@ impl BoonApp for CompiledApp {
                 json!(self.records.len() as i64 - mark),
             );
         }
-        values.insert("clock_value".to_string(), json!(self.clock_value));
+        if let Some(value) = self.clock_value() {
+            values.insert("clock_value".to_string(), json!(value));
+        }
         if let Some(sequence) = &self.wiring.list {
             if let Some(entry_text) = &sequence.entry_text {
                 values.insert(entry_text.clone(), json!(self.entry_text));

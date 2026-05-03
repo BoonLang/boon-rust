@@ -12,7 +12,7 @@ use wayland_client::backend::WaylandError;
 use wayland_client::globals::{GlobalList, registry_queue_init};
 use wayland_client::protocol::wl_subcompositor::WlSubcompositor;
 use wayland_client::protocol::{wl_compositor, wl_output::WlOutput, wl_shm::WlShm};
-use wayland_client::{Connection, QueueHandle};
+use wayland_client::{Connection, EventQueue, QueueHandle};
 
 pub fn is_main_thread() -> bool {
     let current_pid = unsafe { getpid() };
@@ -135,7 +135,10 @@ pub fn run_main_thread<F: FnOnce() + Send + 'static>(closure: F) {
         .name("app_window closure".to_string())
         .spawn(closure);
 
-    event_queue.flush().expect("Failed to flush event queue");
+    if !flush_event_queue(&mut event_queue) {
+        IS_MAIN_THREAD_RUNNING.store(false, Ordering::SeqCst);
+        return;
+    }
 
     let mut read_guard = Some(event_queue.prepare_read().expect("Failed to prepare read"));
     const WAYLAND_DATA_AVAILABLE: u64 = 1;
@@ -171,20 +174,26 @@ pub fn run_main_thread<F: FnOnce() + Send + 'static>(closure: F) {
         event_queue: &mut wayland_client::EventQueue<App>,
         app: &mut App,
         read_guard: &mut Option<wayland_client::backend::ReadEventsGuard>,
-    ) {
+    ) -> bool {
         loop {
             let _read_guard = event_queue.prepare_read();
 
             match _read_guard {
                 Some(guard) => {
                     *read_guard = Some(guard);
-                    break; //out of loop
+                    return true;
                 }
                 None => {
-                    event_queue
-                        .dispatch_pending(app)
-                        .expect("Can't dispatch events");
-                    event_queue.flush().expect("Failed to flush event queue");
+                    if let Err(err) = event_queue.dispatch_pending(app) {
+                        logwise::warn_sync!(
+                            "can't dispatch pending wayland events before read: {err}",
+                            err = logwise::privacy::LogIt(format!("{err:?}"))
+                        );
+                        return false;
+                    }
+                    if !flush_event_queue(event_queue) {
+                        return false;
+                    }
                     //try again
                     logwise::debuginternal_sync!("Retrying");
                 }
@@ -194,7 +203,10 @@ pub fn run_main_thread<F: FnOnce() + Send + 'static>(closure: F) {
 
     //park
     loop {
-        next_read_guard(&mut event_queue, &mut app, &mut read_guard);
+        if !next_read_guard(&mut event_queue, &mut app, &mut read_guard) {
+            IS_MAIN_THREAD_RUNNING.store(false, Ordering::SeqCst);
+            break;
+        }
         assert!(read_guard.as_ref().unwrap().connection_fd().as_raw_fd() == io_uring_fd_raw);
         let r = io_uring.submit_and_wait(1);
         //we also want to take once regardless of entry
@@ -271,11 +283,7 @@ pub fn run_main_thread<F: FnOnce() + Send + 'static>(closure: F) {
             }
             //prepare next read
             //ensure writes queued during dispatch_pending go out (such as proxy replies, etc)
-            if let Err(err) = event_queue.flush() {
-                logwise::warn_sync!(
-                    "failed to flush wayland queue while closing app_window: {err}",
-                    err = logwise::privacy::LogIt(format!("{err:?}"))
-                );
+            if !flush_event_queue(&mut event_queue) {
                 IS_MAIN_THREAD_RUNNING.store(false, Ordering::SeqCst);
                 break;
             }
@@ -303,14 +311,48 @@ pub fn run_main_thread<F: FnOnce() + Send + 'static>(closure: F) {
                 }
             }
             //let's ensure any writes went out to wayland
-            event_queue
-                .dispatch_pending(&mut app)
-                .expect("can't dispatch events");
-            event_queue.flush().expect("Failed to flush event queue");
+            if let Err(err) = event_queue.dispatch_pending(&mut app) {
+                logwise::warn_sync!(
+                    "can't dispatch wayland events after main-thread message: {err}",
+                    err = logwise::privacy::LogIt(format!("{err:?}"))
+                );
+                IS_MAIN_THREAD_RUNNING.store(false, Ordering::SeqCst);
+                break;
+            }
+            if !flush_event_queue(&mut event_queue) {
+                IS_MAIN_THREAD_RUNNING.store(false, Ordering::SeqCst);
+                break;
+            }
             //submit new peek
             let mut sqs = io_uring.submission();
             unsafe { sqs.push(&eventfd_opcode) }.expect("Can't submit peek");
             //return to submit_and_wait
+        }
+    }
+}
+
+fn flush_event_queue(event_queue: &mut EventQueue<App>) -> bool {
+    match event_queue.flush() {
+        Ok(()) => true,
+        Err(WaylandError::Io(err)) if err.kind() == std::io::ErrorKind::WouldBlock => {
+            logwise::debuginternal_sync!(
+                "wayland flush would block; continuing without treating it as fatal"
+            );
+            true
+        }
+        Err(WaylandError::Protocol(err)) => {
+            logwise::warn_sync!(
+                "wayland protocol error while flushing app_window queue: {err}",
+                err = logwise::privacy::LogIt(format!("{err:?}"))
+            );
+            false
+        }
+        Err(err) => {
+            logwise::warn_sync!(
+                "failed to flush app_window wayland queue: {err}",
+                err = logwise::privacy::LogIt(format!("{err:?}"))
+            );
+            false
         }
     }
 }

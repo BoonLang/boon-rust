@@ -83,6 +83,9 @@ pub enum HirExprKind {
     When {
         arms: Vec<HirWhenArm>,
     },
+    While {
+        arms: Vec<HirWhenArm>,
+    },
     Then {
         body: Box<HirExpr>,
     },
@@ -155,6 +158,7 @@ pub enum HirFeature {
     Hold,
     Then,
     When,
+    While,
     Latest,
     Block,
     ListLiteral,
@@ -309,6 +313,19 @@ fn lower_expr(expr: &AstExpr, ctx: &mut LowerContext) -> HirExpr {
                     .collect(),
             }
         }
+        AstExprKind::While { arms } => {
+            ctx.features.insert(HirFeature::While);
+            HirExprKind::While {
+                arms: arms
+                    .iter()
+                    .map(|arm| HirWhenArm {
+                        pattern: arm.pattern.clone(),
+                        value: lower_expr(&arm.value, ctx),
+                        span: arm.span,
+                    })
+                    .collect(),
+            }
+        }
         AstExprKind::Then { body } => {
             ctx.features.insert(HirFeature::Then);
             HirExprKind::Then {
@@ -331,7 +348,7 @@ fn lower_expr(expr: &AstExpr, ctx: &mut LowerContext) -> HirExpr {
                     .collect(),
             }
         }
-        AstExprKind::Call { path, args } => lower_call(path, args, ctx),
+        AstExprKind::Call { path, args } => lower_call(path, args, expr.span, ctx),
         AstExprKind::Pipeline { input, stages } => {
             ctx.features.insert(HirFeature::Pipeline);
             HirExprKind::Pipeline {
@@ -364,7 +381,12 @@ fn lower_expr(expr: &AstExpr, ctx: &mut LowerContext) -> HirExpr {
     }
 }
 
-fn lower_call(path: &str, args: &[boon_syntax::AstCallArg], ctx: &mut LowerContext) -> HirExprKind {
+fn lower_call(
+    path: &str,
+    args: &[boon_syntax::AstCallArg],
+    span: boon_syntax::Span,
+    ctx: &mut LowerContext,
+) -> HirExprKind {
     let lowered_args = args
         .iter()
         .map(|arg| HirCallArg {
@@ -411,9 +433,15 @@ fn lower_call(path: &str, args: &[boon_syntax::AstCallArg], ctx: &mut LowerConte
                 ctx.features.insert(HirFeature::ListRange);
                 HirListOp::Range
             }
-            _ => HirListOp::Unknown {
-                path: path.to_string(),
-            },
+            _ => {
+                ctx.diagnostics.push(HirDiagnostic {
+                    span,
+                    message: format!("unsupported List operation `{path}`"),
+                });
+                HirListOp::Unknown {
+                    path: path.to_string(),
+                }
+            }
         };
         HirExprKind::ListCall {
             op,
@@ -422,6 +450,12 @@ fn lower_call(path: &str, args: &[boon_syntax::AstCallArg], ctx: &mut LowerConte
     } else {
         if path.starts_with("Math/") {
             ctx.features.insert(HirFeature::MathCall);
+            if !matches!(path, "Math/add" | "Math/sum") {
+                ctx.diagnostics.push(HirDiagnostic {
+                    span,
+                    message: format!("unsupported Math operation `{path}`"),
+                });
+            }
         } else {
             ctx.features.insert(HirFeature::FunctionCall);
         }
@@ -469,7 +503,7 @@ fn collect_paths(expr: &HirExpr, paths: &mut Vec<String>) {
                 collect_paths(&binding.value, paths);
             }
         }
-        HirExprKind::When { arms } => {
+        HirExprKind::When { arms } | HirExprKind::While { arms } => {
             for arm in arms {
                 collect_paths(&arm.value, paths);
             }
@@ -538,6 +572,12 @@ title_to_add:
         __ => SKIP
     }
 
+branch:
+    title_to_add
+    |> WHILE {
+        __ => TEXT { fallback }
+    }
+
 items:
     LIST {
         make_item(title: TEXT { First })
@@ -551,6 +591,7 @@ items:
             HirFeature::FunctionDefinition,
             HirFeature::Pipeline,
             HirFeature::When,
+            HirFeature::While,
             HirFeature::Block,
             HirFeature::ListLiteral,
             HirFeature::ListAppend,

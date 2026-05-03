@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 const UI_FONT_BYTES: &[u8] = include_bytes!("../../../assets/fonts/DejaVuSansMono.ttf");
+const APP_WINDOW_SMOKE_HELPER_TIMEOUT: Duration = Duration::from_secs(90);
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AppWindowSmoke {
@@ -118,12 +119,22 @@ pub fn smoke_test_helper_main(title: String, hold: Duration, out: PathBuf) -> ! 
 }
 
 fn smoke_test_via_helper(title: String, hold: Duration) -> Result<AppWindowSmoke> {
+    let now_nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
     let out = std::env::temp_dir().join(format!(
         "boon-app-window-smoke-{}-{}.json",
         std::process::id(),
-        Instant::now().elapsed().as_nanos()
+        now_nanos
+    ));
+    let log = std::env::temp_dir().join(format!(
+        "boon-app-window-smoke-{}-{now_nanos}.log",
+        std::process::id(),
     ));
     let root = repo_root().context("finding repo root for app_window smoke helper")?;
+    let log_file = fs::File::create(&log)
+        .with_context(|| format!("creating app_window smoke helper log {}", log.display()))?;
     let mut child = Command::new("cargo")
         .current_dir(&root)
         .args([
@@ -142,11 +153,11 @@ fn smoke_test_via_helper(title: String, hold: Duration) -> Result<AppWindowSmoke
             &out.to_string_lossy(),
         ])
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stdout(Stdio::from(log_file.try_clone()?))
+        .stderr(Stdio::from(log_file))
         .spawn()
         .context("spawning app_window smoke helper")?;
-    let deadline = Instant::now() + Duration::from_secs(15);
+    let deadline = Instant::now() + APP_WINDOW_SMOKE_HELPER_TIMEOUT;
     let status = loop {
         if let Some(status) = child.try_wait()? {
             break status;
@@ -154,25 +165,45 @@ fn smoke_test_via_helper(title: String, hold: Duration) -> Result<AppWindowSmoke
         if Instant::now() >= deadline {
             let _ = child.kill();
             let _ = child.wait();
-            bail!("app_window smoke helper timed out after 15s");
+            bail!(
+                "app_window smoke helper timed out after {}s: {}",
+                APP_WINDOW_SMOKE_HELPER_TIMEOUT.as_secs(),
+                read_helper_log(&log)
+            );
         }
         std::thread::sleep(Duration::from_millis(25));
     };
-    let bytes = fs::read(&out)
-        .with_context(|| format!("reading app_window smoke helper output {}", out.display()))?;
+    let bytes = fs::read(&out).with_context(|| {
+        format!(
+            "reading app_window smoke helper output {}: {}",
+            out.display(),
+            read_helper_log(&log)
+        )
+    })?;
     let _ = fs::remove_file(&out);
     let response: SmokeHelperResult = serde_json::from_slice(&bytes)?;
     if !status.success() {
         bail!(
-            "app_window smoke helper exited with {status}: {}",
+            "app_window smoke helper exited with {status}: {}; {}",
             response
                 .error
-                .unwrap_or_else(|| "unknown error".to_string())
+                .unwrap_or_else(|| "unknown error".to_string()),
+            read_helper_log(&log)
         );
     }
-    response
+    let smoke = response
         .smoke
-        .context("app_window smoke helper succeeded without smoke payload")
+        .context("app_window smoke helper succeeded without smoke payload")?;
+    let _ = fs::remove_file(&log);
+    Ok(smoke)
+}
+
+fn read_helper_log(path: &Path) -> String {
+    match fs::read_to_string(path) {
+        Ok(log) if !log.trim().is_empty() => format!("helper log:\n{}", log.trim()),
+        Ok(_) => "helper log was empty".to_string(),
+        Err(err) => format!("could not read helper log {}: {err}", path.display()),
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

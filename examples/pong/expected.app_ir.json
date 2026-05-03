@@ -1,6 +1,218 @@
 {
   "state_cells": [],
-  "motion_models": [
+  "static_records": [
+    {
+      "path": "game",
+      "fields": [
+        {
+          "key": "title",
+          "value": {
+            "kind": "text",
+            "value": "Pong"
+          }
+        }
+      ]
+    },
+    {
+      "path": "kinematics",
+      "fields": [
+        {
+          "key": "arena",
+          "value": {
+            "kind": "record",
+            "fields": [
+              {
+                "key": "width",
+                "value": {
+                  "kind": "number",
+                  "value": 1000
+                }
+              },
+              {
+                "key": "height",
+                "value": {
+                  "kind": "number",
+                  "value": 700
+                }
+              }
+            ]
+          }
+        },
+        {
+          "key": "body",
+          "value": {
+            "kind": "record",
+            "fields": [
+              {
+                "key": "x",
+                "value": {
+                  "kind": "number",
+                  "value": 84
+                }
+              },
+              {
+                "key": "y",
+                "value": {
+                  "kind": "number",
+                  "value": 350
+                }
+              },
+              {
+                "key": "dx",
+                "value": {
+                  "kind": "number",
+                  "value": -12
+                }
+              },
+              {
+                "key": "dy",
+                "value": {
+                  "kind": "number",
+                  "value": 8
+                }
+              },
+              {
+                "key": "size",
+                "value": {
+                  "kind": "number",
+                  "value": 22
+                }
+              }
+            ]
+          }
+        },
+        {
+          "key": "primary_control",
+          "value": {
+            "kind": "record",
+            "fields": [
+              {
+                "key": "axis",
+                "value": {
+                  "kind": "tag",
+                  "value": "Vertical"
+                }
+              },
+              {
+                "key": "position",
+                "value": {
+                  "kind": "number",
+                  "value": 50
+                }
+              },
+              {
+                "key": "step",
+                "value": {
+                  "kind": "number",
+                  "value": 8
+                }
+              },
+              {
+                "key": "x",
+                "value": {
+                  "kind": "number",
+                  "value": 38
+                }
+              },
+              {
+                "key": "y",
+                "value": {
+                  "kind": "number",
+                  "value": 0
+                }
+              },
+              {
+                "key": "width",
+                "value": {
+                  "kind": "number",
+                  "value": 18
+                }
+              },
+              {
+                "key": "height",
+                "value": {
+                  "kind": "number",
+                  "value": 128
+                }
+              },
+              {
+                "key": "auto_track",
+                "value": {
+                  "kind": "bool",
+                  "value": false
+                }
+              }
+            ]
+          }
+        },
+        {
+          "key": "tracked_control",
+          "value": {
+            "kind": "record",
+            "fields": [
+              {
+                "key": "axis",
+                "value": {
+                  "kind": "tag",
+                  "value": "Vertical"
+                }
+              },
+              {
+                "key": "position",
+                "value": {
+                  "kind": "number",
+                  "value": 50
+                }
+              },
+              {
+                "key": "step",
+                "value": {
+                  "kind": "number",
+                  "value": 8
+                }
+              },
+              {
+                "key": "x",
+                "value": {
+                  "kind": "number",
+                  "value": 944
+                }
+              },
+              {
+                "key": "y",
+                "value": {
+                  "kind": "number",
+                  "value": 0
+                }
+              },
+              {
+                "key": "width",
+                "value": {
+                  "kind": "number",
+                  "value": 18
+                }
+              },
+              {
+                "key": "height",
+                "value": {
+                  "kind": "number",
+                  "value": 128
+                }
+              },
+              {
+                "key": "auto_track",
+                "value": {
+                  "kind": "bool",
+                  "value": true
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "dynamics_models": [
     {
       "frame_event_path": "store.sources.tick.event.frame",
       "control_event_path": "store.sources.paddle.event.key_down.key",

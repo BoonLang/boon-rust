@@ -180,6 +180,131 @@ document:
 }
 
 #[test]
+fn source_path_read_without_bound_producer_is_a_compile_error() {
+    let err = compile_source(
+        "bad",
+        r#"
+store:
+    sources:
+        increment_button:
+            event:
+                press: SOURCE
+
+counter:
+    0 |> HOLD state {
+        store.sources.increment_buton.event.press
+        |> THEN { state + 1 }
+    }
+
+document:
+    Document/new(
+        root:
+            Element/button(element: store.sources.increment_button)
+    )
+"#,
+    )
+    .expect_err("typo-like source read should fail");
+
+    assert!(
+        err.to_string().contains(
+            "source path `store.sources.increment_buton.event.press` is read but no host/runtime producer is bound"
+        ),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn unsupported_raw_expression_is_a_compile_error() {
+    let err = compile_source(
+        "bad",
+        r#"
+store:
+    sources:
+        button:
+            event:
+                press: SOURCE
+
+bad_expression:
+    state ?? 1
+
+document:
+    Document/new(
+        root:
+            Element/button(element: store.sources.button)
+    )
+"#,
+    )
+    .expect_err("unsupported raw syntax should fail");
+
+    assert!(
+        err.to_string().contains("unsupported Boon syntax"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn unsupported_list_operation_is_a_compile_error() {
+    let err = compile_source(
+        "bad",
+        r#"
+store:
+    sources:
+        button:
+            event:
+                press: SOURCE
+
+items:
+    LIST {}
+    |> List/State/new()
+
+document:
+    Document/new(
+        root:
+            Element/button(element: store.sources.button)
+    )
+"#,
+    )
+    .expect_err("unsupported List/* operation should fail");
+
+    assert!(
+        err.to_string()
+            .contains("unsupported List operation `List/State/new`"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn unsupported_math_operation_is_a_compile_error() {
+    let err = compile_source(
+        "bad",
+        r#"
+store:
+    sources:
+        button:
+            event:
+                press: SOURCE
+
+formulas:
+    functions:
+        mean: Math/mean
+
+document:
+    Document/new(
+        root:
+            Element/button(element: store.sources.button)
+    )
+"#,
+    )
+    .expect_err("unsupported Math/* operation should fail");
+
+    assert!(
+        err.to_string()
+            .contains("unsupported Math operation `Math/mean`"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
 fn counter_accumulator_lowers_to_generic_event_ir() {
     let root = repo_root();
     let source_path = root.join("examples").join("counter").join("source.bn");
@@ -187,7 +312,7 @@ fn counter_accumulator_lowers_to_generic_event_ir() {
     let compiled = compile_source("counter", &source).expect("counter compiles");
 
     assert_eq!(compiled.app_ir.state_cells.len(), 1);
-    assert_eq!(compiled.app_ir.state_cells[0].path, "scalar_value");
+    assert_eq!(compiled.app_ir.state_cells[0].path, "counter");
     assert_eq!(compiled.app_ir.event_handlers.len(), 1);
     assert_eq!(
         compiled.app_ir.event_handlers[0].source_path,

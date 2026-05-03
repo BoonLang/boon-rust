@@ -51,17 +51,21 @@ fn runtime_codegen_and_renderers_do_not_embed_example_business_logic() {
             .join("\n")
     );
     assert!(
-        !report.genericity_complete,
-        "genericity audit unexpectedly reports complete; remove this assertion only after \
-         family-recognizer ProgramSpec/SurfaceKind runtime has been replaced and the final \
-         genericity review proves completion"
-    );
-    assert!(
+        report.genericity_complete,
+        "genericity audit still reports fixed family-model gaps:\n{}",
         report
             .genericity_gaps
             .iter()
-            .any(|gap| gap.evidence.contains("fn program_spec(")),
-        "genericity audit should explicitly report the current compiler family recognizer"
+            .map(|gap| format!(
+                "{}:{}:{} [{}] {}",
+                gap.path, gap.line, gap.column, gap.category, gap.evidence
+            ))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+    assert!(
+        report.genericity_gaps.is_empty(),
+        "genericity audit must not leave known fixed list/grid/dynamics model gaps"
     );
 }
 

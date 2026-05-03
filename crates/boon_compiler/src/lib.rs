@@ -41,11 +41,11 @@ pub struct AppIr {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub list_states: Vec<IrListState>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub list_views: Vec<IrListViewSpec>,
+    pub static_records: Vec<IrStaticRecord>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub grid_models: Vec<IrGridModel>,
+    pub matrix_models: Vec<IrMatrixModel>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub motion_models: Vec<IrMotionModel>,
+    pub dynamics_models: Vec<IrDynamicsModel>,
     pub event_handlers: Vec<IrEventHandler>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub render_tree: Option<IrRenderNode>,
@@ -73,37 +73,31 @@ pub struct IrListSeed {
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub struct IrListViewSpec {
-    pub list_path: String,
-    pub title_line: String,
-    pub entry_hint: String,
-    pub count_suffix: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub remove_marked_label: Option<String>,
+pub struct IrStaticRecord {
+    pub path: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub auxiliary_lines: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub selectors: Vec<IrListSelectorSpec>,
+    pub fields: Vec<IrStaticField>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct IrListSelectorSpec {
-    pub id: String,
-    pub label: String,
-    pub visibility: IrListVisibility,
-}
-
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum IrListVisibility {
-    #[default]
-    All,
-    Unmarked,
-    Marked,
+pub struct IrStaticField {
+    pub key: String,
+    pub value: IrStaticValue,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct IrGridModel {
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum IrStaticValue {
+    Text { value: String },
+    Number { value: i64 },
+    Bool { value: bool },
+    Tag { value: String },
+    Record { fields: Vec<IrStaticField> },
+    List { items: Vec<IrStaticValue> },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct IrMatrixModel {
     pub rows: usize,
     pub columns: usize,
     pub editor_source_family: String,
@@ -111,7 +105,7 @@ pub struct IrGridModel {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct IrMotionModel {
+pub struct IrDynamicsModel {
     pub frame_event_path: String,
     pub control_event_path: String,
     pub arena_width: i64,
@@ -274,6 +268,21 @@ pub struct ContactFieldSpec {
 pub fn compile_source(name: &str, source: &str) -> Result<CompiledModule> {
     let parsed = parse_module(name, source)?;
     let hir = lower(parsed.clone());
+    if !hir.diagnostics.is_empty() {
+        let diagnostics = hir
+            .diagnostics
+            .iter()
+            .map(|diagnostic| {
+                format!(
+                    "line {} column {}: {}",
+                    diagnostic.span.line, diagnostic.span.column, diagnostic.message
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        bail!("unsupported Boon syntax in module `{name}`: {diagnostics}");
+    }
+    validate_supported_module_paths(&parsed)?;
     let provenance = compiled_provenance(source, &hir)?;
     let dynamic_sequence_root = infer_dynamic_sequence_root(&parsed);
     let dynamic_dense_root = infer_dense_source_root(&parsed);
@@ -323,6 +332,7 @@ pub fn compile_source(name: &str, source: &str) -> Result<CompiledModule> {
     }
 
     let sources = SourceInventory { entries };
+    validate_static_source_reads(&hir, &sources)?;
     let app_ir = app_ir_from_hir(&hir, &sources);
     let program = app_metadata(name, &parsed);
     Ok(CompiledModule {
@@ -333,6 +343,131 @@ pub fn compile_source(name: &str, source: &str) -> Result<CompiledModule> {
         app_ir,
         provenance,
     })
+}
+
+fn validate_supported_module_paths(parsed: &ParsedModule) -> Result<()> {
+    for call in &parsed.module_calls {
+        match call.path.as_str() {
+            "Document/new" | "Element/panel" | "Element/text" | "Element/button"
+            | "Element/text_input" | "Element/checkbox" | "Element/label" | "Element/grid"
+            | "List/append" | "List/remove" | "List/retain" | "List/map" | "List/count"
+            | "List/range" | "Text/from_number" | "Text/trim" | "Text/is_not_empty"
+            | "Math/add" | "Math/sum" => {}
+            path if path.starts_with("Math/") => bail!(
+                "unsupported Math operation `{}` at line {} column {}",
+                path,
+                call.span.line,
+                call.span.column
+            ),
+            path if path.starts_with("List/") => bail!(
+                "unsupported List operation `{}` at line {} column {}",
+                path,
+                call.span.line,
+                call.span.column
+            ),
+            path if path.starts_with("Element/")
+                || path.starts_with("Document/")
+                || path.starts_with("Text/") =>
+            {
+                bail!(
+                    "unsupported Boon module call `{}` at line {} column {}",
+                    path,
+                    call.span.line,
+                    call.span.column
+                )
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn validate_static_source_reads(hir: &HirModule, sources: &SourceInventory) -> Result<()> {
+    let mut reads = Vec::new();
+    for item in &hir.items {
+        collect_static_source_reads_from_item(item, &mut reads);
+    }
+    reads.sort();
+    reads.dedup();
+    for path in reads {
+        if !source_path_backed(sources, &path) {
+            bail!("source path `{path}` is read but no host/runtime producer is bound");
+        }
+    }
+    Ok(())
+}
+
+fn collect_static_source_reads_from_item(item: &HirItem, reads: &mut Vec<String>) {
+    match item {
+        HirItem::Record(record) => collect_static_source_reads_from_record(record, reads),
+        HirItem::Function(function) => collect_static_source_reads_from_expr(&function.body, reads),
+        HirItem::Expression(expr) => collect_static_source_reads_from_expr(expr, reads),
+    }
+}
+
+fn collect_static_source_reads_from_record(record: &HirRecord, reads: &mut Vec<String>) {
+    if let Some(value) = &record.value {
+        collect_static_source_reads_from_expr(value, reads);
+    }
+    for child in &record.children {
+        collect_static_source_reads_from_record(child, reads);
+    }
+}
+
+fn collect_static_source_reads_from_expr(expr: &HirExpr, reads: &mut Vec<String>) {
+    match &expr.kind {
+        HirExprKind::Path { value } if value.starts_with("store.sources.") => {
+            reads.push(value.clone());
+        }
+        HirExprKind::Record { entries } => {
+            for entry in entries {
+                collect_static_source_reads_from_record(entry, reads);
+            }
+        }
+        HirExprKind::List { items } | HirExprKind::Latest { branches: items } => {
+            for item in items {
+                collect_static_source_reads_from_expr(item, reads);
+            }
+        }
+        HirExprKind::Block { bindings } => {
+            for binding in bindings {
+                collect_static_source_reads_from_expr(&binding.value, reads);
+            }
+        }
+        HirExprKind::When { arms } | HirExprKind::While { arms } => {
+            for arm in arms {
+                collect_static_source_reads_from_expr(&arm.value, reads);
+            }
+        }
+        HirExprKind::Then { body } | HirExprKind::Hold { body, .. } => {
+            collect_static_source_reads_from_expr(body, reads);
+        }
+        HirExprKind::HostCall { args, .. }
+        | HirExprKind::ListCall { args, .. }
+        | HirExprKind::FunctionCall { args, .. } => {
+            for arg in args {
+                collect_static_source_reads_from_expr(&arg.value, reads);
+            }
+        }
+        HirExprKind::Pipeline { input, stages } => {
+            collect_static_source_reads_from_expr(input, reads);
+            for stage in stages {
+                collect_static_source_reads_from_expr(stage, reads);
+            }
+        }
+        HirExprKind::Binary { left, right, .. } => {
+            collect_static_source_reads_from_expr(left, reads);
+            collect_static_source_reads_from_expr(right, reads);
+        }
+        _ => {}
+    }
+}
+
+fn source_path_backed(sources: &SourceInventory, path: &str) -> bool {
+    sources
+        .entries
+        .iter()
+        .any(|entry| entry.path == path || entry.path.starts_with(&format!("{path}.")))
 }
 
 fn app_ir_from_hir(hir: &HirModule, sources: &SourceInventory) -> AppIr {
@@ -357,28 +492,21 @@ fn app_ir_from_hir(hir: &HirModule, sources: &SourceInventory) -> AppIr {
             continue;
         };
         if let Some((event_path, initial, step)) = accumulator_from_hir_record(record, sources) {
-            let state_path = if source_shape_is_tick(sources, &event_path) {
-                "clock_value"
-            } else {
-                "scalar_value"
-            };
-            push_accumulator_ir(&mut ir, &event_path, state_path, initial, step);
+            push_accumulator_ir(&mut ir, &event_path, &record.key, initial, step);
         }
         push_list_state_from_hir_record(&mut ir, record);
+        push_static_record_from_hir_record(&mut ir, record);
         push_list_handlers_from_hir_record(&mut ir, hir, sources, record);
         push_selector_handlers_from_hir_record(&mut ir, sources, record);
     }
-    if let Some(model) = grid_model_from_hir(hir, sources) {
-        ir.grid_models.push(model);
+    if let Some(model) = matrix_model_from_hir(hir, sources) {
+        ir.matrix_models.push(model);
     }
     if let Some(record) = top_record(&hir.parsed, "kinematics") {
-        ir.motion_models
-            .push(motion_model_from_record(record, sources));
+        ir.dynamics_models
+            .push(dynamics_model_from_record(record, sources));
     }
     push_item_state_handlers_from_hir(&mut ir, sources, &primary_list_path, hir);
-    if let Some(view) = list_view_from_hir(hir, &primary_list_path) {
-        ir.list_views.push(view);
-    }
     ir.render_tree = render_tree_from_hir(hir, sources);
     dedupe_app_ir(&mut ir);
     ir
@@ -653,58 +781,75 @@ fn item_text_literal(expr: &HirExpr) -> Option<String> {
     }
 }
 
-fn list_view_from_hir(hir: &HirModule, list_path: &str) -> Option<IrListViewSpec> {
-    let view = hir_record(hir, "view")?;
-    let selectors = hir_child_record(view, "selectors")
-        .map(|selectors| {
-            selectors
-                .children
-                .iter()
-                .map(|selector| IrListSelectorSpec {
-                    id: selector.key.clone(),
-                    label: hir_child_text(selector, "label")
-                        .unwrap_or_else(|| selector.key.clone()),
-                    visibility: hir_child_record(selector, "visibility")
-                        .and_then(hir_record_tag)
-                        .and_then(list_visibility_from_tag)
-                        .unwrap_or_default(),
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-    let remove_marked_label = hir_child_record(view, "actions")
-        .and_then(|actions| hir_child_record(actions, "remove_marked"))
-        .and_then(|action| hir_child_text(action, "label"));
-    let auxiliary_lines = hir_child_record(view, "auxiliary")
-        .map(|auxiliary| {
-            auxiliary
-                .children
-                .iter()
-                .filter_map(hir_record_text)
-                .filter(|line| !line.is_empty())
-                .collect()
-        })
-        .unwrap_or_default();
-
-    Some(IrListViewSpec {
-        list_path: list_path.to_string(),
-        title_line: hir_child_text(view, "title_line").unwrap_or_else(|| list_path.to_string()),
-        entry_hint: hir_child_text(view, "entry_hint").unwrap_or_default(),
-        count_suffix: hir_child_text(view, "count_suffix").unwrap_or_else(|| "items".to_string()),
-        remove_marked_label,
-        auxiliary_lines,
-        selectors,
-    })
+fn push_static_record_from_hir_record(ir: &mut AppIr, record: &HirRecord) {
+    if record.key == "store" || record.key == "document" {
+        return;
+    }
+    let fields = literal_record_fields(&record.children);
+    if fields.is_empty() {
+        return;
+    }
+    ir.static_records.push(IrStaticRecord {
+        path: record.key.clone(),
+        fields,
+    });
 }
 
-fn grid_model_from_hir(hir: &HirModule, sources: &SourceInventory) -> Option<IrGridModel> {
+fn literal_record_fields(records: &[HirRecord]) -> Vec<IrStaticField> {
+    records
+        .iter()
+        .filter_map(|record| {
+            static_value_from_record(record).map(|value| IrStaticField {
+                key: record.key.clone(),
+                value,
+            })
+        })
+        .collect()
+}
+
+fn static_value_from_record(record: &HirRecord) -> Option<IrStaticValue> {
+    if !record.children.is_empty() {
+        return Some(IrStaticValue::Record {
+            fields: literal_record_fields(&record.children),
+        });
+    }
+    record.value.as_ref().and_then(static_value_from_expr)
+}
+
+fn static_value_from_expr(expr: &HirExpr) -> Option<IrStaticValue> {
+    match &expr.kind {
+        HirExprKind::Literal {
+            literal: HirLiteral::Text { value },
+        } => Some(IrStaticValue::Text {
+            value: value.clone(),
+        }),
+        HirExprKind::Literal {
+            literal: HirLiteral::Number { value },
+        } => Some(IrStaticValue::Number { value: *value }),
+        HirExprKind::Literal {
+            literal: HirLiteral::Bool { value },
+        } => Some(IrStaticValue::Bool { value: *value }),
+        HirExprKind::Tag { value } => Some(IrStaticValue::Tag {
+            value: value.clone(),
+        }),
+        HirExprKind::List { items } => Some(IrStaticValue::List {
+            items: items.iter().filter_map(static_value_from_expr).collect(),
+        }),
+        HirExprKind::Record { entries } => Some(IrStaticValue::Record {
+            fields: literal_record_fields(entries),
+        }),
+        _ => None,
+    }
+}
+
+fn matrix_model_from_hir(hir: &HirModule, sources: &SourceInventory) -> Option<IrMatrixModel> {
     hir.parsed
         .module_calls
         .iter()
         .any(|call| call.path == "Element/grid")
         .then_some(())?;
     let family = dynamic_source_families(sources).first()?.clone();
-    Some(IrGridModel {
+    Some(IrMatrixModel {
         rows: range_to(&hir.parsed, "rows").unwrap_or(100),
         columns: range_to(&hir.parsed, "columns").unwrap_or(26),
         editor_source_family: source_family_with_producer(
@@ -716,39 +861,6 @@ fn grid_model_from_hir(hir: &HirModule, sources: &SourceInventory) -> Option<IrG
         .unwrap_or_else(|| format!("{family}.sources.editor")),
         expression_functions: expression_functions(&hir.parsed),
     })
-}
-
-fn hir_child_text(record: &HirRecord, key: &str) -> Option<String> {
-    hir_child_record(record, key).and_then(hir_record_text)
-}
-
-fn hir_record_text(record: &HirRecord) -> Option<String> {
-    record.value.as_ref().and_then(text_value_from_expr)
-}
-
-fn text_value_from_expr(expr: &HirExpr) -> Option<String> {
-    match &expr.kind {
-        HirExprKind::Literal {
-            literal: HirLiteral::Text { value },
-        } => Some(value.clone()),
-        _ => None,
-    }
-}
-
-fn hir_record_tag(record: &HirRecord) -> Option<String> {
-    match &record.value.as_ref()?.kind {
-        HirExprKind::Tag { value } => Some(value.clone()),
-        _ => None,
-    }
-}
-
-fn list_visibility_from_tag(value: String) -> Option<IrListVisibility> {
-    match value.as_str() {
-        "All" => Some(IrListVisibility::All),
-        "Unmarked" => Some(IrListVisibility::Unmarked),
-        "Marked" => Some(IrListVisibility::Marked),
-        _ => None,
-    }
 }
 
 fn matches_list_pipeline(expr: &HirExpr) -> bool {
@@ -992,6 +1104,11 @@ fn collect_latest_then_sources(expr: &HirExpr, sources: &SourceInventory, paths:
                 collect_latest_then_sources(branch, sources, paths);
             }
         }
+        HirExprKind::While { arms } | HirExprKind::When { arms } => {
+            for arm in arms {
+                collect_latest_then_sources(&arm.value, sources, paths);
+            }
+        }
         HirExprKind::Then { body } | HirExprKind::Hold { body, .. } => {
             collect_latest_then_sources(body, sources, paths);
         }
@@ -1006,17 +1123,13 @@ fn dedupe_app_ir(ir: &mut AppIr) {
     let mut seen_list = HashSet::new();
     ir.list_states
         .retain(|list| seen_list.insert(list.path.clone()));
+    let mut seen_static = HashSet::new();
+    ir.static_records
+        .retain(|record| seen_static.insert(record.path.clone()));
     let mut seen_handlers = HashSet::new();
     ir.event_handlers.retain(|handler| {
         seen_handlers.insert(serde_json::to_string(handler).expect("app IR handler serializes"))
     });
-}
-
-fn source_shape_is_tick(sources: &SourceInventory, path: &str) -> bool {
-    sources
-        .entries
-        .iter()
-        .any(|entry| entry.path == path && entry.path.ends_with(".event.tick"))
 }
 
 fn pipeline_parts(expr: &HirExpr) -> Option<(&HirExpr, &[HirExpr])> {
@@ -1183,7 +1296,7 @@ fn collect_records_in_expr<'a>(expr: &'a HirExpr, records: &mut Vec<&'a HirRecor
                 collect_records_in_expr(&binding.value, records);
             }
         }
-        HirExprKind::When { arms } => {
+        HirExprKind::When { arms } | HirExprKind::While { arms } => {
             for arm in arms {
                 collect_records_in_expr(&arm.value, records);
             }
@@ -1233,7 +1346,7 @@ fn collect_expr_paths(expr: &HirExpr, paths: &mut Vec<String>) {
                 collect_expr_paths(&binding.value, paths);
             }
         }
-        HirExprKind::When { arms } => {
+        HirExprKind::When { arms } | HirExprKind::While { arms } => {
             for arm in arms {
                 collect_expr_paths(&arm.value, paths);
             }
@@ -1481,16 +1594,16 @@ fn app_metadata(name: &str, parsed: &ParsedModule) -> IrAppMetadata {
     }
 }
 
-fn motion_model_from_record(
+fn dynamics_model_from_record(
     record: &ParsedRecordEntry,
     sources: &SourceInventory,
-) -> IrMotionModel {
+) -> IrDynamicsModel {
     let arena = child_record(record, "arena");
     let body = child_record(record, "body");
     let primary_control = child_record(record, "primary_control");
     let tracked_control = child_record(record, "tracked_control");
     let contact_field = child_record(record, "contact_field");
-    IrMotionModel {
+    IrDynamicsModel {
         frame_event_path: first_static_path_matching(sources, ".event.frame").unwrap_or_default(),
         control_event_path: first_static_path_matching(sources, ".event.key_down.key")
             .unwrap_or_default(),
