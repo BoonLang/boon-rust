@@ -1,5 +1,16 @@
 {
   "state_cells": [],
+  "grid_models": [
+    {
+      "rows": 100,
+      "columns": 26,
+      "editor_source_family": "cells[*].sources.editor",
+      "expression_functions": [
+        "add",
+        "sum"
+      ]
+    }
+  ],
   "event_handlers": [],
   "render_tree": {
     "id": "root_0",

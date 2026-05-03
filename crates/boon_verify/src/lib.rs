@@ -481,14 +481,32 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
         GenericityProbe {
             category: "family recognizer compiler surface",
             path: "crates/boon_compiler/src/lib.rs",
+            needle: "pub struct IrAppSpec",
+            resolution: "remove fixed app-family metadata and derive execution/rendering from generic app IR",
+        },
+        GenericityProbe {
+            category: "family recognizer compiler surface",
+            path: "crates/boon_compiler/src/lib.rs",
             needle: "pub enum SurfaceKind",
             resolution: "derive render scene from lowered Boon view expressions",
+        },
+        GenericityProbe {
+            category: "family recognizer compiler surface",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "pub enum IrSurfaceKind",
+            resolution: "derive render scene from lowered Boon view expressions instead of fixed app surfaces",
         },
         GenericityProbe {
             category: "family recognizer compiler dispatch",
             path: "crates/boon_compiler/src/lib.rs",
             needle: "fn program_spec(",
             resolution: "lower semantic AST/HIR into generic app IR instead of selecting app families",
+        },
+        GenericityProbe {
+            category: "family recognizer compiler dispatch",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "fn app_spec(",
+            resolution: "remove fixed app metadata selection and lower semantic AST/HIR into generic app IR",
         },
         GenericityProbe {
             category: "sequence family recognizer",
@@ -515,6 +533,42 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
             resolution: "render the generic Boon scene tree instead of matching fixed surfaces",
         },
         GenericityProbe {
+            category: "family based runtime rendering",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "match self.program.surface",
+            resolution: "render the generic Boon scene tree instead of matching fixed surfaces",
+        },
+        GenericityProbe {
+            category: "family based runtime rendering",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "enum RuntimeSurface",
+            resolution: "render the generic Boon scene tree instead of classifying app surfaces",
+        },
+        GenericityProbe {
+            category: "family based runtime rendering",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "match self.runtime_surface()",
+            resolution: "render the generic Boon scene tree instead of matching fixed surfaces",
+        },
+        GenericityProbe {
+            category: "family based runtime rendering",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn render_record_sequence_scene",
+            resolution: "replace family render functions with generic render-tree execution",
+        },
+        GenericityProbe {
+            category: "family based runtime rendering",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn render_dense_grid_scene",
+            resolution: "replace family render functions with generic render-tree execution",
+        },
+        GenericityProbe {
+            category: "family based runtime rendering",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn render_kinematic_scene",
+            resolution: "replace family render functions with generic render-tree execution",
+        },
+        GenericityProbe {
             category: "sequence family runtime",
             path: "crates/boon_runtime/src/compiled_app.rs",
             needle: "SequenceBinding",
@@ -527,9 +581,21 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
             resolution: "route cell formulas through generic state and dependency graph semantics",
         },
         GenericityProbe {
+            category: "dense grid family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "GridRuntimeState",
+            resolution: "route cell formulas through generic state and dependency graph semantics",
+        },
+        GenericityProbe {
             category: "kinematics family runtime",
             path: "crates/boon_runtime/src/compiled_app.rs",
             needle: "KinematicState",
+            resolution: "route frame/control physics through generic Boon event handlers",
+        },
+        GenericityProbe {
+            category: "kinematics family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "MotionRuntimeState",
             resolution: "route frame/control physics through generic Boon event handlers",
         },
     ];

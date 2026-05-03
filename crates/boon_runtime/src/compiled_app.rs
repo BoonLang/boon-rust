@@ -4,8 +4,8 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use boon_compiler::{
-    AppIr, ControlAxis, IrEffect, IrPredicate, IrValueExpr, ProgramSpec, RecordVisibility,
-    SequenceViewSpec, SurfaceKind,
+    AppIr, ControlAxis, IrAppMetadata, IrEffect, IrListViewSpec, IrListVisibility, IrPredicate,
+    IrValueExpr,
 };
 use boon_render_ir::{
     DrawCommand, FrameScene, HitTarget, HitTargetAction, HostPatch, NodeId, NodeKind,
@@ -18,7 +18,7 @@ use std::time::Duration;
 
 #[derive(Clone, Debug)]
 pub struct CompiledApp {
-    program: ProgramSpec,
+    program: IrAppMetadata,
     app_ir: AppIr,
     inventory: SourceInventory,
     wiring: RuntimeWiring,
@@ -33,22 +33,22 @@ pub struct CompiledApp {
     source_state: BTreeMap<String, SourceValue>,
     generic_state: BTreeMap<String, i64>,
     view_selector: String,
-    grid: DenseGridState,
+    grid: GridModelState,
     frame_index: u64,
-    kinematics: KinematicState,
+    motion: MotionModelState,
 }
 
 #[derive(Clone, Debug, Default)]
 struct RuntimeWiring {
     scalar_event: Option<String>,
-    sequence: Option<SequenceBinding>,
+    list: Option<ListRuntimeBinding>,
     grid: Option<DenseBinding>,
     kinematic_frame_event: Option<String>,
     kinematic_control_event: Option<String>,
 }
 
 #[derive(Clone, Debug)]
-struct SequenceBinding {
+struct ListRuntimeBinding {
     family: String,
     root: String,
     entry_text: Option<String>,
@@ -78,27 +78,34 @@ struct DenseBinding {
 }
 
 impl RuntimeWiring {
-    fn from_compiled(program: &ProgramSpec, app_ir: &AppIr, inventory: &SourceInventory) -> Self {
-        let scalar_event = program
-            .scalar_accumulator
-            .as_ref()
-            .map(|scalar_value| scalar_value.event_path.clone());
-        let sequence = SequenceBinding::from_app_ir(inventory, app_ir);
-        let grid = program
-            .dense_grid
-            .as_ref()
-            .and_then(|_| DenseBinding::from_inventory(inventory));
-        let kinematic_frame_event = program
-            .kinematics
-            .as_ref()
+    fn from_compiled(app_ir: &AppIr, inventory: &SourceInventory) -> Self {
+        let scalar_event = app_ir.event_handlers.iter().find_map(|handler| {
+            handler
+                .effects
+                .iter()
+                .any(|effect| {
+                    matches!(
+                        effect,
+                        IrEffect::Assign { state_path, .. } if state_path == "scalar_value"
+                    )
+                })
+                .then(|| handler.source_path.clone())
+        });
+        let list = ListRuntimeBinding::from_app_ir(inventory, app_ir);
+        let grid = (!app_ir.grid_models.is_empty())
+            .then(|| DenseBinding::from_inventory(inventory))
+            .flatten();
+        let kinematic_frame_event = app_ir
+            .motion_models
+            .first()
             .map(|kinematics| kinematics.frame_event_path.clone());
-        let kinematic_control_event = program
-            .kinematics
-            .as_ref()
+        let kinematic_control_event = app_ir
+            .motion_models
+            .first()
             .map(|kinematics| kinematics.control_event_path.clone());
         Self {
             scalar_event,
-            sequence,
+            list,
             grid,
             kinematic_frame_event,
             kinematic_control_event,
@@ -106,7 +113,7 @@ impl RuntimeWiring {
     }
 }
 
-impl SequenceBinding {
+impl ListRuntimeBinding {
     fn from_app_ir(inventory: &SourceInventory, app_ir: &AppIr) -> Option<Self> {
         if !app_ir.event_handlers.iter().any(|handler| {
             handler.effects.iter().any(|effect| {
@@ -361,7 +368,7 @@ struct DynamicRecord {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct DenseGridState {
+struct GridModelState {
     rows: usize,
     columns: usize,
     selected: (usize, usize),
@@ -372,7 +379,7 @@ struct DenseGridState {
     rev_deps: Vec<Vec<usize>>,
 }
 
-impl DenseGridState {
+impl GridModelState {
     fn new(rows: usize, columns: usize) -> Self {
         let len = rows * columns;
         Self {
@@ -389,7 +396,7 @@ impl DenseGridState {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct KinematicState {
+struct MotionModelState {
     body_x: i64,
     body_y: i64,
     body_dx: i64,
@@ -404,35 +411,35 @@ struct KinematicState {
     resets_remaining: i64,
 }
 
-impl KinematicState {
-    fn from_spec(spec: Option<&boon_compiler::KinematicSpec>) -> Self {
-        let Some(spec) = spec else {
+impl MotionModelState {
+    fn from_model(model: Option<&boon_compiler::IrMotionModel>) -> Self {
+        let Some(model) = model else {
             return Self::default();
         };
-        let contact_field_rows = spec
+        let contact_field_rows = model
             .contact_field
             .as_ref()
             .map_or(0, |contact_field| contact_field.rows);
-        let contact_field_cols = spec
+        let contact_field_cols = model
             .contact_field
             .as_ref()
             .map_or(0, |contact_field| contact_field.columns);
         Self {
-            body_x: spec.body.x,
-            body_y: spec.body.y,
-            body_dx: spec.body.dx,
-            body_dy: spec.body.dy,
-            control_x: if matches!(spec.primary_control.axis, ControlAxis::Horizontal) {
-                spec.primary_control.position
+            body_x: model.body.x,
+            body_y: model.body.y,
+            body_dx: model.body.dx,
+            body_dy: model.body.dy,
+            control_x: if matches!(model.primary_control.axis, ControlAxis::Horizontal) {
+                model.primary_control.position
             } else {
                 50
             },
-            control_y: if matches!(spec.primary_control.axis, ControlAxis::Vertical) {
-                spec.primary_control.position
+            control_y: if matches!(model.primary_control.axis, ControlAxis::Vertical) {
+                model.primary_control.position
             } else {
                 50
             },
-            tracked_control_y: spec
+            tracked_control_y: model
                 .tracked_control
                 .as_ref()
                 .map_or(50, |tracked_control| tracked_control.position),
@@ -454,7 +461,7 @@ impl KinematicState {
     }
 }
 
-impl Default for KinematicState {
+impl Default for MotionModelState {
     fn default() -> Self {
         Self {
             body_x: 0,
@@ -478,27 +485,22 @@ impl CompiledApp {
         let inventory = compiled.sources;
         let program = compiled.program;
         let app_ir = compiled.app_ir;
-        let wiring = RuntimeWiring::from_compiled(&program, &app_ir, &inventory);
+        let wiring = RuntimeWiring::from_compiled(&app_ir, &inventory);
         let initial_records = app_ir
             .list_states
             .first()
-            .map(|list| list.initial_items.clone())
+            .map(|list| list.initial_entries.clone())
             .unwrap_or_default();
-        let grid = program
-            .dense_grid
-            .as_ref()
-            .map(|grid| DenseGridState::new(grid.rows, grid.columns))
-            .unwrap_or_else(|| DenseGridState::new(100, 26));
-        let kinematics = KinematicState::from_spec(program.kinematics.as_ref());
-        let initial_view_selector = program
-            .sequence
-            .as_ref()
-            .and_then(|sequence| {
-                sequence
-                    .view_selectors
-                    .first()
-                    .map(|selector| selector.id.clone())
-            })
+        let grid = app_ir
+            .grid_models
+            .first()
+            .map(|grid| GridModelState::new(grid.rows, grid.columns))
+            .unwrap_or_else(|| GridModelState::new(100, 26));
+        let motion = MotionModelState::from_model(app_ir.motion_models.first());
+        let initial_view_selector = app_ir
+            .list_views
+            .first()
+            .and_then(|view| view.selectors.first().map(|selector| selector.id.clone()))
             .unwrap_or_else(|| "all".to_string());
         let mut generic_state = BTreeMap::new();
         for cell in &app_ir.state_cells {
@@ -534,7 +536,7 @@ impl CompiledApp {
             view_selector: initial_view_selector,
             grid,
             frame_index: 0,
-            kinematics,
+            motion,
         };
         app.next_record_id = app.records.len() as u64 + 1;
         app.frame_text = app.render_text();
@@ -574,7 +576,7 @@ impl CompiledApp {
 
     fn record_root(&self) -> Option<&str> {
         self.wiring
-            .sequence
+            .list
             .as_ref()
             .map(|sequence| sequence.root.as_str())
     }
@@ -588,7 +590,7 @@ impl CompiledApp {
             .into_iter()
             .chain(
                 self.wiring
-                    .sequence
+                    .list
                     .as_ref()
                     .and_then(|sequence| sequence.entry_text.clone()),
             )
@@ -608,7 +610,7 @@ impl CompiledApp {
 
     fn record_input_change_paths(&self) -> Vec<String> {
         self.wiring
-            .sequence
+            .list
             .as_ref()
             .and_then(|sequence| sequence.entry_text.clone())
             .into_iter()
@@ -632,7 +634,7 @@ impl CompiledApp {
     }
 
     fn static_text_event_matches(&self, path: &str) -> bool {
-        self.wiring.sequence.as_ref().is_some_and(|sequence| {
+        self.wiring.list.as_ref().is_some_and(|sequence| {
             [
                 &sequence.input_focus,
                 &sequence.input_blur,
@@ -645,7 +647,7 @@ impl CompiledApp {
     }
 
     fn dynamic_text_event_matches(&self, path: &str) -> bool {
-        self.wiring.sequence.as_ref().is_some_and(|sequence| {
+        self.wiring.list.as_ref().is_some_and(|sequence| {
             [&sequence.dynamic_text_blur, &sequence.dynamic_text_change]
                 .into_iter()
                 .flatten()
@@ -782,7 +784,7 @@ impl CompiledApp {
         }
         let mut text = if self
             .wiring
-            .sequence
+            .list
             .as_ref()
             .and_then(|sequence| sequence.entry_text.as_ref())
             .is_some_and(|path| path == text_state_path)
@@ -880,7 +882,7 @@ impl CompiledApp {
     fn clear_generic_text_state(&mut self, text_state_path: &str) {
         if self
             .wiring
-            .sequence
+            .list
             .as_ref()
             .and_then(|sequence| sequence.entry_text.as_ref())
             .is_some_and(|path| path == text_state_path)
@@ -893,36 +895,47 @@ impl CompiledApp {
         );
     }
 
-    fn sequence_view(&self) -> Option<&SequenceViewSpec> {
-        self.program
-            .sequence
+    fn list_view(&self) -> Option<&IrListViewSpec> {
+        self.app_ir.list_views.first()
+    }
+
+    fn motion_model(&self) -> Option<&boon_compiler::IrMotionModel> {
+        self.app_ir.motion_models.first()
+    }
+
+    fn has_render_kind(&self, kind: boon_compiler::IrRenderKind) -> bool {
+        self.app_ir
+            .render_tree
             .as_ref()
-            .map(|sequence| &sequence.view)
+            .is_some_and(|node| render_node_has_kind(node, &kind))
     }
 
     fn render_text(&self) -> String {
-        match self.program.scene {
-            SurfaceKind::Sequence => self.render_record_sequence_text(),
-            SurfaceKind::DenseGrid => self.render_dense_plane_text(),
-            SurfaceKind::ActionValue => {
-                let label = self
-                    .program
-                    .scalar_accumulator
-                    .as_ref()
-                    .map(|scalar_value| scalar_value.button_label.as_str())
-                    .filter(|label| !label.is_empty())
-                    .unwrap_or("action");
-                format!(
-                    "{}\nsurface: button-scalar\n[ {label} ]\ncount: {}",
-                    self.program.title, self.scalar_value
-                )
-            }
-            SurfaceKind::ClockValue => format!(
+        if self.has_render_kind(boon_compiler::IrRenderKind::ListMap) || self.list_view().is_some()
+        {
+            self.render_list_model_text()
+        } else if self.has_render_kind(boon_compiler::IrRenderKind::Grid) {
+            self.render_grid_model_text()
+        } else if !self.app_ir.motion_models.is_empty() {
+            self.render_motion_model_text()
+        } else if self.generic_state.contains_key("scalar_value") {
+            let label = self
+                .program
+                .primary_label
+                .as_deref()
+                .filter(|label| !label.is_empty())
+                .unwrap_or("action");
+            format!(
+                "{}\nsurface: button-scalar\n[ {label} ]\ncount: {}",
+                self.program.title, self.scalar_value
+            )
+        } else if self.generic_state.contains_key("clock_value") {
+            format!(
                 "{}\nsurface: clock-scalar\nruntime_clock_ms: {}\nticks: {}",
                 self.program.title, self.clock.millis, self.clock_value
-            ),
-            SurfaceKind::Kinematics => self.render_kinematic_text(),
-            SurfaceKind::Blank => String::new(),
+            )
+        } else {
+            String::new()
         }
     }
 
@@ -933,13 +946,17 @@ impl CompiledApp {
             hit_targets: Vec::new(),
         };
         push_rect(&mut scene, 0, 0, 1000, 1000, [245, 245, 245, 255]);
-        match self.program.scene {
-            SurfaceKind::Sequence => self.render_record_sequence_scene(&mut scene),
-            SurfaceKind::DenseGrid => self.render_dense_grid_scene(&mut scene),
-            SurfaceKind::ActionValue => self.render_action_value_scene(&mut scene),
-            SurfaceKind::ClockValue => self.render_clock_value_scene(&mut scene),
-            SurfaceKind::Kinematics => self.render_kinematic_scene(&mut scene),
-            SurfaceKind::Blank => {}
+        if self.has_render_kind(boon_compiler::IrRenderKind::ListMap) || self.list_view().is_some()
+        {
+            self.render_list_model_scene(&mut scene);
+        } else if self.has_render_kind(boon_compiler::IrRenderKind::Grid) {
+            self.render_grid_model_scene(&mut scene);
+        } else if !self.app_ir.motion_models.is_empty() {
+            self.render_motion_model_scene(&mut scene);
+        } else if self.generic_state.contains_key("scalar_value") {
+            self.render_action_value_scene(&mut scene);
+        } else if self.generic_state.contains_key("clock_value") {
+            self.render_clock_value_scene(&mut scene);
         }
         scene
     }
@@ -963,9 +980,8 @@ impl CompiledApp {
         }
         let label = self
             .program
-            .scalar_accumulator
-            .as_ref()
-            .map(|scalar_value| scalar_value.button_label.as_str())
+            .primary_label
+            .as_deref()
             .filter(|label| !label.is_empty())
             .unwrap_or("action");
         push_text(scene, 424, 424, 2, label, [255, 255, 255, 255]);
@@ -1002,8 +1018,8 @@ impl CompiledApp {
         );
     }
 
-    fn render_record_sequence_scene(&self, scene: &mut FrameScene) {
-        let view = self.sequence_view();
+    fn render_list_model_scene(&self, scene: &mut FrameScene) {
+        let view = self.list_view();
         push_rect(scene, 0, 0, 1000, 1000, [245, 245, 245, 255]);
         push_text(
             scene,
@@ -1018,7 +1034,7 @@ impl CompiledApp {
         push_rect(scene, 206, 160, 588, 72, [255, 255, 255, 255]);
         push_rect_outline(scene, 206, 160, 588, 72, [225, 225, 225, 255]);
         push_rect_outline(scene, 226, 184, 28, 28, [198, 198, 198, 255]);
-        if let Some(sequence) = &self.wiring.sequence {
+        if let Some(sequence) = &self.wiring.list {
             if let Some(text_path) = sequence.entry_text.as_deref() {
                 push_text_hit_target(
                     scene,
@@ -1075,7 +1091,7 @@ impl CompiledApp {
             push_rect(scene, 206, y, 588, 62, [255, 255, 255, 255]);
             push_rect_outline(scene, 206, y, 588, 62, [232, 232, 232, 255]);
             push_rect_outline(scene, 226, y + 18, 24, 24, [126, 178, 164, 255]);
-            if let Some(sequence) = &self.wiring.sequence {
+            if let Some(sequence) = &self.wiring.list {
                 if let Some(path) = sequence.dynamic_mark_event.as_deref() {
                     scene.hit_targets.push(attach_owner(
                         HitTarget {
@@ -1184,14 +1200,14 @@ impl CompiledApp {
             ),
             [116, 116, 116, 255],
         );
-        let view_selectors = self.sequence_view_selector_layout();
+        let view_selectors = self.list_view_selector_layout();
         for (view_selector, x, outline_w, label) in view_selectors {
             if self.view_selector == view_selector {
                 push_rect_outline(scene, x - 10, y + 12, outline_w, 28, [218, 185, 185, 255]);
             }
             if let Some(path) = self
                 .wiring
-                .sequence
+                .list
                 .as_ref()
                 .and_then(|sequence| sequence.view_selector_events.get(&view_selector))
             {
@@ -1213,7 +1229,7 @@ impl CompiledApp {
         {
             if let Some(path) = self
                 .wiring
-                .sequence
+                .list
                 .as_ref()
                 .and_then(|sequence| sequence.static_remove_marked_event.as_deref())
             {
@@ -1244,12 +1260,12 @@ impl CompiledApp {
         }
     }
 
-    fn sequence_view_selector_layout(&self) -> Vec<(String, u32, u32, String)> {
+    fn list_view_selector_layout(&self) -> Vec<(String, u32, u32, String)> {
         let view_selectors = self
-            .program
-            .sequence
-            .as_ref()
-            .map(|sequence| sequence.view_selectors.clone())
+            .app_ir
+            .list_views
+            .first()
+            .map(|view| view.selectors.clone())
             .unwrap_or_default();
         let mut x = 366;
         view_selectors
@@ -1268,7 +1284,7 @@ impl CompiledApp {
             .collect()
     }
 
-    fn render_dense_grid_scene(&self, scene: &mut FrameScene) {
+    fn render_grid_model_scene(&self, scene: &mut FrameScene) {
         push_rect(scene, 0, 0, 1000, 1000, [248, 249, 250, 255]);
         let selected = format!(
             "{}{}",
@@ -1379,8 +1395,8 @@ impl CompiledApp {
         }
     }
 
-    fn render_kinematic_scene(&self, scene: &mut FrameScene) {
-        let Some(kinematics) = self.program.kinematics.as_ref() else {
+    fn render_motion_model_scene(&self, scene: &mut FrameScene) {
+        let Some(kinematics) = self.motion_model() else {
             return;
         };
         push_rect(scene, 0, 0, 1000, 1000, [18, 24, 32, 255]);
@@ -1392,7 +1408,7 @@ impl CompiledApp {
             1,
             &format!(
                 "frame {} contact_value {} resets_remaining {}",
-                self.frame_index, self.kinematics.contact_value, self.kinematics.resets_remaining
+                self.frame_index, self.motion.contact_value, self.motion.resets_remaining
             ),
             [153, 183, 198, 255],
         );
@@ -1423,13 +1439,7 @@ impl CompiledApp {
             for row in 0..contact_field.rows {
                 for col in 0..contact_field.columns {
                     let idx = row * contact_field.columns + col;
-                    if self
-                        .kinematics
-                        .contact_field
-                        .get(idx)
-                        .copied()
-                        .unwrap_or(false)
-                    {
+                    if self.motion.contact_field.get(idx).copied().unwrap_or(false) {
                         let bx =
                             contact_field.margin + col as i64 * (contact_w + contact_field.gap);
                         let by = contact_field.top
@@ -1455,7 +1465,7 @@ impl CompiledApp {
 
         let primary_x = if kinematics.primary_control.axis == ControlAxis::Horizontal {
             controller_left_from_position(
-                self.kinematics.control_x,
+                self.motion.control_x,
                 kinematics.arena_width,
                 kinematics.primary_control.width,
             )
@@ -1464,7 +1474,7 @@ impl CompiledApp {
         };
         let primary_y = if kinematics.primary_control.axis == ControlAxis::Vertical {
             controller_top_from_position(
-                self.kinematics.control_y,
+                self.motion.control_y,
                 kinematics.arena_height,
                 kinematics.primary_control.height,
             )
@@ -1481,7 +1491,7 @@ impl CompiledApp {
         );
         if let Some(tracked_control) = &kinematics.tracked_control {
             let tracked_y = controller_top_from_position(
-                self.kinematics.tracked_control_y,
+                self.motion.tracked_control_y,
                 kinematics.arena_height,
                 tracked_control.height,
             );
@@ -1496,16 +1506,16 @@ impl CompiledApp {
         }
         push_rect(
             scene,
-            sx(self.kinematics.body_x),
-            sy(self.kinematics.body_y),
+            sx(self.motion.body_x),
+            sy(self.motion.body_y),
             sw(kinematics.body.size),
             sh(kinematics.body.size),
             [250, 250, 250, 255],
         );
     }
 
-    fn render_record_sequence_text(&self) -> String {
-        let view = self.sequence_view();
+    fn render_list_model_text(&self) -> String {
+        let view = self.list_view();
         let mark = self.records.iter().filter(|record| record.mark).count();
         let unmarked = self.records.len().saturating_sub(mark);
         let mut lines = vec![
@@ -1534,7 +1544,7 @@ impl CompiledApp {
         lines.join("\n")
     }
 
-    fn render_kinematic_text(&self) -> String {
+    fn render_motion_model_text(&self) -> String {
         let frame_source = self
             .wiring
             .kinematic_frame_event
@@ -1544,9 +1554,7 @@ impl CompiledApp {
             "{}\nsurface: kinematics\nkinematic_mode: {}\nframe: {}\ncontrol_y: {}\ncontrol_x: {}\ntracked_control_y: {}\nbody_x: {}\nbody_y: {}\nbody_dx: {}\nbody_dy: {}\ncontact_field_rows: {}\ncontact_field_cols: {}\ncontact_field_live: {}\ncontact_value: {}\nresets_remaining: {}\ndeterministic input source: {}",
             self.program.title,
             if self
-                .program
-                .kinematics
-                .as_ref()
+                .motion_model()
                 .and_then(|kinematics| kinematics.contact_field.as_ref())
                 .is_some()
             {
@@ -1555,18 +1563,18 @@ impl CompiledApp {
                 "dual-walls"
             },
             self.frame_index,
-            self.kinematics.control_y,
-            self.kinematics.control_x,
-            self.kinematics.tracked_control_y,
-            self.kinematics.body_x,
-            self.kinematics.body_y,
-            self.kinematics.body_dx,
-            self.kinematics.body_dy,
-            self.kinematics.contact_field_rows,
-            self.kinematics.contact_field_cols,
-            self.kinematics.live_contact_field_indices(),
-            self.kinematics.contact_value,
-            self.kinematics.resets_remaining,
+            self.motion.control_y,
+            self.motion.control_x,
+            self.motion.tracked_control_y,
+            self.motion.body_x,
+            self.motion.body_y,
+            self.motion.body_dx,
+            self.motion.body_dy,
+            self.motion.contact_field_rows,
+            self.motion.contact_field_cols,
+            self.motion.live_contact_field_indices(),
+            self.motion.contact_value,
+            self.motion.resets_remaining,
             frame_source
         )
     }
@@ -1574,9 +1582,7 @@ impl CompiledApp {
     fn advance_kinematic_step(&mut self) {
         self.frame_index += 1;
         if self
-            .program
-            .kinematics
-            .as_ref()
+            .motion_model()
             .and_then(|kinematics| kinematics.contact_field.as_ref())
             .is_some()
         {
@@ -1587,7 +1593,7 @@ impl CompiledApp {
     }
 
     fn advance_bounded_peer_step(&mut self) {
-        let Some(kinematics) = self.program.kinematics.as_ref() else {
+        let Some(kinematics) = self.motion_model().cloned() else {
             return;
         };
         let Some(tracked_control) = kinematics.tracked_control.as_ref() else {
@@ -1601,70 +1607,70 @@ impl CompiledApp {
         let left_x = kinematics.primary_control.x;
         let right_x = tracked_control.x;
 
-        self.kinematics.body_x += self.kinematics.body_dx;
-        self.kinematics.body_y += self.kinematics.body_dy;
-        if self.kinematics.body_y <= 0 {
-            self.kinematics.body_y = 0;
-            self.kinematics.body_dy = self.kinematics.body_dy.abs();
-        } else if self.kinematics.body_y + body_size >= arena_h {
-            self.kinematics.body_y = arena_h - body_size;
-            self.kinematics.body_dy = -self.kinematics.body_dy.abs();
+        self.motion.body_x += self.motion.body_dx;
+        self.motion.body_y += self.motion.body_dy;
+        if self.motion.body_y <= 0 {
+            self.motion.body_y = 0;
+            self.motion.body_dy = self.motion.body_dy.abs();
+        } else if self.motion.body_y + body_size >= arena_h {
+            self.motion.body_y = arena_h - body_size;
+            self.motion.body_dy = -self.motion.body_dy.abs();
         }
 
-        self.kinematics.tracked_control_y = position_from_controller_top(
-            self.kinematics.body_y + body_size / 2 - controller_h / 2,
+        self.motion.tracked_control_y = position_from_controller_top(
+            self.motion.body_y + body_size / 2 - controller_h / 2,
             arena_h,
             controller_h,
         );
-        let left_y = controller_top_from_position(self.kinematics.control_y, arena_h, controller_h);
+        let left_y = controller_top_from_position(self.motion.control_y, arena_h, controller_h);
         let right_y =
-            controller_top_from_position(self.kinematics.tracked_control_y, arena_h, controller_h);
+            controller_top_from_position(self.motion.tracked_control_y, arena_h, controller_h);
 
-        if self.kinematics.body_dx < 0
-            && self.kinematics.body_x <= left_x + controller_w
-            && self.kinematics.body_x + body_size >= left_x
+        if self.motion.body_dx < 0
+            && self.motion.body_x <= left_x + controller_w
+            && self.motion.body_x + body_size >= left_x
             && ranges_overlap(
-                self.kinematics.body_y,
-                self.kinematics.body_y + body_size,
+                self.motion.body_y,
+                self.motion.body_y + body_size,
                 left_y,
                 left_y + controller_h,
             )
         {
-            self.kinematics.body_x = left_x + controller_w;
-            self.kinematics.body_dx = self.kinematics.body_dx.abs();
-            self.kinematics.body_dy = (self.kinematics.body_dy
-                + ((self.kinematics.body_y + body_size / 2) - (left_y + controller_h / 2)) / 18)
+            self.motion.body_x = left_x + controller_w;
+            self.motion.body_dx = self.motion.body_dx.abs();
+            self.motion.body_dy = (self.motion.body_dy
+                + ((self.motion.body_y + body_size / 2) - (left_y + controller_h / 2)) / 18)
                 .clamp(-18, 18);
-            self.kinematics.contact_value += 1;
+            self.motion.contact_value += 1;
         }
-        if self.kinematics.body_dx > 0
-            && self.kinematics.body_x + body_size >= right_x
-            && self.kinematics.body_x <= right_x + controller_w
+        if self.motion.body_dx > 0
+            && self.motion.body_x + body_size >= right_x
+            && self.motion.body_x <= right_x + controller_w
             && ranges_overlap(
-                self.kinematics.body_y,
-                self.kinematics.body_y + body_size,
+                self.motion.body_y,
+                self.motion.body_y + body_size,
                 right_y,
                 right_y + controller_h,
             )
         {
-            self.kinematics.body_x = right_x - body_size;
-            self.kinematics.body_dx = -self.kinematics.body_dx.abs();
-            self.kinematics.body_dy = (self.kinematics.body_dy
-                + ((self.kinematics.body_y + body_size / 2) - (right_y + controller_h / 2)) / 18)
+            self.motion.body_x = right_x - body_size;
+            self.motion.body_dx = -self.motion.body_dx.abs();
+            self.motion.body_dy = (self.motion.body_dy
+                + ((self.motion.body_y + body_size / 2) - (right_y + controller_h / 2)) / 18)
                 .clamp(-18, 18);
-            self.kinematics.contact_value += 1;
+            self.motion.contact_value += 1;
         }
-        if self.kinematics.body_x < -body_size || self.kinematics.body_x > arena_w + body_size {
-            self.kinematics.body_x = arena_w / 2;
-            self.kinematics.body_y = arena_h / 2;
-            self.kinematics.body_dx = if self.kinematics.body_dx < 0 { 12 } else { -12 };
-            self.kinematics.body_dy = 8;
-            self.kinematics.resets_remaining = (self.kinematics.resets_remaining - 1).max(0);
+        if self.motion.body_x < -body_size || self.motion.body_x > arena_w + body_size {
+            self.motion.body_x = arena_w / 2;
+            self.motion.body_y = arena_h / 2;
+            self.motion.body_dx = if self.motion.body_dx < 0 { 12 } else { -12 };
+            self.motion.body_dy = 8;
+            self.motion.resets_remaining = (self.motion.resets_remaining - 1).max(0);
         }
     }
 
     fn advance_bounded_contact_field_step(&mut self) {
-        let Some(kinematics) = self.program.kinematics.as_ref() else {
+        let Some(kinematics) = self.motion_model().cloned() else {
             return;
         };
         let Some(contact_field) = kinematics.contact_field.as_ref() else {
@@ -1677,26 +1683,26 @@ impl CompiledApp {
         let controller_h = kinematics.primary_control.height;
         let control_y = kinematics.primary_control.y;
 
-        self.kinematics.body_x += self.kinematics.body_dx;
-        self.kinematics.body_y += self.kinematics.body_dy;
-        if self.kinematics.body_x <= 0 {
-            self.kinematics.body_x = 0;
-            self.kinematics.body_dx = self.kinematics.body_dx.abs();
-        } else if self.kinematics.body_x + body_size >= arena_w {
-            self.kinematics.body_x = arena_w - body_size;
-            self.kinematics.body_dx = -self.kinematics.body_dx.abs();
+        self.motion.body_x += self.motion.body_dx;
+        self.motion.body_y += self.motion.body_dy;
+        if self.motion.body_x <= 0 {
+            self.motion.body_x = 0;
+            self.motion.body_dx = self.motion.body_dx.abs();
+        } else if self.motion.body_x + body_size >= arena_w {
+            self.motion.body_x = arena_w - body_size;
+            self.motion.body_dx = -self.motion.body_dx.abs();
         }
-        if self.kinematics.body_y <= 0 {
-            self.kinematics.body_y = 0;
-            self.kinematics.body_dy = self.kinematics.body_dy.abs();
+        if self.motion.body_y <= 0 {
+            self.motion.body_y = 0;
+            self.motion.body_dy = self.motion.body_dy.abs();
         }
 
-        if self.kinematics.body_dy < 0 {
+        if self.motion.body_dy < 0 {
             let margin = contact_field.margin;
             let gap = contact_field.gap;
             let contact_h = contact_field.height;
-            let rows = self.kinematics.contact_field_rows as i64;
-            let cols = self.kinematics.contact_field_cols as i64;
+            let rows = self.motion.contact_field_rows as i64;
+            let cols = self.motion.contact_field_cols as i64;
             let contact_w = if cols > 0 {
                 (arena_w - margin * 2 - gap * (cols - 1)) / cols
             } else {
@@ -1705,20 +1711,14 @@ impl CompiledApp {
             'contact_field_scan: for row in 0..rows {
                 for col in 0..cols {
                     let idx = (row * cols + col) as usize;
-                    if !self
-                        .kinematics
-                        .contact_field
-                        .get(idx)
-                        .copied()
-                        .unwrap_or(false)
-                    {
+                    if !self.motion.contact_field.get(idx).copied().unwrap_or(false) {
                         continue;
                     }
                     let bx = margin + col * (contact_w + gap);
                     let by = contact_field.top + row * (contact_h + gap);
                     if rects_overlap(
-                        self.kinematics.body_x,
-                        self.kinematics.body_y,
+                        self.motion.body_x,
+                        self.motion.body_y,
                         body_size,
                         body_size,
                         bx,
@@ -1726,21 +1726,20 @@ impl CompiledApp {
                         contact_w,
                         contact_h,
                     ) {
-                        self.kinematics.contact_field[idx] = false;
-                        self.kinematics.body_dy = self.kinematics.body_dy.abs();
-                        self.kinematics.contact_value += contact_field.value_per_contact;
+                        self.motion.contact_field[idx] = false;
+                        self.motion.body_dy = self.motion.body_dy.abs();
+                        self.motion.contact_value += contact_field.value_per_contact;
                         break 'contact_field_scan;
                     }
                 }
             }
         }
 
-        let control_x =
-            controller_left_from_position(self.kinematics.control_x, arena_w, controller_w);
-        if self.kinematics.body_dy > 0
+        let control_x = controller_left_from_position(self.motion.control_x, arena_w, controller_w);
+        if self.motion.body_dy > 0
             && rects_overlap(
-                self.kinematics.body_x,
-                self.kinematics.body_y,
+                self.motion.body_x,
+                self.motion.body_y,
                 body_size,
                 body_size,
                 control_x,
@@ -1749,45 +1748,44 @@ impl CompiledApp {
                 controller_h,
             )
         {
-            self.kinematics.body_y = control_y - body_size;
-            self.kinematics.body_dy = -self.kinematics.body_dy.abs();
-            self.kinematics.body_dx = (self.kinematics.body_dx
-                + ((self.kinematics.body_x + body_size / 2) - (control_x + controller_w / 2)) / 18)
+            self.motion.body_y = control_y - body_size;
+            self.motion.body_dy = -self.motion.body_dy.abs();
+            self.motion.body_dx = (self.motion.body_dx
+                + ((self.motion.body_x + body_size / 2) - (control_x + controller_w / 2)) / 18)
                 .clamp(-18, 18);
         }
-        if self.kinematics.body_y > arena_h {
-            self.kinematics.body_x = control_x + controller_w / 2 - body_size / 2;
-            self.kinematics.body_y = control_y - body_size - 2;
-            self.kinematics.body_dx = kinematics.body.dx;
-            self.kinematics.body_dy = kinematics.body.dy;
-            self.kinematics.resets_remaining = (self.kinematics.resets_remaining - 1).max(0);
+        if self.motion.body_y > arena_h {
+            self.motion.body_x = control_x + controller_w / 2 - body_size / 2;
+            self.motion.body_y = control_y - body_size - 2;
+            self.motion.body_dx = kinematics.body.dx;
+            self.motion.body_dy = kinematics.body.dy;
+            self.motion.resets_remaining = (self.motion.resets_remaining - 1).max(0);
         }
-        if self.kinematics.contact_field.iter().all(|live| !*live) {
-            self.kinematics.contact_field.fill(true);
+        if self.motion.contact_field.iter().all(|live| !*live) {
+            self.motion.contact_field.fill(true);
         }
     }
 
     fn visible_records(&self) -> impl Iterator<Item = &DynamicRecord> {
         let visibility = self
-            .program
-            .sequence
-            .as_ref()
-            .and_then(|sequence| {
-                sequence
-                    .view_selectors
+            .app_ir
+            .list_views
+            .first()
+            .and_then(|view| {
+                view.selectors
                     .iter()
                     .find(|selector| selector.id == self.view_selector)
                     .map(|selector| &selector.visibility)
             })
-            .unwrap_or(&RecordVisibility::All);
+            .unwrap_or(&IrListVisibility::All);
         self.records.iter().filter(move |record| match visibility {
-            RecordVisibility::All => true,
-            RecordVisibility::Unmarked => !record.mark,
-            RecordVisibility::Marked => record.mark,
+            IrListVisibility::All => true,
+            IrListVisibility::Unmarked => !record.mark,
+            IrListVisibility::Marked => record.mark,
         })
     }
 
-    fn render_dense_plane_text(&self) -> String {
+    fn render_grid_model_text(&self) -> String {
         let mut lines = vec![
             self.program.title.clone(),
             "surface: dense_grid".to_string(),
@@ -1945,7 +1943,7 @@ impl CompiledApp {
     }
 
     fn dense_expression_enabled(&self, name: &str) -> bool {
-        self.program.dense_grid.as_ref().is_some_and(|grid| {
+        self.app_ir.grid_models.first().is_some_and(|grid| {
             grid.expression_functions
                 .iter()
                 .any(|function| function == name)
@@ -2077,7 +2075,7 @@ impl CompiledApp {
     }
 
     fn live_generation(&self, path: &str, owner_id: &str) -> Result<u32> {
-        if let Some(sequence) = &self.wiring.sequence
+        if let Some(sequence) = &self.wiring.list
             && path.starts_with(&sequence.family)
         {
             let record_id = owner_id
@@ -2129,7 +2127,7 @@ impl BoonApp for CompiledApp {
                 .insert(source_state_key(&update), update.value.clone());
             if self
                 .wiring
-                .sequence
+                .list
                 .as_ref()
                 .and_then(|sequence| sequence.entry_text.as_ref())
                 .is_some_and(|path| update.path == *path)
@@ -2139,7 +2137,7 @@ impl BoonApp for CompiledApp {
                 }
             } else if self
                 .wiring
-                .sequence
+                .list
                 .as_ref()
                 .and_then(|sequence| sequence.dynamic_text_value.as_ref())
                 .is_some_and(|path| update.path == *path)
@@ -2189,7 +2187,7 @@ impl BoonApp for CompiledApp {
                 results.push(self.emit_frame_owned(self.record_input_change_paths(), metrics));
             } else if self
                 .wiring
-                .sequence
+                .list
                 .as_ref()
                 .and_then(|sequence| sequence.dynamic_text_key.as_ref())
                 .is_some_and(|path| event.path == *path)
@@ -2287,17 +2285,17 @@ impl BoonApp for CompiledApp {
                 .is_some_and(|path| event.path == *path)
             {
                 if let SourceValue::Tag(key) = &event.value
-                    && let Some(kinematics) = self.program.kinematics.as_ref()
+                    && let Some(kinematics) = self.motion_model().cloned()
                 {
                     match kinematics.primary_control.axis {
                         ControlAxis::Horizontal => match key.as_str() {
                             "ArrowLeft" | "ArrowUp" => {
-                                self.kinematics.control_x = (self.kinematics.control_x
+                                self.motion.control_x = (self.motion.control_x
                                     - kinematics.primary_control.step)
                                     .max(0);
                             }
                             "ArrowRight" | "ArrowDown" => {
-                                self.kinematics.control_x = (self.kinematics.control_x
+                                self.motion.control_x = (self.motion.control_x
                                     + kinematics.primary_control.step)
                                     .min(100);
                             }
@@ -2305,12 +2303,12 @@ impl BoonApp for CompiledApp {
                         },
                         ControlAxis::Vertical => match key.as_str() {
                             "ArrowUp" | "ArrowLeft" => {
-                                self.kinematics.control_y = (self.kinematics.control_y
+                                self.motion.control_y = (self.motion.control_y
                                     - kinematics.primary_control.step)
                                     .max(0);
                             }
                             "ArrowDown" | "ArrowRight" => {
-                                self.kinematics.control_y = (self.kinematics.control_y
+                                self.motion.control_y = (self.motion.control_y
                                     + kinematics.primary_control.step)
                                     .min(100);
                             }
@@ -2362,7 +2360,7 @@ impl BoonApp for CompiledApp {
             );
         }
         values.insert("clock_value".to_string(), json!(self.clock_value));
-        if let Some(sequence) = &self.wiring.sequence {
+        if let Some(sequence) = &self.wiring.list {
             if let Some(entry_text) = &sequence.entry_text {
                 values.insert(entry_text.clone(), json!(self.entry_text));
             }
@@ -2411,44 +2409,32 @@ impl BoonApp for CompiledApp {
         values.insert("kinematics.frame".to_string(), json!(self.frame_index));
         values.insert(
             "kinematics.control_y".to_string(),
-            json!(self.kinematics.control_y),
+            json!(self.motion.control_y),
         );
         values.insert(
             "kinematics.control_x".to_string(),
-            json!(self.kinematics.control_x),
+            json!(self.motion.control_x),
         );
         values.insert(
             "kinematics.tracked_control_y".to_string(),
-            json!(self.kinematics.tracked_control_y),
+            json!(self.motion.tracked_control_y),
         );
-        values.insert(
-            "kinematics.body_x".to_string(),
-            json!(self.kinematics.body_x),
-        );
-        values.insert(
-            "kinematics.body_y".to_string(),
-            json!(self.kinematics.body_y),
-        );
-        values.insert(
-            "kinematics.body_dx".to_string(),
-            json!(self.kinematics.body_dx),
-        );
-        values.insert(
-            "kinematics.body_dy".to_string(),
-            json!(self.kinematics.body_dy),
-        );
+        values.insert("kinematics.body_x".to_string(), json!(self.motion.body_x));
+        values.insert("kinematics.body_y".to_string(), json!(self.motion.body_y));
+        values.insert("kinematics.body_dx".to_string(), json!(self.motion.body_dx));
+        values.insert("kinematics.body_dy".to_string(), json!(self.motion.body_dy));
         values.insert(
             "kinematics.contact_field_rows".to_string(),
-            json!(self.kinematics.contact_field_rows as i64),
+            json!(self.motion.contact_field_rows as i64),
         );
         values.insert(
             "kinematics.contact_field_cols".to_string(),
-            json!(self.kinematics.contact_field_cols as i64),
+            json!(self.motion.contact_field_cols as i64),
         );
         values.insert(
             "kinematics.contact_field_live_count".to_string(),
             json!(
-                self.kinematics
+                self.motion
                     .contact_field
                     .iter()
                     .filter(|live| **live)
@@ -2457,11 +2443,11 @@ impl BoonApp for CompiledApp {
         );
         values.insert(
             "kinematics.contact_value".to_string(),
-            json!(self.kinematics.contact_value),
+            json!(self.motion.contact_value),
         );
         values.insert(
             "kinematics.resets_remaining".to_string(),
-            json!(self.kinematics.resets_remaining),
+            json!(self.motion.resets_remaining),
         );
         let grid_root = self
             .wiring
@@ -2632,6 +2618,17 @@ fn attach_owner(mut target: HitTarget, owner_id: impl Into<String>, generation: 
 
 fn view_selector_state_key() -> String {
     "store.view_selector".to_string()
+}
+
+fn render_node_has_kind(
+    node: &boon_compiler::IrRenderNode,
+    kind: &boon_compiler::IrRenderKind,
+) -> bool {
+    &node.kind == kind
+        || node
+            .children
+            .iter()
+            .any(|child| render_node_has_kind(child, kind))
 }
 
 fn controller_top_from_position(position: i64, arena_h: i64, controller_h: i64) -> i64 {

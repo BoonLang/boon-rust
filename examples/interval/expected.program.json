@@ -1,14 +1,4 @@
 {
   "title": "interval",
-  "scene": "clock_value",
-  "scalar_accumulator": null,
-  "clock_accumulator": {
-    "event_path": "store.sources.clock.event.tick",
-    "state_path": "clock_value",
-    "quantum_ms": 1000
-  },
-  "sequence": null,
-  "dense_grid": null,
-  "kinematics": null,
   "physical_debug": false
 }

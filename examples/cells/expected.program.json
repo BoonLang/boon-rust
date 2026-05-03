@@ -1,18 +1,4 @@
 {
   "title": "cells",
-  "scene": "dense_grid",
-  "scalar_accumulator": null,
-  "clock_accumulator": null,
-  "sequence": null,
-  "dense_grid": {
-    "rows": 100,
-    "columns": 26,
-    "editor_source_family": "cells[*].sources.editor",
-    "expression_functions": [
-      "add",
-      "sum"
-    ]
-  },
-  "kinematics": null,
   "physical_debug": false
 }

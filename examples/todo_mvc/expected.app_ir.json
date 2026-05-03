@@ -3,7 +3,7 @@
   "list_states": [
     {
       "path": "todos",
-      "initial_items": [
+      "initial_entries": [
         {
           "text": "Buy groceries",
           "mark": false
@@ -11,6 +11,37 @@
         {
           "text": "Clean room",
           "mark": false
+        }
+      ]
+    }
+  ],
+  "list_views": [
+    {
+      "list_path": "todos",
+      "title_line": "todos",
+      "entry_hint": "What needs to be done?",
+      "count_suffix": "items left",
+      "remove_marked_label": "Clear completed",
+      "auxiliary_lines": [
+        "Double-click to edit an item",
+        "Created by Boon",
+        "Part of the classic app examples"
+      ],
+      "selectors": [
+        {
+          "id": "filter_all",
+          "label": "All",
+          "visibility": "all"
+        },
+        {
+          "id": "filter_active",
+          "label": "Active",
+          "visibility": "unmarked"
+        },
+        {
+          "id": "filter_completed",
+          "label": "Completed",
+          "visibility": "marked"
         }
       ]
     }

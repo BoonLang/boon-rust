@@ -57,6 +57,7 @@ fn main() -> Result<()> {
             playground_native(&args[2..])
         }
         Some("__playground-native-window") => playground_native_window(&args[1..]),
+        Some("__verify-windowed") => verify_windowed(&args[1..]),
         Some("__native-surface-probe") => native_surface_probe_helper(&args[1..]),
         Some("__native-close-probe") => native_close_probe_helper_cmd(&args[1..]),
         Some("bench") => bench(&args[1..]),
@@ -357,6 +358,14 @@ fn shaders() -> Result<()> {
 }
 
 fn verify(args: &[String]) -> Result<()> {
+    if verify_target_opens_windows(args)
+        && env::var_os("COSMIC_BACKGROUND_LAUNCH_ID").is_none()
+        && command_exists("cosmic-background-launch")
+    {
+        let mut child_args = vec!["__verify-windowed".to_string()];
+        child_args.extend(args.iter().cloned());
+        return launch_cosmic_background_and_wait(&child_args);
+    }
     let root = repo_root()?;
     let artifacts = root.join("target/boon-artifacts");
     let full_verify = args.first().map(String::as_str) == Some("all");
@@ -436,6 +445,43 @@ fn verify(args: &[String]) -> Result<()> {
     }
     println!("wrote {}", report_path.display());
     Ok(())
+}
+
+fn verify_windowed(args: &[String]) -> Result<()> {
+    let status_out = args
+        .windows(2)
+        .find(|pair| pair[0] == "--status-out")
+        .map(|pair| PathBuf::from(&pair[1]));
+    let mut filtered = Vec::new();
+    let mut skip_next = false;
+    for arg in args {
+        if skip_next {
+            skip_next = false;
+            continue;
+        }
+        if arg == "--status-out" {
+            skip_next = true;
+            continue;
+        }
+        filtered.push(arg.clone());
+    }
+    let result = verify(&filtered);
+    if let Some(path) = status_out {
+        let status = match &result {
+            Ok(()) => json!({"ok": true}),
+            Err(err) => json!({"ok": false, "error": err.to_string()}),
+        };
+        fs::write(path, serde_json::to_vec_pretty(&status)?)?;
+    }
+    result
+}
+
+fn verify_target_opens_windows(args: &[String]) -> bool {
+    matches!(
+        args.first().map(String::as_str),
+        Some("all") | Some("browser-wgpu")
+    ) || (args.first().map(String::as_str) == Some("native-wgpu")
+        && args.iter().any(|arg| arg == "--app-window"))
 }
 
 fn quality_gates(root: &Path) -> Result<()> {

@@ -1,5 +1,41 @@
 {
   "state_cells": [],
+  "motion_models": [
+    {
+      "frame_event_path": "store.sources.tick.event.frame",
+      "control_event_path": "store.sources.paddle.event.key_down.key",
+      "arena_width": 1000,
+      "arena_height": 700,
+      "body": {
+        "x": 84,
+        "y": 350,
+        "dx": -12,
+        "dy": 8,
+        "size": 22
+      },
+      "primary_control": {
+        "axis": "vertical",
+        "position": 50,
+        "step": 8,
+        "x": 38,
+        "y": 0,
+        "width": 18,
+        "height": 128,
+        "auto_track": false
+      },
+      "tracked_control": {
+        "axis": "vertical",
+        "position": 50,
+        "step": 8,
+        "x": 944,
+        "y": 0,
+        "width": 18,
+        "height": 128,
+        "auto_track": true
+      },
+      "contact_field": null
+    }
+  ],
   "event_handlers": [],
   "render_tree": {
     "id": "root_0",

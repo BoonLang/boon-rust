@@ -15,7 +15,7 @@ pub struct CompiledModule {
     pub name: String,
     pub hir: HirModule,
     pub sources: SourceInventory,
-    pub program: ProgramSpec,
+    pub program: IrAppMetadata,
     pub app_ir: AppIr,
     pub provenance: CompiledProvenance,
 }
@@ -40,6 +40,12 @@ pub struct AppIr {
     pub state_cells: Vec<IrStateCell>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub list_states: Vec<IrListState>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub list_views: Vec<IrListViewSpec>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub grid_models: Vec<IrGridModel>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub motion_models: Vec<IrMotionModel>,
     pub event_handlers: Vec<IrEventHandler>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub render_tree: Option<IrRenderNode>,
@@ -55,15 +61,65 @@ pub struct IrStateCell {
 pub struct IrListState {
     pub path: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub initial_items: Vec<IrListItem>,
+    pub initial_entries: Vec<IrListSeed>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct IrListItem {
+pub struct IrListSeed {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
     #[serde(default)]
     pub mark: bool,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct IrListViewSpec {
+    pub list_path: String,
+    pub title_line: String,
+    pub entry_hint: String,
+    pub count_suffix: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remove_marked_label: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub auxiliary_lines: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub selectors: Vec<IrListSelectorSpec>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct IrListSelectorSpec {
+    pub id: String,
+    pub label: String,
+    pub visibility: IrListVisibility,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IrListVisibility {
+    #[default]
+    All,
+    Unmarked,
+    Marked,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct IrGridModel {
+    pub rows: usize,
+    pub columns: usize,
+    pub editor_source_family: String,
+    pub expression_functions: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct IrMotionModel {
+    pub frame_event_path: String,
+    pub control_event_path: String,
+    pub arena_width: i64,
+    pub arena_height: i64,
+    pub body: MovingBodySpec,
+    pub primary_control: ControllerSpec,
+    pub tracked_control: Option<ControllerSpec>,
+    pub contact_field: Option<ContactFieldSpec>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -169,106 +225,11 @@ pub enum IrValueExpr {
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub struct ProgramSpec {
+pub struct IrAppMetadata {
     pub title: String,
-    pub scene: SurfaceKind,
-    pub scalar_accumulator: Option<AccumulatorSpec>,
-    pub clock_accumulator: Option<ClockAccumulatorSpec>,
-    pub sequence: Option<SequenceSpec>,
-    pub dense_grid: Option<DenseGridSpec>,
-    pub kinematics: Option<KinematicSpec>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub primary_label: Option<String>,
     pub physical_debug: bool,
-}
-
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SurfaceKind {
-    #[default]
-    Blank,
-    ActionValue,
-    ClockValue,
-    Sequence,
-    DenseGrid,
-    Kinematics,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct AccumulatorSpec {
-    pub event_path: String,
-    pub state_path: String,
-    pub initial: i64,
-    pub step: i64,
-    pub button_label: String,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct ClockAccumulatorSpec {
-    pub event_path: String,
-    pub state_path: String,
-    pub quantum_ms: u64,
-}
-
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub struct SequenceSpec {
-    pub initial_texts: Vec<String>,
-    pub append_on_submit: bool,
-    pub actions: SequenceActionsSpec,
-    pub view_selectors: Vec<SequenceSelectorSpec>,
-    pub view: SequenceViewSpec,
-    pub dynamic_mark_toggle: bool,
-    pub dynamic_remove: bool,
-}
-
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub struct SequenceActionsSpec {
-    pub mass_mark_event_path: Option<String>,
-    pub remove_marked_event_path: Option<String>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct SequenceSelectorSpec {
-    pub id: String,
-    pub event_path: String,
-    pub label: String,
-    pub visibility: RecordVisibility,
-}
-
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub struct SequenceViewSpec {
-    pub title_line: String,
-    pub entry_hint: String,
-    pub count_suffix: String,
-    pub remove_marked_label: Option<String>,
-    pub auxiliary_lines: Vec<String>,
-}
-
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RecordVisibility {
-    #[default]
-    All,
-    Unmarked,
-    Marked,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct DenseGridSpec {
-    pub rows: usize,
-    pub columns: usize,
-    pub editor_source_family: String,
-    pub expression_functions: Vec<String>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct KinematicSpec {
-    pub frame_event_path: String,
-    pub control_event_path: String,
-    pub arena_width: i64,
-    pub arena_height: i64,
-    pub body: MovingBodySpec,
-    pub primary_control: ControllerSpec,
-    pub tracked_control: Option<ControllerSpec>,
-    pub contact_field: Option<ContactFieldSpec>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -362,8 +323,8 @@ pub fn compile_source(name: &str, source: &str) -> Result<CompiledModule> {
     }
 
     let sources = SourceInventory { entries };
-    let program = program_spec(name, &parsed, &sources);
     let app_ir = app_ir_from_hir(&hir, &sources);
+    let program = app_metadata(name, &parsed);
     Ok(CompiledModule {
         name: name.to_string(),
         hir,
@@ -407,7 +368,17 @@ fn app_ir_from_hir(hir: &HirModule, sources: &SourceInventory) -> AppIr {
         push_list_handlers_from_hir_record(&mut ir, hir, sources, record);
         push_selector_handlers_from_hir_record(&mut ir, sources, record);
     }
+    if let Some(model) = grid_model_from_hir(hir, sources) {
+        ir.grid_models.push(model);
+    }
+    if let Some(record) = top_record(&hir.parsed, "kinematics") {
+        ir.motion_models
+            .push(motion_model_from_record(record, sources));
+    }
     push_item_state_handlers_from_hir(&mut ir, sources, &primary_list_path, hir);
+    if let Some(view) = list_view_from_hir(hir, &primary_list_path) {
+        ir.list_views.push(view);
+    }
     ir.render_tree = render_tree_from_hir(hir, sources);
     dedupe_app_ir(&mut ir);
     ir
@@ -622,16 +593,16 @@ fn push_list_state_from_hir_record(ir: &mut AppIr, record: &HirRecord) {
     let Some(expr) = record.value.as_ref() else {
         return;
     };
-    let Some(items) = initial_list_items(expr) else {
+    let Some(entries) = initial_list_seeds(expr) else {
         return;
     };
     ir.list_states.push(IrListState {
         path: record.key.clone(),
-        initial_items: items,
+        initial_entries: entries,
     });
 }
 
-fn initial_list_items(expr: &HirExpr) -> Option<Vec<IrListItem>> {
+fn initial_list_seeds(expr: &HirExpr) -> Option<Vec<IrListSeed>> {
     let list_expr = match &expr.kind {
         HirExprKind::List { items } => items,
         HirExprKind::Pipeline { input, .. } => match &input.kind {
@@ -643,7 +614,7 @@ fn initial_list_items(expr: &HirExpr) -> Option<Vec<IrListItem>> {
     Some(
         list_expr
             .iter()
-            .map(|item| IrListItem {
+            .map(|item| IrListSeed {
                 text: item_text_literal(item),
                 mark: false,
             })
@@ -678,6 +649,104 @@ fn item_text_literal(expr: &HirExpr) -> Option<String> {
                     }
                 })
         }),
+        _ => None,
+    }
+}
+
+fn list_view_from_hir(hir: &HirModule, list_path: &str) -> Option<IrListViewSpec> {
+    let view = hir_record(hir, "view")?;
+    let selectors = hir_child_record(view, "selectors")
+        .map(|selectors| {
+            selectors
+                .children
+                .iter()
+                .map(|selector| IrListSelectorSpec {
+                    id: selector.key.clone(),
+                    label: hir_child_text(selector, "label")
+                        .unwrap_or_else(|| selector.key.clone()),
+                    visibility: hir_child_record(selector, "visibility")
+                        .and_then(hir_record_tag)
+                        .and_then(list_visibility_from_tag)
+                        .unwrap_or_default(),
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let remove_marked_label = hir_child_record(view, "actions")
+        .and_then(|actions| hir_child_record(actions, "remove_marked"))
+        .and_then(|action| hir_child_text(action, "label"));
+    let auxiliary_lines = hir_child_record(view, "auxiliary")
+        .map(|auxiliary| {
+            auxiliary
+                .children
+                .iter()
+                .filter_map(hir_record_text)
+                .filter(|line| !line.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Some(IrListViewSpec {
+        list_path: list_path.to_string(),
+        title_line: hir_child_text(view, "title_line").unwrap_or_else(|| list_path.to_string()),
+        entry_hint: hir_child_text(view, "entry_hint").unwrap_or_default(),
+        count_suffix: hir_child_text(view, "count_suffix").unwrap_or_else(|| "items".to_string()),
+        remove_marked_label,
+        auxiliary_lines,
+        selectors,
+    })
+}
+
+fn grid_model_from_hir(hir: &HirModule, sources: &SourceInventory) -> Option<IrGridModel> {
+    hir.parsed
+        .module_calls
+        .iter()
+        .any(|call| call.path == "Element/grid")
+        .then_some(())?;
+    let family = dynamic_source_families(sources).first()?.clone();
+    Some(IrGridModel {
+        rows: range_to(&hir.parsed, "rows").unwrap_or(100),
+        columns: range_to(&hir.parsed, "columns").unwrap_or(26),
+        editor_source_family: source_family_with_producer(
+            sources,
+            &family,
+            "Element/text_input(element.text)",
+        )
+        .and_then(|path| path.strip_suffix(".text").map(str::to_string))
+        .unwrap_or_else(|| format!("{family}.sources.editor")),
+        expression_functions: expression_functions(&hir.parsed),
+    })
+}
+
+fn hir_child_text(record: &HirRecord, key: &str) -> Option<String> {
+    hir_child_record(record, key).and_then(hir_record_text)
+}
+
+fn hir_record_text(record: &HirRecord) -> Option<String> {
+    record.value.as_ref().and_then(text_value_from_expr)
+}
+
+fn text_value_from_expr(expr: &HirExpr) -> Option<String> {
+    match &expr.kind {
+        HirExprKind::Literal {
+            literal: HirLiteral::Text { value },
+        } => Some(value.clone()),
+        _ => None,
+    }
+}
+
+fn hir_record_tag(record: &HirRecord) -> Option<String> {
+    match &record.value.as_ref()?.kind {
+        HirExprKind::Tag { value } => Some(value.clone()),
+        _ => None,
+    }
+}
+
+fn list_visibility_from_tag(value: String) -> Option<IrListVisibility> {
+    match value.as_str() {
+        "All" => Some(IrListVisibility::All),
+        "Unmarked" => Some(IrListVisibility::Unmarked),
+        "Marked" => Some(IrListVisibility::Marked),
         _ => None,
     }
 }
@@ -1403,107 +1472,25 @@ fn binding_for_source(
     }
 }
 
-fn program_spec(name: &str, parsed: &ParsedModule, sources: &SourceInventory) -> ProgramSpec {
+fn app_metadata(name: &str, parsed: &ParsedModule) -> IrAppMetadata {
     let title = first_child_text(parsed, "title").unwrap_or_else(|| name.replace('_', " "));
-    let has_dense_element = parsed
-        .module_calls
-        .iter()
-        .any(|call| call.path == "Element/grid");
-    let dynamic_families = dynamic_source_families(sources);
-    let sequence_family = (!has_dense_element)
-        .then(|| dynamic_families.first().cloned())
-        .flatten();
-    let dense_family = has_dense_element
-        .then(|| dynamic_families.first().cloned())
-        .flatten();
-
-    let view_selectors = sequence_view_selectors(parsed, sources);
-    let sequence = sequence_family.as_ref().map(|family| SequenceSpec {
-        initial_texts: initial_sequence_literals(parsed, family),
-        append_on_submit: module_called(parsed, "List/append")
-            && static_source_with_producer(sources, "Element/text_input(element.text)").is_some(),
-        actions: sequence_actions(parsed, sources),
-        view_selectors,
-        view: sequence_view_spec(parsed, &title),
-        dynamic_mark_toggle: source_family_with_producer(
-            sources,
-            family,
-            "Element/checkbox(element.event.click)",
-        )
-        .is_some(),
-        dynamic_remove: source_family_with_producer(
-            sources,
-            family,
-            "Element/button(element.event.press)",
-        )
-        .is_some(),
-    });
-    let dense_grid = dense_family.as_ref().map(|family| DenseGridSpec {
-        rows: range_to(parsed, "rows").unwrap_or(100),
-        columns: range_to(parsed, "columns").unwrap_or(26),
-        editor_source_family: source_family_with_producer(
-            sources,
-            family,
-            "Element/text_input(element.text)",
-        )
-        .and_then(|path| path.strip_suffix(".text").map(str::to_string))
-        .unwrap_or_else(|| format!("{family}.sources.editor")),
-        expression_functions: expression_functions(parsed),
-    });
-    let scalar_accumulator =
-        static_source_with_producer(sources, "Element/button(element.event.press)")
-            .filter(|_| {
-                sequence.is_none()
-                    && dense_grid.is_none()
-                    && top_record(parsed, "kinematics").is_none()
-            })
-            .map(|event_path| AccumulatorSpec {
-                event_path,
-                state_path: "scalar_value".to_string(),
-                initial: 0,
-                step: first_hold_step(parsed).unwrap_or(0),
-                button_label: scalar_button_label(parsed).unwrap_or_default(),
-            });
-    let clock_accumulator = static_tick_source(sources)
-        .filter(|_| scalar_accumulator.is_none() && top_record(parsed, "kinematics").is_none())
-        .map(|event_path| ClockAccumulatorSpec {
-            event_path,
-            state_path: "clock_value".to_string(),
-            quantum_ms: 1000,
-        });
-    let kinematics = top_record(parsed, "kinematics").map(|record| kinematic_spec(record, sources));
-    let scene = if sequence.is_some() {
-        SurfaceKind::Sequence
-    } else if dense_grid.is_some() {
-        SurfaceKind::DenseGrid
-    } else if scalar_accumulator.is_some() {
-        SurfaceKind::ActionValue
-    } else if clock_accumulator.is_some() {
-        SurfaceKind::ClockValue
-    } else if kinematics.is_some() {
-        SurfaceKind::Kinematics
-    } else {
-        SurfaceKind::Blank
-    };
-    ProgramSpec {
+    IrAppMetadata {
         title,
-        scene,
-        scalar_accumulator,
-        clock_accumulator,
-        sequence,
-        dense_grid,
-        kinematics,
+        primary_label: scalar_button_label(parsed),
         physical_debug: record_bool(top_record(parsed, "view"), "physical_debug").unwrap_or(false),
     }
 }
 
-fn kinematic_spec(record: &ParsedRecordEntry, sources: &SourceInventory) -> KinematicSpec {
+fn motion_model_from_record(
+    record: &ParsedRecordEntry,
+    sources: &SourceInventory,
+) -> IrMotionModel {
     let arena = child_record(record, "arena");
     let body = child_record(record, "body");
     let primary_control = child_record(record, "primary_control");
     let tracked_control = child_record(record, "tracked_control");
     let contact_field = child_record(record, "contact_field");
-    KinematicSpec {
+    IrMotionModel {
         frame_event_path: first_static_path_matching(sources, ".event.frame").unwrap_or_default(),
         control_event_path: first_static_path_matching(sources, ".event.key_down.key")
             .unwrap_or_default(),
@@ -1588,23 +1575,6 @@ fn dynamic_source_families(sources: &SourceInventory) -> Vec<String> {
     families
 }
 
-fn static_source_with_producer(sources: &SourceInventory, producer: &str) -> Option<String> {
-    sources
-        .entries
-        .iter()
-        .find(|entry| matches!(&entry.owner, SourceOwner::Static) && entry.producer == producer)
-        .map(|entry| entry.path.clone())
-}
-
-fn static_paths_for_producer(sources: &SourceInventory, producer: &str) -> Vec<String> {
-    sources
-        .entries
-        .iter()
-        .filter(|entry| matches!(&entry.owner, SourceOwner::Static) && entry.producer == producer)
-        .map(|entry| entry.path.clone())
-        .collect()
-}
-
 fn source_family_with_producer(
     sources: &SourceInventory,
     family: &str,
@@ -1623,140 +1593,6 @@ fn first_static_path_matching(sources: &SourceInventory, suffix: &str) -> Option
         .iter()
         .find(|entry| matches!(&entry.owner, SourceOwner::Static) && entry.path.ends_with(suffix))
         .map(|entry| entry.path.clone())
-}
-
-fn static_tick_source(sources: &SourceInventory) -> Option<String> {
-    first_static_path_matching(sources, ".event.tick")
-}
-
-fn sequence_view_selectors(
-    parsed: &ParsedModule,
-    sources: &SourceInventory,
-) -> Vec<SequenceSelectorSpec> {
-    top_record(parsed, "view")
-        .and_then(|view| child_record(view, "selectors"))
-        .map(|selectors| {
-            selectors
-                .children
-                .iter()
-                .filter_map(|selector| {
-                    let event_path = static_source_event_by_base_name(
-                        sources,
-                        &selector.key,
-                        "Element/button(element.event.press)",
-                    )?;
-                    let label = child_text(parsed, selector, "label")
-                        .unwrap_or_else(|| selector.key.clone());
-                    let visibility =
-                        record_visibility(child_record(selector, "visibility")).unwrap_or_default();
-                    Some(SequenceSelectorSpec {
-                        id: selector.key.clone(),
-                        event_path,
-                        label,
-                        visibility,
-                    })
-                })
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn sequence_actions(parsed: &ParsedModule, sources: &SourceInventory) -> SequenceActionsSpec {
-    let action_record = top_record(parsed, "view").and_then(|view| child_record(view, "actions"));
-    let mass_mark_event_path = action_record
-        .and_then(|actions| child_record(actions, "mass_mark"))
-        .and_then(|action| action_source_name(action))
-        .and_then(|source_name| {
-            static_source_event_by_base_name(
-                sources,
-                source_name,
-                "Element/checkbox(element.event.click)",
-            )
-        });
-    let remove_marked_event_path = action_record
-        .and_then(|actions| child_record(actions, "remove_marked"))
-        .and_then(|action| action_source_name(action))
-        .and_then(|source_name| {
-            static_source_event_by_base_name(
-                sources,
-                source_name,
-                "Element/button(element.event.press)",
-            )
-        });
-    SequenceActionsSpec {
-        mass_mark_event_path,
-        remove_marked_event_path,
-    }
-}
-
-fn action_source_name(action: &ParsedRecordEntry) -> Option<&str> {
-    child_record(action, "source")?
-        .value
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-}
-
-fn static_source_event_by_base_name(
-    sources: &SourceInventory,
-    source_name: &str,
-    producer: &str,
-) -> Option<String> {
-    static_paths_for_producer(sources, producer)
-        .into_iter()
-        .find(|path| {
-            path.strip_suffix(source_event_suffix(producer))
-                .and_then(|base| base.rsplit('.').next())
-                == Some(source_name)
-        })
-}
-
-fn source_event_suffix(producer: &str) -> &'static str {
-    match producer {
-        "Element/checkbox(element.event.click)" => ".event.click",
-        "Element/button(element.event.press)" => ".event.press",
-        _ => "",
-    }
-}
-
-fn sequence_view_spec(parsed: &ParsedModule, title: &str) -> SequenceViewSpec {
-    let view = top_record(parsed, "view");
-    let auxiliary_lines = view
-        .and_then(|view| child_record(view, "auxiliary"))
-        .map(|auxiliary| {
-            auxiliary
-                .children
-                .iter()
-                .filter_map(|entry| text_literal_on_line(parsed, entry.span.line))
-                .filter(|text| !text.is_empty())
-                .collect()
-        })
-        .unwrap_or_default();
-    SequenceViewSpec {
-        title_line: view
-            .and_then(|view| child_text(parsed, view, "title_line"))
-            .unwrap_or_else(|| title.to_string()),
-        entry_hint: view
-            .and_then(|view| child_text(parsed, view, "entry_hint"))
-            .unwrap_or_default(),
-        count_suffix: view
-            .and_then(|view| child_text(parsed, view, "count_suffix"))
-            .unwrap_or_else(|| "unmarked".to_string()),
-        remove_marked_label: view
-            .and_then(|view| child_record(view, "actions"))
-            .and_then(|actions| child_record(actions, "remove_marked"))
-            .and_then(|action| child_text(parsed, action, "label")),
-        auxiliary_lines,
-    }
-}
-
-fn record_visibility(record: Option<&ParsedRecordEntry>) -> Option<RecordVisibility> {
-    match record?.value.as_deref()?.trim() {
-        "All" => Some(RecordVisibility::All),
-        "Unmarked" => Some(RecordVisibility::Unmarked),
-        "Marked" => Some(RecordVisibility::Marked),
-        _ => None,
-    }
 }
 
 fn infer_dynamic_sequence_root(parsed: &ParsedModule) -> Option<String> {
@@ -1804,19 +1640,6 @@ fn owner_path(path: &str) -> String {
         .unwrap_or_else(|| "dynamic record".to_string())
 }
 
-fn initial_sequence_literals(parsed: &ParsedModule, binding: &str) -> Vec<String> {
-    let root = binding.strip_suffix("[*]").unwrap_or(binding);
-    let Some(record) = top_record(parsed, root) else {
-        return Vec::new();
-    };
-    parsed
-        .text_literals
-        .iter()
-        .filter(|literal| span_under_record(parsed, literal.span.line, record))
-        .map(|literal| literal.value.clone())
-        .collect()
-}
-
 fn range_to(parsed: &ParsedModule, binding: &str) -> Option<usize> {
     let record = top_record(parsed, binding)?;
     parsed
@@ -1858,23 +1681,6 @@ fn top_record_end_line(parsed: &ParsedModule, record: &ParsedRecordEntry) -> Opt
         .filter(|candidate| candidate.span.line > record.span.line)
         .map(|candidate| candidate.span.line)
         .min()
-}
-
-fn first_hold_step(parsed: &ParsedModule) -> Option<i64> {
-    let record = parsed.records.iter().find(|record| {
-        !matches!(
-            record.key.as_str(),
-            "store" | "view" | "document" | "kinematics"
-        ) && parsed
-            .state_steps
-            .iter()
-            .any(|step| step.state == "state" && span_under_record(parsed, step.span.line, record))
-    })?;
-    parsed
-        .state_steps
-        .iter()
-        .find(|step| step.state == "state" && span_under_record(parsed, step.span.line, record))
-        .map(|step| step.amount)
 }
 
 fn child_text(

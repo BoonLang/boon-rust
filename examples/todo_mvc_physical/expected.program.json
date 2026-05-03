@@ -1,35 +1,4 @@
 {
   "title": "todo mvc physical",
-  "scene": "sequence",
-  "scalar_accumulator": null,
-  "clock_accumulator": null,
-  "sequence": {
-    "initial_texts": [
-      "Buy groceries",
-      "Clean room"
-    ],
-    "append_on_submit": true,
-    "actions": {
-      "mass_mark_event_path": "store.sources.toggle_all_checkbox.event.click",
-      "remove_marked_event_path": "store.sources.clear_completed_button.event.press"
-    },
-    "view_selectors": [],
-    "view": {
-      "title_line": "todos",
-      "entry_hint": "What needs to be done?",
-      "count_suffix": "items left",
-      "remove_marked_label": "Clear completed",
-      "auxiliary_lines": [
-        "Double-click to edit an item",
-        "Created by Boon",
-        "Part of the classic app examples",
-        "physical debug: depth bounds and source bindings matrix"
-      ]
-    },
-    "dynamic_mark_toggle": true,
-    "dynamic_remove": true
-  },
-  "dense_grid": null,
-  "kinematics": null,
   "physical_debug": true
 }

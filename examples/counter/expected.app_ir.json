@@ -8,6 +8,14 @@
       }
     }
   ],
+  "list_views": [
+    {
+      "list_path": "records",
+      "title_line": "records",
+      "entry_hint": "",
+      "count_suffix": "items"
+    }
+  ],
   "event_handlers": [
     {
       "source_path": "store.sources.increment_button.event.press",
