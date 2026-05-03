@@ -1,16 +1,16 @@
 {
   "title": "counter hold",
   "scene": "action_value",
-  "scalar_counter": {
+  "scalar_accumulator": {
     "event_path": "store.sources.increment_button.event.press",
-    "state_path": "counter",
+    "state_path": "scalar_value",
     "initial": 0,
     "step": 1,
     "button_label": "Increment"
   },
-  "timer_counter": null,
-  "collection": null,
-  "table": null,
-  "playfield": null,
+  "clock_accumulator": null,
+  "sequence": null,
+  "dense_grid": null,
+  "kinematics": null,
   "physical_debug": false
 }

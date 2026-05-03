@@ -587,8 +587,10 @@ dependencies = [
  "boon_shape",
  "boon_source",
  "boon_syntax",
+ "hex",
  "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -678,7 +680,9 @@ dependencies = [
  "boon_backend_wgpu",
  "boon_compiler",
  "boon_examples",
+ "boon_render_ir",
  "boon_runtime",
+ "boon_source",
  "hex",
  "png",
  "portable-pty",

@@ -32,13 +32,62 @@ pub fn generate_examples_module(
         r#"use anyhow::Result;
 use boon_compiler::compile_source;
 use boon_runtime::SourceInventory;
-pub use boon_runtime::ExampleApp;
+pub use boon_runtime::{CompiledApp, ExampleApp};
 use serde::{Deserialize, Serialize};
 
 "#,
     );
+    let mut compiled_examples = Vec::new();
+    for (name, source_path) in examples {
+        let source = fs::read_to_string(source_path.as_ref())?;
+        let compiled = compile_source(name, &source)?;
+        compiled_examples.push((name.to_string(), source, compiled));
+    }
+    code.push_str("pub const SOURCE_SHA256: &[(&str, &str)] = &[\n");
+    for (name, _, compiled) in &compiled_examples {
+        code.push_str(&format!(
+            "    ({name:?}, {:?}),\n",
+            compiled.provenance.source_sha256
+        ));
+    }
+    code.push_str("];\n\n");
+    code.push_str("pub const IR_SHA256: &[(&str, &str)] = &[\n");
+    for (name, _, compiled) in &compiled_examples {
+        code.push_str(&format!(
+            "    ({name:?}, {:?}),\n",
+            compiled.provenance.hir_sha256
+        ));
+    }
+    code.push_str("];\n\n");
+    code.push_str(
+        "#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]\n\
+         pub struct SourceSpanRecord {\n\
+             pub example: &'static str,\n\
+             pub kind: &'static str,\n\
+             pub path: &'static str,\n\
+             pub line: usize,\n\
+             pub column: usize,\n\
+         }\n\n",
+    );
+    code.push_str("pub const SOURCE_SPANS: &[SourceSpanRecord] = &[\n");
+    for (name, _, compiled) in &compiled_examples {
+        for span in &compiled.provenance.source_spans {
+            code.push_str(&format!(
+                "    SourceSpanRecord {{ example: {name:?}, kind: {:?}, path: {:?}, line: {}, column: {} }},\n",
+                span.kind, span.path, span.line, span.column
+            ));
+        }
+    }
+    code.push_str("];\n\n");
+    code.push_str(
+        "#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]\n\
+         pub struct ExampleProvenance {\n\
+             pub source_sha256: &'static str,\n\
+             pub ir_sha256: &'static str,\n\
+         }\n\n",
+    );
     code.push_str("pub const EXAMPLES: &[&str] = &[\n");
-    for (name, _) in examples {
+    for (name, _, _) in &compiled_examples {
         code.push_str(&format!("    {name:?},\n"));
     }
     code.push_str("];\n\n");
@@ -48,12 +97,10 @@ use serde::{Deserialize, Serialize};
     code.push_str("    pub source: &'static str,\n");
     code.push_str("}\n\n");
     code.push_str("const DEFINITIONS: &[ExampleDefinition] = &[\n");
-    for (name, source_path) in examples {
-        let source = fs::read_to_string(source_path.as_ref())?;
-        let compiled = compile_source(name, &source)?;
+    for (name, source, compiled) in &compiled_examples {
         code.push_str(&format!(
             "    ExampleDefinition {{ name: {name:?}, source: {} }},\n",
-            rust_string_literal(&source)
+            rust_string_literal(source)
         ));
         code.push_str(&format!(
             "    // compiled source slots: {}\n",
@@ -79,9 +126,26 @@ pub fn source_inventory(name: &str) -> Result<SourceInventory> {
     Ok(compile_source(name, def.source)?.sources)
 }
 
+pub fn provenance(name: &str) -> Result<ExampleProvenance> {
+    let source_sha256 = SOURCE_SHA256
+        .iter()
+        .find(|(example, _)| *example == name)
+        .map(|(_, hash)| *hash)
+        .ok_or_else(|| anyhow::anyhow!("unknown example `{name}`"))?;
+    let ir_sha256 = IR_SHA256
+        .iter()
+        .find(|(example, _)| *example == name)
+        .map(|(_, hash)| *hash)
+        .ok_or_else(|| anyhow::anyhow!("unknown example `{name}`"))?;
+    Ok(ExampleProvenance {
+        source_sha256,
+        ir_sha256,
+    })
+}
+
 pub fn app(name: &str) -> Result<ExampleApp> {
     let def = definition(name)?;
-    Ok(ExampleApp::new(compile_source(name, def.source)?))
+    Ok(CompiledApp::new(compile_source(name, def.source)?))
 }
 
 "#,

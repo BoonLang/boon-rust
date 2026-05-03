@@ -17,3 +17,4 @@ serde_json.workspace = true
 [build-dependencies]
 anyhow.workspace = true
 boon_codegen_rust = { path = "../boon_codegen_rust" }
+serde_json.workspace = true

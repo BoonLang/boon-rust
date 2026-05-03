@@ -15,6 +15,20 @@ store:
 
 view:
     physical_debug: True
+    title_line: TEXT { todos }
+    entry_hint: TEXT { What needs to be done? }
+    count_suffix: TEXT { items left }
+    actions:
+        mass_mark:
+            source: toggle_all_checkbox
+        remove_marked:
+            source: clear_completed_button
+            label: TEXT { Clear completed }
+    auxiliary:
+        hint: TEXT { Double-click to edit an item }
+        author: TEXT { Created by Boon }
+        note: TEXT { Part of the classic app examples }
+        physical_debug: TEXT { physical debug: depth bounds and source bindings matrix }
 
 FUNCTION new_todo(title) {
     [

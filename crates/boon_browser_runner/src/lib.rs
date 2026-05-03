@@ -1,9 +1,8 @@
-use anyhow::{Result, bail};
-use boon_runtime::{BoonApp, SourceBatch, SourceEmission, SourceValue};
+use anyhow::Result;
+use boon_runtime::{BoonApp, SourceBatch};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Mutex;
-use std::time::Duration;
 
 static OUTPUT: Mutex<Vec<u8>> = Mutex::new(Vec::new());
 
@@ -14,6 +13,14 @@ struct ScenarioInput {
     source_inventory: Value,
     frame_hash: Option<String>,
     timing: Value,
+    replay: Vec<BrowserReplayStep>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+enum BrowserReplayStep {
+    Mount,
+    Dispatch { batch: Value },
+    AdvanceClock { millis: u64 },
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -116,7 +123,7 @@ fn run_scenarios(ptr: *const u8, len: usize) -> RunnerOutput {
 
 fn prove_scenario(input: &ScenarioInput) -> ScenarioProof {
     let mut errors = Vec::new();
-    let replay = replay_scenario(&input.example);
+    let replay = replay_scenario(input);
     if let Err(err) = &replay {
         errors.push(err.to_string());
     }
@@ -178,474 +185,29 @@ fn prove_scenario(input: &ScenarioInput) -> ScenarioProof {
     }
 }
 
-fn replay_scenario(name: &str) -> Result<(Value, Value)> {
-    let mut app = boon_examples::app(name)?;
-    app.mount();
-    run_core_scenario(name, &mut app)?;
-    apply_browser_timing_mutations(name, &mut app)?;
+fn replay_scenario(input: &ScenarioInput) -> Result<(Value, Value)> {
+    let mut app = boon_examples::app(&input.example)?;
+    for step in &input.replay {
+        match step {
+            BrowserReplayStep::Mount => {
+                app.mount();
+            }
+            BrowserReplayStep::Dispatch { batch } => {
+                let batch = serde_json::from_value::<SourceBatch>(batch.clone())?;
+                dispatch(&mut app, batch)?;
+            }
+            BrowserReplayStep::AdvanceClock { millis } => {
+                app.advance_time(std::time::Duration::from_millis(*millis));
+            }
+        }
+    }
     Ok((
         serde_json::to_value(app.snapshot())?,
         serde_json::to_value(app.source_inventory())?,
     ))
 }
 
-fn run_core_scenario(name: &str, app: &mut impl BoonApp) -> Result<()> {
-    match name {
-        "counter" | "counter_hold" => {
-            for _ in 0..10 {
-                dispatch(
-                    app,
-                    event(
-                        "store.sources.increment_button.event.press",
-                        SourceValue::EmptyRecord,
-                    ),
-                )?;
-            }
-        }
-        "interval" | "interval_hold" => {
-            app.advance_fake_time(Duration::from_secs(3));
-        }
-        "todo_mvc" | "todo_mvc_physical" => {
-            if name == "todo_mvc" {
-                dispatch(
-                    app,
-                    event(
-                        "store.sources.new_todo_input.event.focus",
-                        SourceValue::EmptyRecord,
-                    ),
-                )?;
-            }
-            let mut typed = String::new();
-            for ch in "Buy milk".chars() {
-                typed.push(ch);
-                dispatch(
-                    app,
-                    state(
-                        "store.sources.new_todo_input.text",
-                        SourceValue::Text(typed.clone()),
-                    ),
-                )?;
-                dispatch(
-                    app,
-                    event(
-                        "store.sources.new_todo_input.event.change",
-                        SourceValue::EmptyRecord,
-                    ),
-                )?;
-            }
-            dispatch(
-                app,
-                event(
-                    "store.sources.new_todo_input.event.key_down.key",
-                    SourceValue::Tag("Enter".to_string()),
-                ),
-            )?;
-            dispatch(
-                app,
-                state(
-                    "store.sources.new_todo_input.text",
-                    SourceValue::Text("   ".to_string()),
-                ),
-            )?;
-            dispatch(
-                app,
-                event(
-                    "store.sources.new_todo_input.event.key_down.key",
-                    SourceValue::Tag("Enter".to_string()),
-                ),
-            )?;
-            let mut edited = String::new();
-            for ch in "Buy oat milk".chars() {
-                edited.push(ch);
-                dispatch(
-                    app,
-                    dynamic_state(
-                        "todos[*].sources.edit_input.text",
-                        "3",
-                        0,
-                        SourceValue::Text(edited.clone()),
-                    ),
-                )?;
-                dispatch(
-                    app,
-                    dynamic_event(
-                        "todos[*].sources.edit_input.event.change",
-                        "3",
-                        0,
-                        SourceValue::EmptyRecord,
-                    ),
-                )?;
-            }
-            dispatch(
-                app,
-                dynamic_event(
-                    "todos[*].sources.edit_input.event.key_down.key",
-                    "3",
-                    0,
-                    SourceValue::Tag("Enter".to_string()),
-                ),
-            )?;
-            dispatch(
-                app,
-                dynamic_event(
-                    "todos[*].sources.edit_input.event.blur",
-                    "3",
-                    0,
-                    SourceValue::EmptyRecord,
-                ),
-            )?;
-            dispatch(
-                app,
-                event(
-                    "store.sources.toggle_all_checkbox.event.click",
-                    SourceValue::EmptyRecord,
-                ),
-            )?;
-            dispatch(
-                app,
-                dynamic_event(
-                    "todos[*].sources.checkbox.event.click",
-                    "1",
-                    0,
-                    SourceValue::EmptyRecord,
-                ),
-            )?;
-            if name == "todo_mvc" {
-                for filter in ["completed", "active", "all"] {
-                    dispatch(
-                        app,
-                        event(
-                            &format!("store.sources.filter_{filter}.event.press"),
-                            SourceValue::EmptyRecord,
-                        ),
-                    )?;
-                }
-            }
-            dispatch(
-                app,
-                dynamic_event(
-                    "todos[*].sources.remove_button.event.press",
-                    "2",
-                    0,
-                    SourceValue::EmptyRecord,
-                ),
-            )?;
-            dispatch(
-                app,
-                event(
-                    "store.sources.clear_completed_button.event.press",
-                    SourceValue::EmptyRecord,
-                ),
-            )?;
-        }
-        "cells" => {
-            dispatch(
-                app,
-                dynamic_event(
-                    "cells[*].sources.display.event.double_click",
-                    "A1",
-                    0,
-                    SourceValue::EmptyRecord,
-                ),
-            )?;
-            dispatch(
-                app,
-                dynamic_state(
-                    "cells[*].sources.editor.text",
-                    "A1",
-                    0,
-                    SourceValue::Text("1".to_string()),
-                ),
-            )?;
-            dispatch(
-                app,
-                dynamic_event(
-                    "cells[*].sources.editor.event.key_down.key",
-                    "A1",
-                    0,
-                    SourceValue::Tag("Enter".to_string()),
-                ),
-            )?;
-            for (owner, text) in [("A2", "2"), ("A3", "3")] {
-                dispatch(
-                    app,
-                    dynamic_state(
-                        "cells[*].sources.editor.text",
-                        owner,
-                        0,
-                        SourceValue::Text(text.to_string()),
-                    ),
-                )?;
-                dispatch(
-                    app,
-                    dynamic_event(
-                        "cells[*].sources.editor.event.change",
-                        owner,
-                        0,
-                        SourceValue::EmptyRecord,
-                    ),
-                )?;
-            }
-            for (owner, text) in [
-                ("B1", "=add(A1, A2)"),
-                ("B2", "=sum(A1:A3)"),
-                ("A2", "5"),
-                ("A3", "=bad("),
-                ("A1", "=add(A1, A2)"),
-            ] {
-                dispatch(
-                    app,
-                    dynamic_state(
-                        "cells[*].sources.editor.text",
-                        owner,
-                        0,
-                        SourceValue::Text(text.to_string()),
-                    ),
-                )?;
-            }
-            for _ in 0..25 {
-                dispatch(
-                    app,
-                    event(
-                        "store.sources.viewport.event.key_down.key",
-                        SourceValue::Tag("ArrowRight".to_string()),
-                    ),
-                )?;
-            }
-            for _ in 0..99 {
-                dispatch(
-                    app,
-                    event(
-                        "store.sources.viewport.event.key_down.key",
-                        SourceValue::Tag("ArrowDown".to_string()),
-                    ),
-                )?;
-            }
-        }
-        "pong" | "arkanoid" => {
-            for key in ["ArrowUp", "ArrowDown"] {
-                dispatch(
-                    app,
-                    event(
-                        "store.sources.paddle.event.key_down.key",
-                        SourceValue::Tag(key.to_string()),
-                    ),
-                )?;
-            }
-            dispatch(
-                app,
-                event("store.sources.tick.event.frame", SourceValue::EmptyRecord),
-            )?;
-        }
-        _ => bail!("unknown browser scenario example `{name}`"),
-    }
-    Ok(())
-}
-
-fn apply_browser_timing_mutations(name: &str, app: &mut impl BoonApp) -> Result<()> {
-    match name {
-        "todo_mvc" | "todo_mvc_physical" => {
-            for i in 0..105 {
-                dispatch(
-                    app,
-                    state(
-                        "store.sources.new_todo_input.text",
-                        SourceValue::Text("x".repeat(i + 1)),
-                    ),
-                )?;
-            }
-            ensure_todo_count(app, 100)?;
-            for i in 0..35 {
-                let owner_id = if i == 0 { 1 } else { i + 3 }.to_string();
-                dispatch(
-                    app,
-                    dynamic_event(
-                        "todos[*].sources.checkbox.event.click",
-                        &owner_id,
-                        0,
-                        SourceValue::EmptyRecord,
-                    ),
-                )?;
-            }
-            for _ in 0..35 {
-                dispatch(
-                    app,
-                    event(
-                        "store.sources.toggle_all_checkbox.event.click",
-                        SourceValue::EmptyRecord,
-                    ),
-                )?;
-            }
-        }
-        "cells" => {
-            for (owner, text) in [
-                ("A1", "1"),
-                ("A2", "2"),
-                ("A3", "3"),
-                ("B1", "=add(A1, A2)"),
-                ("B2", "=sum(A1:A3)"),
-            ] {
-                dispatch(
-                    app,
-                    dynamic_state(
-                        "cells[*].sources.editor.text",
-                        owner,
-                        0,
-                        SourceValue::Text(text.to_string()),
-                    ),
-                )?;
-            }
-            for i in 0..35 {
-                dispatch(
-                    app,
-                    dynamic_state(
-                        "cells[*].sources.editor.text",
-                        "A1",
-                        0,
-                        SourceValue::Text(i.to_string()),
-                    ),
-                )?;
-            }
-            for i in 0..35 {
-                dispatch(
-                    app,
-                    dynamic_state(
-                        "cells[*].sources.editor.text",
-                        "A2",
-                        0,
-                        SourceValue::Text((i + 2).to_string()),
-                    ),
-                )?;
-            }
-            for i in 0..35 {
-                dispatch(
-                    app,
-                    dynamic_state(
-                        "cells[*].sources.editor.text",
-                        "Z100",
-                        0,
-                        SourceValue::Text(format!("edge-{i}")),
-                    ),
-                )?;
-            }
-        }
-        "counter" | "counter_hold" => {
-            for _ in 0..35 {
-                dispatch(
-                    app,
-                    event(
-                        "store.sources.increment_button.event.press",
-                        SourceValue::EmptyRecord,
-                    ),
-                )?;
-            }
-        }
-        "interval" | "interval_hold" => {
-            for _ in 0..35 {
-                app.advance_fake_time(Duration::from_millis(16));
-            }
-        }
-        "pong" | "arkanoid" => {
-            for _ in 0..35 {
-                dispatch(
-                    app,
-                    event("store.sources.tick.event.frame", SourceValue::EmptyRecord),
-                )?;
-            }
-        }
-        _ => {}
-    }
-    Ok(())
-}
-
-fn ensure_todo_count(app: &mut impl BoonApp, target: i64) -> Result<()> {
-    loop {
-        let current = app
-            .snapshot()
-            .values
-            .get("store.todos_count")
-            .and_then(|value| value.as_i64())
-            .unwrap_or(0);
-        if current >= target {
-            return Ok(());
-        }
-        let title = format!("Todo {next:03}", next = current + 1);
-        dispatch(
-            app,
-            state(
-                "store.sources.new_todo_input.text",
-                SourceValue::Text(title),
-            ),
-        )?;
-        dispatch(
-            app,
-            event(
-                "store.sources.new_todo_input.event.key_down.key",
-                SourceValue::Tag("Enter".to_string()),
-            ),
-        )?;
-    }
-}
-
 fn dispatch(app: &mut impl BoonApp, batch: SourceBatch) -> Result<()> {
     app.dispatch_batch(batch)?;
     Ok(())
-}
-
-fn event(path: &str, value: SourceValue) -> SourceBatch {
-    SourceBatch {
-        state_updates: Vec::new(),
-        events: vec![SourceEmission {
-            path: path.to_string(),
-            value,
-            owner_id: None,
-            owner_generation: None,
-        }],
-    }
-}
-
-fn state(path: &str, value: SourceValue) -> SourceBatch {
-    SourceBatch {
-        state_updates: vec![SourceEmission {
-            path: path.to_string(),
-            value,
-            owner_id: None,
-            owner_generation: None,
-        }],
-        events: Vec::new(),
-    }
-}
-
-fn dynamic_event(
-    path: &str,
-    owner_id: &str,
-    owner_generation: u32,
-    value: SourceValue,
-) -> SourceBatch {
-    SourceBatch {
-        state_updates: Vec::new(),
-        events: vec![SourceEmission {
-            path: path.to_string(),
-            value,
-            owner_id: Some(owner_id.to_string()),
-            owner_generation: Some(owner_generation),
-        }],
-    }
-}
-
-fn dynamic_state(
-    path: &str,
-    owner_id: &str,
-    owner_generation: u32,
-    value: SourceValue,
-) -> SourceBatch {
-    SourceBatch {
-        state_updates: vec![SourceEmission {
-            path: path.to_string(),
-            value,
-            owner_id: Some(owner_id.to_string()),
-            owner_generation: Some(owner_generation),
-        }],
-        events: Vec::new(),
-    }
 }

@@ -11,7 +11,7 @@ boon_hir = { path = "../boon_hir" }
 boon_shape = { path = "../boon_shape" }
 boon_source = { path = "../boon_source" }
 boon_syntax = { path = "../boon_syntax" }
+hex.workspace = true
 serde.workspace = true
-
-[dev-dependencies]
 serde_json.workspace = true
+sha2.workspace = true

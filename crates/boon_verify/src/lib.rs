@@ -4,10 +4,11 @@ use boon_backend_app_window::{
     run_close_probe, run_rgba_input_session, run_rgba_input_session_with_proof,
     smoke_test_with_title as app_window_smoke_test_with_title,
 };
-use boon_backend_browser::BrowserScenarioInput;
+use boon_backend_browser::{BrowserReplayStep, BrowserScenarioInput};
 use boon_backend_ratatui::RatatuiBackend;
 use boon_backend_wgpu::{FrameImageArtifact, WgpuBackend, hash_rgba, rasterize_native_gui_frame};
 use boon_examples::{app, list_examples};
+use boon_render_ir::{HitTarget, HitTargetAction};
 use boon_runtime::{BoonApp, SourceBatch, SourceEmission, SourceValue};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -170,18 +171,30 @@ fn handwritten_rust_files(root: &Path) -> Result<Vec<String>> {
     for rel in [
         "crates/boon_compiler/src",
         "crates/boon_runtime/src",
+        "crates/boon_render_ir/src",
         "crates/boon_codegen_rust/src",
+        "crates/boon_examples/build.rs",
+        "crates/boon_syntax/src",
         "crates/boon_backend_wgpu/src",
         "crates/boon_backend_ratatui/src",
+        "crates/boon_backend_app_window/src",
+        "crates/boon_backend_browser/src",
+        "crates/boon_browser_runner/src",
     ] {
-        collect_rust_files(root, Path::new(rel), &mut files)?;
+        collect_handwritten_rust(root, Path::new(rel), &mut files)?;
     }
     files.sort();
     Ok(files)
 }
 
-fn collect_rust_files(root: &Path, rel: &Path, files: &mut Vec<String>) -> Result<()> {
+fn collect_handwritten_rust(root: &Path, rel: &Path, files: &mut Vec<String>) -> Result<()> {
     let dir = root.join(rel);
+    if dir.is_file() {
+        if dir.extension().and_then(|ext| ext.to_str()) == Some("rs") {
+            files.push(rel.to_string_lossy().replace('\\', "/"));
+        }
+        return Ok(());
+    }
     for entry in fs::read_dir(&dir).with_context(|| format!("reading {}", dir.display()))? {
         let entry = entry?;
         let path = entry.path();
@@ -191,7 +204,7 @@ fn collect_rust_files(root: &Path, rel: &Path, files: &mut Vec<String>) -> Resul
             .to_string_lossy()
             .replace('\\', "/");
         if path.is_dir() {
-            collect_rust_files(root, Path::new(&rel_path), files)?;
+            collect_handwritten_rust(root, Path::new(&rel_path), files)?;
         } else if path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
             files.push(rel_path);
         }
@@ -257,6 +270,25 @@ fn boon_powered_forbidden_needles() -> Vec<(&'static str, &'static str)> {
             "SurfaceKind::Playfield",
         ),
         (
+            "example/domain model in handwritten Rust",
+            "SurfaceKind::Motion",
+        ),
+        ("example/domain model in handwritten Rust", "NodeKind::Game"),
+        ("game business logic in handwritten Rust", "ball_x"),
+        ("game business logic in handwritten Rust", "ball_y"),
+        ("game business logic in handwritten Rust", "ball_dx"),
+        ("game business logic in handwritten Rust", "ball_dy"),
+        ("game business logic in handwritten Rust", "obstacles_"),
+        ("game business logic in handwritten Rust", "peer_control_y"),
+        (
+            "game business logic in handwritten Rust",
+            "contact_field_active",
+        ),
+        ("game business logic in handwritten Rust", ".player"),
+        ("game business logic in handwritten Rust", ".opponent"),
+        ("game business logic in handwritten Rust", "let player"),
+        ("game business logic in handwritten Rust", "let opponent"),
+        (
             "handcrafted renderer in handwritten Rust",
             "render_collection_scene",
         ),
@@ -276,6 +308,28 @@ fn boon_powered_forbidden_needles() -> Vec<(&'static str, &'static str)> {
             "source.contains(",
         ),
         ("source text heuristic in compiler/runtime", "source.find("),
+        ("source text heuristic in compiler/runtime", "source_has("),
+        ("source text heuristic in compiler/runtime", "source_index("),
+        (
+            "source text heuristic in compiler/runtime",
+            "module_text_has(",
+        ),
+        ("source text heuristic in compiler/runtime", "section_body("),
+        ("source text heuristic in compiler/runtime", "number_field("),
+        ("source text heuristic in compiler/runtime", "axis_field("),
+        ("source text heuristic in compiler/runtime", "tag_field("),
+        (
+            "source text heuristic in compiler/runtime",
+            "scan_text_record(",
+        ),
+        (
+            "source text heuristic in compiler/runtime",
+            "scan_record_text(",
+        ),
+        (
+            "source text heuristic in compiler/runtime",
+            "top_level_blocks(",
+        ),
         ("source text heuristic in compiler/runtime", "named_block("),
         (
             "source text heuristic in compiler/runtime",
@@ -308,17 +362,87 @@ fn boon_powered_forbidden_needles() -> Vec<(&'static str, &'static str)> {
         ("todo business logic in handwritten Rust", "selected_filter"),
         ("todo business logic in handwritten Rust", "completed_todos"),
         ("todo business logic in handwritten Rust", "active_todos"),
+        ("todo business logic in handwritten Rust", "ListItem"),
+        ("todo business logic in handwritten Rust", "list_items"),
+        ("todo business logic in handwritten Rust", "input_text"),
+        ("todo business logic in handwritten Rust", "filter_events"),
         ("cells business logic in handwritten Rust", "formula"),
         ("cells business logic in handwritten Rust", "Formula"),
         ("cells business logic in handwritten Rust", "grid_text"),
+        (
+            "cells business logic in handwritten Rust",
+            "ExpressionGridState",
+        ),
+        (
+            "cells business logic in handwritten Rust",
+            "resolve_expression_text",
+        ),
+        (
+            "cells business logic in handwritten Rust",
+            "cell_expression_enabled",
+        ),
         ("game business logic in handwritten Rust", "paddle"),
         ("game business logic in handwritten Rust", "Paddle"),
         ("game business logic in handwritten Rust", "brick"),
         ("game business logic in handwritten Rust", "Brick"),
         ("game business logic in handwritten Rust", "Arkanoid"),
         ("game business logic in handwritten Rust", "Pong"),
+        ("game business logic in handwritten Rust", "MotionState"),
+        (
+            "game business logic in handwritten Rust",
+            "advance_dual_wall_step",
+        ),
+        (
+            "game business logic in handwritten Rust",
+            "advance_obstacle_field_step",
+        ),
         ("example-name branch in handwritten Rust", "todo_mvc"),
         ("example-name branch in handwritten Rust", "arkanoid"),
+        (
+            "user-facing example text in handwritten Rust",
+            "What needs to be done?",
+        ),
+        (
+            "user-facing example text in handwritten Rust",
+            "Clear completed",
+        ),
+        (
+            "user-facing example text in handwritten Rust",
+            "Double-click to edit an item",
+        ),
+        (
+            "user-facing example text in handwritten Rust",
+            "Created by Boon",
+        ),
+        (
+            "user-facing example text in handwritten Rust",
+            "Part of the classic app examples",
+        ),
+        ("user-facing example text in handwritten Rust", "Increment"),
+        ("non-generic runtime clock API", "advance_fake_time"),
+        ("non-generic runtime clock API", "FakeClock"),
+        ("non-generic runtime clock API", "fake_clock"),
+        ("legacy compatibility shim in implementation", "legacy_"),
+        ("non-generic dynamic owner fallback", "dynamic item"),
+        ("non-generic dynamic owner fallback", "items[*]"),
+        ("non-generic dense render patch", "SetGridCell"),
+        ("non-generic dense owner label", "grid_cell"),
+        ("non-generic sequence state", "primary_text"),
+        ("non-generic sequence state", "flagged_"),
+        ("non-generic sequence state", "unflagged_"),
+        ("non-generic sequence state", ".flag"),
+        ("non-generic sequence action", "dynamic_flag"),
+        ("non-generic view passthrough", "view_text"),
+        ("non-generic old view key", "action_label"),
+        ("non-generic old view key", "input_placeholder"),
+        ("non-generic old view key", "unflagged_count_suffix"),
+        ("non-generic old view key", "remove_flagged_label"),
+        ("non-generic old view key", "physical_debug_label"),
+        ("non-generic motion score", "score_per_hit"),
+        ("non-generic motion score", "kinematics.score"),
+        ("non-generic motion reset", "kinematics.lives"),
+        ("non-generic motion field", "static_field"),
+        ("non-generic motion field", "StaticFieldSpec"),
     ]
 }
 
@@ -394,7 +518,11 @@ fn source_mutation_probe(
 
 fn compile_and_hash(example: &str, source: &str) -> Result<String> {
     let compiled = boon_compiler::compile_source(example, source)?;
-    let bytes = serde_json::to_vec(&compiled)?;
+    let bytes = serde_json::to_vec(&json!({
+        "hir": compiled.hir,
+        "sources": compiled.sources,
+        "program": compiled.program,
+    }))?;
     Ok(hex::encode(Sha256::digest(bytes)))
 }
 
@@ -602,7 +730,7 @@ impl ScenarioStep {
             }
             ScenarioStep::KeyDown { target, key } => format!("key_down {target} {key}"),
             ScenarioStep::Change { target } => format!("emit change for {target}"),
-            ScenarioStep::AdvanceClock { millis } => format!("advance_fake_time {millis}ms"),
+            ScenarioStep::AdvanceClock { millis } => format!("advance_time {millis}ms"),
             ScenarioStep::AdvanceFrame { target } => {
                 format!("advance deterministic frame {target}")
             }
@@ -1055,13 +1183,13 @@ pub fn scenario_for_example(name: &str) -> Scenario {
             .click("increment button")
             .click("increment button")
             .timing("counter_click_30")
-            .expect_state("counter")
+            .expect_state("scalar_value")
             .expect_source_binding("store.sources.increment_button.event.press")
             .expect_timing_budget("counter_click_30"),
         "interval" | "interval_hold" => base
             .advance_clock(3000)
             .timing("interval_clock_30")
-            .expect_state("interval_count")
+            .expect_state("clock_value")
             .expect_source_binding("store.sources.tick.event.frame")
             .expect_timing_budget("interval_clock_30"),
         "todo_mvc" | "todo_mvc_physical" => base
@@ -1128,6 +1256,405 @@ fn replay_steps(name: &str) -> Vec<String> {
 
 fn human_like_interactions(name: &str) -> Vec<String> {
     scenario_for_example(name).human_steps()
+}
+
+fn browser_replay_for_example(name: &str) -> Result<Vec<BrowserReplayStep>> {
+    let mut replay = vec![BrowserReplayStep::Mount];
+    append_browser_core_replay(name, &mut replay)?;
+    append_browser_timing_replay(name, &mut replay)?;
+    Ok(replay)
+}
+
+fn append_browser_core_replay(name: &str, replay: &mut Vec<BrowserReplayStep>) -> Result<()> {
+    match name {
+        "counter" | "counter_hold" => {
+            for _ in 0..10 {
+                replay_dispatch(
+                    replay,
+                    event(
+                        "store.sources.increment_button.event.press",
+                        SourceValue::EmptyRecord,
+                    ),
+                )?;
+            }
+        }
+        "interval" | "interval_hold" => {
+            replay.push(BrowserReplayStep::AdvanceClock { millis: 3000 });
+        }
+        "todo_mvc" | "todo_mvc_physical" => {
+            if name == "todo_mvc" {
+                replay_dispatch(
+                    replay,
+                    event(
+                        "store.sources.new_todo_input.event.focus",
+                        SourceValue::EmptyRecord,
+                    ),
+                )?;
+            }
+            let mut typed = String::new();
+            for ch in "Buy milk".chars() {
+                typed.push(ch);
+                replay_dispatch(
+                    replay,
+                    state(
+                        "store.sources.new_todo_input.text",
+                        SourceValue::Text(typed.clone()),
+                    ),
+                )?;
+                replay_dispatch(
+                    replay,
+                    event(
+                        "store.sources.new_todo_input.event.change",
+                        SourceValue::EmptyRecord,
+                    ),
+                )?;
+            }
+            replay_dispatch(
+                replay,
+                event(
+                    "store.sources.new_todo_input.event.key_down.key",
+                    SourceValue::Tag("Enter".to_string()),
+                ),
+            )?;
+            replay_dispatch(
+                replay,
+                state(
+                    "store.sources.new_todo_input.text",
+                    SourceValue::Text("   ".to_string()),
+                ),
+            )?;
+            replay_dispatch(
+                replay,
+                event(
+                    "store.sources.new_todo_input.event.key_down.key",
+                    SourceValue::Tag("Enter".to_string()),
+                ),
+            )?;
+            let mut edited = String::new();
+            for ch in "Buy oat milk".chars() {
+                edited.push(ch);
+                replay_dispatch(
+                    replay,
+                    dynamic_state(
+                        "todos[*].sources.edit_input.text",
+                        "3",
+                        0,
+                        SourceValue::Text(edited.clone()),
+                    ),
+                )?;
+                replay_dispatch(
+                    replay,
+                    dynamic_event(
+                        "todos[*].sources.edit_input.event.change",
+                        "3",
+                        0,
+                        SourceValue::EmptyRecord,
+                    ),
+                )?;
+            }
+            replay_dispatch(
+                replay,
+                dynamic_event(
+                    "todos[*].sources.edit_input.event.key_down.key",
+                    "3",
+                    0,
+                    SourceValue::Tag("Enter".to_string()),
+                ),
+            )?;
+            replay_dispatch(
+                replay,
+                dynamic_event(
+                    "todos[*].sources.edit_input.event.blur",
+                    "3",
+                    0,
+                    SourceValue::EmptyRecord,
+                ),
+            )?;
+            replay_dispatch(
+                replay,
+                event(
+                    "store.sources.toggle_all_checkbox.event.click",
+                    SourceValue::EmptyRecord,
+                ),
+            )?;
+            replay_dispatch(
+                replay,
+                dynamic_event(
+                    "todos[*].sources.checkbox.event.click",
+                    "1",
+                    0,
+                    SourceValue::EmptyRecord,
+                ),
+            )?;
+            if name == "todo_mvc" {
+                for filter in ["completed", "active", "all"] {
+                    replay_dispatch(
+                        replay,
+                        event(
+                            &format!("store.sources.filter_{filter}.event.press"),
+                            SourceValue::EmptyRecord,
+                        ),
+                    )?;
+                }
+            }
+            replay_dispatch(
+                replay,
+                dynamic_event(
+                    "todos[*].sources.remove_button.event.press",
+                    "2",
+                    0,
+                    SourceValue::EmptyRecord,
+                ),
+            )?;
+            replay_dispatch(
+                replay,
+                event(
+                    "store.sources.clear_completed_button.event.press",
+                    SourceValue::EmptyRecord,
+                ),
+            )?;
+        }
+        "cells" => {
+            replay_dispatch(
+                replay,
+                dynamic_event(
+                    "cells[*].sources.display.event.double_click",
+                    "A1",
+                    0,
+                    SourceValue::EmptyRecord,
+                ),
+            )?;
+            replay_dispatch(
+                replay,
+                dynamic_state(
+                    "cells[*].sources.editor.text",
+                    "A1",
+                    0,
+                    SourceValue::Text("1".to_string()),
+                ),
+            )?;
+            replay_dispatch(
+                replay,
+                dynamic_event(
+                    "cells[*].sources.editor.event.key_down.key",
+                    "A1",
+                    0,
+                    SourceValue::Tag("Enter".to_string()),
+                ),
+            )?;
+            for (owner, text) in [("A2", "2"), ("A3", "3")] {
+                replay_dispatch(
+                    replay,
+                    dynamic_state(
+                        "cells[*].sources.editor.text",
+                        owner,
+                        0,
+                        SourceValue::Text(text.to_string()),
+                    ),
+                )?;
+                replay_dispatch(
+                    replay,
+                    dynamic_event(
+                        "cells[*].sources.editor.event.change",
+                        owner,
+                        0,
+                        SourceValue::EmptyRecord,
+                    ),
+                )?;
+            }
+            for (owner, text) in [
+                ("B1", "=add(A1, A2)"),
+                ("B2", "=sum(A1:A3)"),
+                ("A2", "5"),
+                ("A3", "=bad("),
+                ("A1", "=add(A1, A2)"),
+            ] {
+                replay_dispatch(
+                    replay,
+                    dynamic_state(
+                        "cells[*].sources.editor.text",
+                        owner,
+                        0,
+                        SourceValue::Text(text.to_string()),
+                    ),
+                )?;
+            }
+            for _ in 0..25 {
+                replay_dispatch(
+                    replay,
+                    event(
+                        "store.sources.viewport.event.key_down.key",
+                        SourceValue::Tag("ArrowRight".to_string()),
+                    ),
+                )?;
+            }
+            for _ in 0..99 {
+                replay_dispatch(
+                    replay,
+                    event(
+                        "store.sources.viewport.event.key_down.key",
+                        SourceValue::Tag("ArrowDown".to_string()),
+                    ),
+                )?;
+            }
+        }
+        "pong" | "arkanoid" => {
+            for key in ["ArrowUp", "ArrowDown"] {
+                replay_dispatch(
+                    replay,
+                    event(
+                        "store.sources.paddle.event.key_down.key",
+                        SourceValue::Tag(key.to_string()),
+                    ),
+                )?;
+            }
+            replay_dispatch(
+                replay,
+                event("store.sources.tick.event.frame", SourceValue::EmptyRecord),
+            )?;
+        }
+        _ => bail!("unknown browser replay example `{name}`"),
+    }
+    Ok(())
+}
+
+fn append_browser_timing_replay(name: &str, replay: &mut Vec<BrowserReplayStep>) -> Result<()> {
+    match name {
+        "todo_mvc" | "todo_mvc_physical" => {
+            for i in 0..105 {
+                replay_dispatch(
+                    replay,
+                    state(
+                        "store.sources.new_todo_input.text",
+                        SourceValue::Text("x".repeat(i + 1)),
+                    ),
+                )?;
+            }
+            for current in 1..100 {
+                let title = format!("Todo {next:03}", next = current + 1);
+                replay_dispatch(
+                    replay,
+                    state(
+                        "store.sources.new_todo_input.text",
+                        SourceValue::Text(title),
+                    ),
+                )?;
+                replay_dispatch(
+                    replay,
+                    event(
+                        "store.sources.new_todo_input.event.key_down.key",
+                        SourceValue::Tag("Enter".to_string()),
+                    ),
+                )?;
+            }
+            for i in 0..35 {
+                let owner_id = if i == 0 { 1 } else { i + 3 }.to_string();
+                replay_dispatch(
+                    replay,
+                    dynamic_event(
+                        "todos[*].sources.checkbox.event.click",
+                        &owner_id,
+                        0,
+                        SourceValue::EmptyRecord,
+                    ),
+                )?;
+            }
+            for _ in 0..35 {
+                replay_dispatch(
+                    replay,
+                    event(
+                        "store.sources.toggle_all_checkbox.event.click",
+                        SourceValue::EmptyRecord,
+                    ),
+                )?;
+            }
+        }
+        "cells" => {
+            for (owner, text) in [
+                ("A1", "1"),
+                ("A2", "2"),
+                ("A3", "3"),
+                ("B1", "=add(A1, A2)"),
+                ("B2", "=sum(A1:A3)"),
+            ] {
+                replay_dispatch(
+                    replay,
+                    dynamic_state(
+                        "cells[*].sources.editor.text",
+                        owner,
+                        0,
+                        SourceValue::Text(text.to_string()),
+                    ),
+                )?;
+            }
+            for i in 0..35 {
+                replay_dispatch(
+                    replay,
+                    dynamic_state(
+                        "cells[*].sources.editor.text",
+                        "A1",
+                        0,
+                        SourceValue::Text(i.to_string()),
+                    ),
+                )?;
+            }
+            for i in 0..35 {
+                replay_dispatch(
+                    replay,
+                    dynamic_state(
+                        "cells[*].sources.editor.text",
+                        "A2",
+                        0,
+                        SourceValue::Text((i + 2).to_string()),
+                    ),
+                )?;
+            }
+            for i in 0..35 {
+                replay_dispatch(
+                    replay,
+                    dynamic_state(
+                        "cells[*].sources.editor.text",
+                        "Z100",
+                        0,
+                        SourceValue::Text(format!("edge-{i}")),
+                    ),
+                )?;
+            }
+        }
+        "counter" | "counter_hold" => {
+            for _ in 0..35 {
+                replay_dispatch(
+                    replay,
+                    event(
+                        "store.sources.increment_button.event.press",
+                        SourceValue::EmptyRecord,
+                    ),
+                )?;
+            }
+        }
+        "interval" | "interval_hold" => {
+            for _ in 0..35 {
+                replay.push(BrowserReplayStep::AdvanceClock { millis: 16 });
+            }
+        }
+        "pong" | "arkanoid" => {
+            for _ in 0..35 {
+                replay_dispatch(
+                    replay,
+                    event("store.sources.tick.event.frame", SourceValue::EmptyRecord),
+                )?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn replay_dispatch(replay: &mut Vec<BrowserReplayStep>, batch: SourceBatch) -> Result<()> {
+    replay.push(BrowserReplayStep::Dispatch {
+        batch: serde_json::to_value(batch)?,
+    });
+    Ok(())
 }
 
 pub fn verify_native_wgpu_headless(artifacts: &Path) -> Result<VerifyReport> {
@@ -1298,6 +1825,7 @@ pub fn verify_browser_firefox(artifacts: &Path) -> Result<VerifyReport> {
                             timing: timing.clone(),
                             wgpu_metadata: metadata.clone(),
                             scenario: serde_json::to_value(scenario_for_example(name))?,
+                            replay: browser_replay_for_example(name)?,
                         })
                     },
                 )
@@ -1673,7 +2201,7 @@ fn browser_timing_gate(
             None,
             30,
             |app, backend, _| {
-                let result = app.advance_fake_time(Duration::from_millis(16));
+                let result = app.advance_time(Duration::from_millis(16));
                 backend.apply_patches(&result.patches)?;
                 backend.render_frame_ready()?;
                 Ok(())
@@ -1880,7 +2408,7 @@ fn ratatui_timing_gate(
             None,
             30,
             |app, backend, _| {
-                let result = app.advance_fake_time(Duration::from_millis(16));
+                let result = app.advance_time(Duration::from_millis(16));
                 backend.apply_patches(&result.patches)?;
                 backend.render_frame()?;
                 Ok(())
@@ -2336,10 +2864,14 @@ struct NativeManualInputProof {
 }
 
 #[derive(Clone, Debug)]
-enum NativeFocus {
-    NewTodo,
-    TodoEdit { owner_id: String },
-    Cell { owner_id: String },
+struct NativeFocus {
+    text_state_path: String,
+    text_value: Option<String>,
+    key_event_path: Option<String>,
+    change_event_path: Option<String>,
+    blur_event_path: Option<String>,
+    owner_id: Option<String>,
+    generation: u32,
 }
 
 struct NativeManualState {
@@ -2410,184 +2942,75 @@ impl NativeManualState {
         let Some((x, y)) = layout.preview_virtual(sample) else {
             return Ok(());
         };
-        match self.example.as_str() {
-            "counter" | "counter_hold" => {
-                if (338.0..=662.0).contains(&x) && (388.0..=480.0).contains(&y) {
-                    self.dispatch_labeled(
-                        "native mouse click increment button",
-                        event(
-                            "store.sources.increment_button.event.press",
-                            SourceValue::EmptyRecord,
-                        ),
-                    )
-                } else {
-                    Ok(())
-                }
-            }
-            "interval" | "interval_hold" => Ok(()),
-            "todo_mvc" | "todo_mvc_physical" => self.handle_todo_click(x, y),
-            "cells" => self.handle_cells_click(x, y),
-            "pong" | "arkanoid" => Ok(()),
-            _ => Ok(()),
-        }
-    }
-
-    fn handle_todo_click(&mut self, x: f64, y: f64) -> Result<()> {
-        let panel_x = 206.0;
-        let main_y = 160.0;
-        let panel_w = 588.0;
-        if (main_y..main_y + 72.0).contains(&y) && (panel_x + 54.0..=panel_x + panel_w).contains(&x)
-        {
-            self.focused = Some(NativeFocus::NewTodo);
-            self.text_buffer = self
-                .app
-                .snapshot()
-                .values
-                .get("store.sources.new_todo_input.text")
-                .and_then(|value| value.as_str())
-                .unwrap_or_default()
-                .to_string();
-            if self.has_source("store.sources.new_todo_input.event.focus") {
-                self.dispatch_labeled(
-                    "native mouse focus new todo input",
-                    event(
-                        "store.sources.new_todo_input.event.focus",
-                        SourceValue::EmptyRecord,
-                    ),
-                )?;
-            }
-            return Ok(());
-        }
-        if (main_y..main_y + 72.0).contains(&y)
-            && (panel_x..panel_x + 54.0).contains(&x)
-            && self.has_source("store.sources.toggle_all_checkbox.event.click")
-        {
-            return self.dispatch_labeled(
-                "native mouse click toggle all",
-                event(
-                    "store.sources.toggle_all_checkbox.event.click",
-                    SourceValue::EmptyRecord,
-                ),
-            );
-        }
-        let visible_ids = self.visible_todo_ids();
-        let row_h = 62.0;
-        let footer_y = main_y + 72.0 + visible_ids.len() as f64 * row_h;
-        if (footer_y..footer_y + 54.0).contains(&y) {
-            if (panel_x + 474.0..=panel_x + panel_w).contains(&x)
-                && self.completed_todo_count() > 0
-                && self.has_source("store.sources.clear_completed_button.event.press")
-            {
-                return self.dispatch_labeled(
-                    "native mouse click clear completed",
-                    event(
-                        "store.sources.clear_completed_button.event.press",
-                        SourceValue::EmptyRecord,
-                    ),
-                );
-            }
-            let filter = if (panel_x + 124.0..panel_x + 214.0).contains(&x) {
-                "all"
-            } else if (panel_x + 214.0..panel_x + 319.0).contains(&x) {
-                "active"
-            } else if (panel_x + 319.0..panel_x + 459.0).contains(&x) {
-                "completed"
-            } else {
-                return Ok(());
-            };
-            let path = format!("store.sources.filter_{filter}.event.press");
-            if self.has_source(&path) {
-                return self.dispatch_labeled(
-                    &format!("native mouse click {filter} filter"),
-                    event(&path, SourceValue::EmptyRecord),
-                );
-            }
-            return Ok(());
-        }
-        if y < main_y + 72.0 {
-            return Ok(());
-        }
-        let row = ((y - (main_y + 72.0)) / row_h).floor() as usize;
-        let Some(owner_id) = visible_ids.get(row).cloned() else {
+        let target = self.backend.frame_scene().and_then(|scene| {
+            scene
+                .hit_targets
+                .iter()
+                .rev()
+                .find(|target| hit_target_contains(target, x, y))
+                .cloned()
+        });
+        let Some(target) = target else {
             return Ok(());
         };
-        if (panel_x..panel_x + 58.0).contains(&x)
-            && self.has_source("todos[*].sources.checkbox.event.click")
-        {
-            return self.dispatch_labeled(
-                "native mouse click todo checkbox",
-                dynamic_event(
-                    "todos[*].sources.checkbox.event.click",
-                    &owner_id,
-                    0,
-                    SourceValue::EmptyRecord,
-                ),
-            );
+        match target.action {
+            HitTargetAction::Press | HitTargetAction::DoubleClick => self.dispatch_labeled(
+                &format!("native mouse {}", target.id),
+                target_event_batch(&target, SourceValue::EmptyRecord),
+            ),
+            HitTargetAction::FocusText => {
+                if let Some(text_path) = target.text_state_path.clone() {
+                    self.blur_current_focus()?;
+                    self.focused = Some(NativeFocus {
+                        text_state_path: text_path.clone(),
+                        text_value: target.text_value.clone(),
+                        key_event_path: target.key_event_path.clone(),
+                        change_event_path: target.change_event_path.clone(),
+                        blur_event_path: target.blur_event_path.clone(),
+                        owner_id: target.owner_id.clone(),
+                        generation: target.generation,
+                    });
+                    self.text_buffer = self.current_text_for_focus()?;
+                    if let Some(path) = target.focus_event_path.as_deref() {
+                        self.dispatch_labeled(
+                            &format!("native focus {}", target.id),
+                            target_event_batch_with_path(&target, path, SourceValue::EmptyRecord),
+                        )?;
+                    }
+                    if target.source_path.contains(".event.") {
+                        self.dispatch_labeled(
+                            &format!("native mouse {}", target.id),
+                            target_event_batch(&target, SourceValue::EmptyRecord),
+                        )?;
+                    }
+                }
+                Ok(())
+            }
         }
-        if x >= panel_x + panel_w - 58.0
-            && self.has_source("todos[*].sources.remove_button.event.press")
-        {
-            return self.dispatch_labeled(
-                "native mouse click todo remove button",
-                dynamic_event(
-                    "todos[*].sources.remove_button.event.press",
-                    &owner_id,
-                    0,
-                    SourceValue::EmptyRecord,
-                ),
-            );
-        }
-        self.focused = Some(NativeFocus::TodoEdit {
-            owner_id: owner_id.clone(),
-        });
-        self.text_buffer = self
-            .app
-            .snapshot()
-            .values
-            .get(&format!("store.todos[{owner_id}].title"))
-            .and_then(|value| value.as_str())
-            .unwrap_or_default()
-            .to_string();
-        Ok(())
     }
 
-    fn handle_cells_click(&mut self, x: f64, y: f64) -> Result<()> {
-        let col = ((x - 100.0) / 92.0).floor() as i64 + 1;
-        let row = ((y - 200.0) / 38.0).floor() as i64 + 1;
-        if !(1..=26).contains(&col) || !(1..=100).contains(&row) {
+    fn blur_current_focus(&mut self) -> Result<()> {
+        let Some(focus) = self.focused.clone() else {
             return Ok(());
+        };
+        if let Some(path) = focus.blur_event_path.as_deref() {
+            self.dispatch_labeled(
+                "native blur focused text target",
+                focused_event_batch(&focus, path, SourceValue::EmptyRecord),
+            )?;
         }
-        let owner_id = format!("{}{}", column_label(col as usize), row);
-        self.focused = Some(NativeFocus::Cell {
-            owner_id: owner_id.clone(),
-        });
-        self.text_buffer.clear();
-        if let Some(text) = self
-            .app
-            .snapshot()
-            .values
-            .get(&format!("cells.{owner_id}.formula"))
-            .and_then(|value| value.as_str())
-        {
-            self.text_buffer = text.to_string();
-        }
-        self.dispatch_labeled(
-            "native mouse double-click cell display",
-            dynamic_event(
-                "cells[*].sources.display.event.double_click",
-                &owner_id,
-                0,
-                SourceValue::EmptyRecord,
-            ),
-        )
+        Ok(())
     }
 
     fn handle_key(&mut self, key: &str, pressed_keys: &[String]) -> Result<()> {
         match key {
             "Return" | "KeypadEnter" => self.dispatch_enter(),
             "Backspace" | "Delete" => {
-                self.text_buffer.pop();
-                self.dispatch_focused_text()
+                if self.focused.is_some() {
+                    self.text_buffer.pop();
+                    self.dispatch_focused_text()?;
+                }
+                Ok(())
             }
             "UpArrow" | "DownArrow" | "LeftArrow" | "RightArrow" => {
                 let tag = match key {
@@ -2597,22 +3020,12 @@ impl NativeManualState {
                     "RightArrow" => "ArrowRight",
                     _ => unreachable!(),
                 };
-                if self.example == "cells" && self.focused.is_none() {
+                if self.focused.is_none()
+                    && let Some(path) = self.first_static_key_source()
+                {
                     return self.dispatch_labeled(
-                        "native keyboard grid viewport",
-                        event(
-                            "store.sources.viewport.event.key_down.key",
-                            SourceValue::Tag(tag.to_string()),
-                        ),
-                    );
-                }
-                if matches!(self.example.as_str(), "pong" | "arkanoid") {
-                    return self.dispatch_labeled(
-                        "native keyboard game control",
-                        event(
-                            "store.sources.paddle.event.key_down.key",
-                            SourceValue::Tag(tag.to_string()),
-                        ),
+                        "native keyboard global key source",
+                        event(&path, SourceValue::Tag(tag.to_string())),
                     );
                 }
                 Ok(())
@@ -2628,67 +3041,47 @@ impl NativeManualState {
     }
 
     fn dispatch_enter(&mut self) -> Result<()> {
-        match self.focused.clone() {
-            Some(NativeFocus::NewTodo) => self.dispatch_labeled(
-                "native keyboard Enter in new todo input",
-                event(
-                    "store.sources.new_todo_input.event.key_down.key",
-                    SourceValue::Tag("Enter".to_string()),
-                ),
-            ),
-            Some(NativeFocus::TodoEdit { owner_id }) => self.dispatch_labeled(
-                "native keyboard Enter in todo edit input",
-                dynamic_event(
-                    "todos[*].sources.edit_input.event.key_down.key",
-                    &owner_id,
-                    0,
-                    SourceValue::Tag("Enter".to_string()),
-                ),
-            ),
-            Some(NativeFocus::Cell { owner_id }) => self.dispatch_labeled(
-                "native keyboard Enter in cell editor",
-                dynamic_event(
-                    "cells[*].sources.editor.event.key_down.key",
-                    &owner_id,
-                    0,
-                    SourceValue::Tag("Enter".to_string()),
-                ),
-            ),
-            None => Ok(()),
+        if let Some(focus) = self.focused.clone()
+            && let Some(path) = focus.key_event_path.as_deref()
+        {
+            return self.dispatch_labeled(
+                "native keyboard Enter in focused text target",
+                focused_event_batch(&focus, path, SourceValue::Tag("Enter".to_string())),
+            );
         }
+        Ok(())
     }
 
     fn advance_live_frame(&mut self) -> Result<()> {
         let now = Instant::now();
         let elapsed = now.saturating_duration_since(self.last_auto_tick);
-        let tick = match self.example.as_str() {
-            "interval" | "interval_hold" => Duration::from_millis(250),
-            "pong" | "arkanoid" => Duration::from_millis(50),
-            _ => return Ok(()),
+        let frame_source = self.first_static_source_ending(".event.frame");
+        let clock_source = self.first_static_source_ending(".event.tick");
+        let tick = if frame_source.is_some() {
+            Duration::from_millis(50)
+        } else if clock_source.is_some() {
+            Duration::from_millis(250)
+        } else {
+            return Ok(());
         };
         if elapsed < tick {
             return Ok(());
         }
         self.last_auto_tick = now;
-        match self.example.as_str() {
-            "interval" | "interval_hold" => {
-                let result = self.app.advance_fake_time(elapsed);
+        if let Some(path) = frame_source {
+            for result in self
+                .app
+                .dispatch_batch(event(&path, SourceValue::EmptyRecord))?
+            {
                 self.backend.apply_patches(&result.patches)?;
-                self.backend.render_frame_ready()?;
-                Ok(())
             }
-            "pong" | "arkanoid" => {
-                for result in self.app.dispatch_batch(event(
-                    "store.sources.tick.event.frame",
-                    SourceValue::EmptyRecord,
-                ))? {
-                    self.backend.apply_patches(&result.patches)?;
-                }
-                self.backend.render_frame_ready()?;
-                Ok(())
-            }
-            _ => Ok(()),
+            self.backend.render_frame_ready()?;
+            return Ok(());
         }
+        let result = self.app.advance_time(elapsed);
+        self.backend.apply_patches(&result.patches)?;
+        self.backend.render_frame_ready()?;
+        Ok(())
     }
 
     fn render_gui_frame(
@@ -2699,7 +3092,7 @@ impl NativeManualState {
         current_index: usize,
     ) -> Result<RgbaFrame> {
         self.advance_live_frame()?;
-        let controls = native_manual_controls(&self.example).join(" | ");
+        let controls = native_manual_controls(&self.app.source_inventory()).join(" | ");
         Ok(RgbaFrame {
             width,
             height,
@@ -2713,6 +3106,40 @@ impl NativeManualState {
                 &controls,
             ),
         })
+    }
+
+    fn current_text_for_focus(&self) -> Result<String> {
+        let Some(focus) = self.focused.as_ref() else {
+            return Ok(String::new());
+        };
+        let snapshot = self.app.snapshot();
+        Ok(focus
+            .text_value
+            .clone()
+            .or_else(|| {
+                snapshot
+                    .values
+                    .get(&focus.text_state_path)
+                    .and_then(|value| value.as_str())
+                    .map(ToString::to_string)
+            })
+            .unwrap_or_default())
+    }
+
+    fn first_static_key_source(&self) -> Option<String> {
+        self.first_static_source_ending(".event.key_down.key")
+    }
+
+    fn first_static_source_ending(&self, suffix: &str) -> Option<String> {
+        self.app
+            .source_inventory()
+            .entries
+            .iter()
+            .find(|entry| {
+                entry.path.ends_with(suffix)
+                    && matches!(entry.owner, boon_source::SourceOwner::Static)
+            })
+            .map(|entry| entry.path.clone())
     }
 
     fn visible_todo_ids(&self) -> Vec<String> {
@@ -2741,68 +3168,24 @@ impl NativeManualState {
             })
     }
 
-    fn completed_todo_count(&self) -> i64 {
-        self.app
-            .snapshot()
-            .values
-            .get("store.completed_todos_count")
-            .and_then(|value| value.as_i64())
-            .unwrap_or(0)
-    }
-
     fn dispatch_focused_text(&mut self) -> Result<()> {
-        match self.focused.clone() {
-            Some(NativeFocus::NewTodo) => {
-                self.dispatch_labeled(
-                    "native keyboard text into new todo input",
-                    state(
-                        "store.sources.new_todo_input.text",
-                        SourceValue::Text(self.text_buffer.clone()),
-                    ),
-                )?;
-                if self.has_source("store.sources.new_todo_input.event.change") {
-                    self.dispatch_labeled(
-                        "native keyboard change in new todo input",
-                        event(
-                            "store.sources.new_todo_input.event.change",
-                            SourceValue::EmptyRecord,
-                        ),
-                    )?;
-                }
-                Ok(())
-            }
-            Some(NativeFocus::TodoEdit { owner_id }) => {
-                self.dispatch_labeled(
-                    "native keyboard text into todo edit input",
-                    dynamic_state(
-                        "todos[*].sources.edit_input.text",
-                        &owner_id,
-                        0,
-                        SourceValue::Text(self.text_buffer.clone()),
-                    ),
-                )?;
-                self.dispatch_labeled(
-                    "native keyboard change in todo edit input",
-                    dynamic_event(
-                        "todos[*].sources.edit_input.event.change",
-                        &owner_id,
-                        0,
-                        SourceValue::EmptyRecord,
-                    ),
-                )?;
-                Ok(())
-            }
-            Some(NativeFocus::Cell { owner_id }) => self.dispatch_labeled(
-                "native keyboard text into cell editor",
-                dynamic_state(
-                    "cells[*].sources.editor.text",
-                    &owner_id,
-                    0,
+        if let Some(focus) = self.focused.clone() {
+            self.dispatch_labeled(
+                "native keyboard text into focused text target",
+                focused_state_batch(
+                    &focus,
+                    &focus.text_state_path,
                     SourceValue::Text(self.text_buffer.clone()),
                 ),
-            ),
-            None => Ok(()),
+            )?;
+            if let Some(path) = focus.change_event_path.as_deref() {
+                self.dispatch_labeled(
+                    "native keyboard change in focused text target",
+                    focused_event_batch(&focus, path, SourceValue::EmptyRecord),
+                )?;
+            }
         }
+        Ok(())
     }
 
     fn dispatch_labeled(&mut self, action: &str, batch: SourceBatch) -> Result<()> {
@@ -2823,10 +3206,6 @@ impl NativeManualState {
         }
     }
 
-    fn has_source(&self, path: &str) -> bool {
-        self.app.source_inventory().get(path).is_some()
-    }
-
     fn proof(
         mut self,
         app_window: boon_backend_app_window::AppWindowSmoke,
@@ -2843,7 +3222,7 @@ impl NativeManualState {
             dispatches: self.dispatches,
             final_snapshot: self.app.snapshot(),
             final_frame_hash: frame.rgba_hash,
-            controls: native_manual_controls(&self.example),
+            controls: native_manual_controls(&self.app.source_inventory()),
             errors: self.errors,
         })
     }
@@ -2869,10 +3248,7 @@ fn run_native_manual_input_session(
         move |state, width, height| state.render_gui_frame(width, height, &examples, 0),
     )?;
     let proof = state.proof(app_window, surface_frame, hold)?;
-    fs::write(
-        dir.join("manual-controls.txt"),
-        native_manual_controls(example).join("\n"),
-    )?;
+    fs::write(dir.join("manual-controls.txt"), proof.controls.join("\n"))?;
     Ok(proof)
 }
 
@@ -2994,33 +3370,53 @@ pub fn native_close_probe_helper(example: &str, out: &Path) -> Result<()> {
     Ok(())
 }
 
-fn native_manual_controls(example: &str) -> Vec<String> {
-    match example {
-        "counter" | "counter_hold" => {
-            vec!["click the visible Increment button to increment".to_string()]
-        }
-        "interval" | "interval_hold" => {
-            vec!["live clock ticks automatically in playground mode".to_string()]
-        }
-        "todo_mvc" | "todo_mvc_physical" => vec![
-            "click the top input band, type text, press Enter to add a todo".to_string(),
-            "click the toggle-all band below the input".to_string(),
-            "click a todo row left side to toggle it".to_string(),
-            "click a todo row middle to focus its edit input, type, then press Enter".to_string(),
-            "click a todo row far right to remove it".to_string(),
-            "click footer bands for clear/all/active/completed where available".to_string(),
-        ],
-        "cells" => vec![
-            "click a visible grid cell to focus it".to_string(),
-            "type cell text or formulas and press Enter".to_string(),
-            "use arrow keys without a focused cell to move the viewport selection".to_string(),
-        ],
-        "pong" | "arkanoid" => vec![
-            "press arrow keys for paddle controls".to_string(),
-            "frames advance automatically in playground mode".to_string(),
-        ],
-        _ => Vec::new(),
+fn native_manual_controls(inventory: &boon_runtime::SourceInventory) -> Vec<String> {
+    let mut controls = Vec::new();
+    let has_static_text = inventory.entries.iter().any(|entry| {
+        entry.path.ends_with(".text") && matches!(entry.owner, boon_source::SourceOwner::Static)
+    });
+    let has_dynamic_text = inventory.entries.iter().any(|entry| {
+        entry.path.ends_with(".text") && !matches!(entry.owner, boon_source::SourceOwner::Static)
+    });
+    let has_press = inventory
+        .entries
+        .iter()
+        .any(|entry| entry.path.ends_with(".event.press") || entry.path.ends_with(".event.click"));
+    let has_key = inventory
+        .entries
+        .iter()
+        .any(|entry| entry.path.ends_with(".event.key_down.key"));
+    let has_clock = inventory
+        .entries
+        .iter()
+        .any(|entry| entry.path.ends_with(".event.tick"));
+    let has_frame = inventory
+        .entries
+        .iter()
+        .any(|entry| entry.path.ends_with(".event.frame"));
+
+    if has_static_text {
+        controls.push(
+            "click a visible text input, type text, and press Enter when applicable".to_string(),
+        );
     }
+    if has_dynamic_text {
+        controls.push("click a visible dynamic text target to edit its text".to_string());
+    }
+    if has_press {
+        controls.push("click visible buttons, checkboxes, and selector regions".to_string());
+    }
+    if has_key {
+        controls
+            .push("use arrow keys where the focused surface accepts keyboard control".to_string());
+    }
+    if has_clock {
+        controls.push("clock sources advance automatically in playground mode".to_string());
+    }
+    if has_frame {
+        controls.push("frame sources advance automatically in playground mode".to_string());
+    }
+    controls
 }
 
 pub fn run_native_playground(initial_example: &str, hold: Duration) -> Result<()> {
@@ -3272,10 +3668,6 @@ fn key_to_char(key: &str, pressed_keys: &[String]) -> Option<char> {
     Some(if shifted { ch.to_ascii_uppercase() } else { ch })
 }
 
-fn column_label(col: usize) -> char {
-    (b'A' + (col as u8).saturating_sub(1)) as char
-}
-
 fn run_native_app_window_example_into(
     name: &str,
     dir: &Path,
@@ -3313,14 +3705,14 @@ fn run_native_app_window_example_into(
             "visible_surface_frame": visible_surface_frame,
             "app_window": smoke,
             "wgpu_metadata": backend.metadata(),
-            "source_inventory": source_inventory,
+            "source_inventory": &source_inventory,
             "snapshot": app.snapshot(),
             "frame": frame,
             "scenario_steps": replay_steps(name),
             "human_like_interactions": human_like_interactions(name),
             "native_input_mapping": native_script,
             "native_playground_interactions": playground_interactions,
-            "manual_controls": native_manual_controls(name),
+            "manual_controls": native_manual_controls(&source_inventory),
             "manual_preview_hold_ms": hold.as_millis(),
         }))?,
     )?;
@@ -3379,7 +3771,7 @@ fn native_visual_contract(
             "nonblank framebuffer",
             "multiple sampled colors",
             "non-empty PNG artifact",
-            "stable RGBA hash"
+            "smatrix RGBA hash"
         ],
     });
     if matches!(name, "todo_mvc" | "todo_mvc_physical") {
@@ -3609,7 +4001,7 @@ fn run_counter_native_playground_scenarios(name: &str) -> Result<NativePlaygroun
     let initial = state
         .snapshot()?
         .values
-        .get("counter")
+        .get("scalar_value")
         .cloned()
         .unwrap_or(json!(0));
     play_click(
@@ -3620,7 +4012,7 @@ fn run_counter_native_playground_scenarios(name: &str) -> Result<NativePlaygroun
         40.0,
     )?;
     expect(
-        state.snapshot()?.values.get("counter"),
+        state.snapshot()?.values.get("scalar_value"),
         initial,
         "counter unchanged after outside click",
     )?;
@@ -3632,7 +4024,7 @@ fn run_counter_native_playground_scenarios(name: &str) -> Result<NativePlaygroun
         434.0,
     )?;
     expect(
-        state.snapshot()?.values.get("counter"),
+        state.snapshot()?.values.get("scalar_value"),
         json!(1),
         "counter incremented only from button",
     )?;
@@ -3670,7 +4062,7 @@ fn run_interval_native_playground_scenarios(
     let interval_count = state
         .snapshot()?
         .values
-        .get("interval_count")
+        .get("clock_value")
         .and_then(|value| value.as_u64())
         .unwrap_or(0);
     if interval_count == 0 {
@@ -3748,9 +4140,9 @@ fn run_cells_native_playground_scenarios(name: &str) -> Result<NativePlaygroundI
         "cells B1 after native playground add formula",
     )?;
     expect(
-        state.snapshot()?.values.get("cells.selected_formula"),
+        state.snapshot()?.values.get("cells.selected_expression"),
         json!("=add(a1, a2)"),
-        "cells formula bar shows selected B1 formula",
+        "cells expression bar shows selected B1 expression",
     )?;
     play_click(&mut state, &mut steps, "click B2 grid cell", 238.0, 257.0)?;
     play_text(
@@ -3813,8 +4205,8 @@ fn run_cells_native_playground_scenarios(name: &str) -> Result<NativePlaygroundI
             "sidebar selection used".to_string(),
             "grid cells clicked".to_string(),
             "cell text and formulas typed character-by-character".to_string(),
-            "formula bar exposes selected formula".to_string(),
-            "dependent formulas recompute after source cell update".to_string(),
+            "expression bar exposes selected expression".to_string(),
+            "dependent expressions recompute after source cell update".to_string(),
         ],
     )?;
     Ok(single_playground_proof(name, scenario))
@@ -3826,14 +4218,15 @@ fn run_game_native_playground_scenarios(name: &str) -> Result<NativePlaygroundIn
     let first = state.render_gui_frame(1020, 1082)?;
     let first_hash = hash_rgba(first.width, first.height, &first.rgba);
     let initial_snapshot = state.snapshot()?;
-    let initial_x = snapshot_i64(&initial_snapshot, "game.ball_x")?;
-    let initial_y = snapshot_i64(&initial_snapshot, "game.ball_y")?;
-    let initial_dx = snapshot_i64(&initial_snapshot, "game.ball_dx")?;
-    let initial_dy = snapshot_i64(&initial_snapshot, "game.ball_dy")?;
-    let initial_bricks = snapshot_i64(&initial_snapshot, "game.obstacles_live_count").unwrap_or(0);
+    let initial_x = snapshot_i64(&initial_snapshot, "kinematics.body_x")?;
+    let initial_y = snapshot_i64(&initial_snapshot, "kinematics.body_y")?;
+    let initial_dx = snapshot_i64(&initial_snapshot, "kinematics.body_dx")?;
+    let initial_dy = snapshot_i64(&initial_snapshot, "kinematics.body_dy")?;
+    let initial_bricks =
+        snapshot_i64(&initial_snapshot, "kinematics.contact_field_live_count").unwrap_or(0);
     let (axis, first_key, second_key, first_label, second_label) = if name == "arkanoid" {
         (
-            "game.control_x",
+            "kinematics.control_x",
             "LeftArrow",
             "RightArrow",
             "press ArrowLeft horizontal paddle control",
@@ -3841,7 +4234,7 @@ fn run_game_native_playground_scenarios(name: &str) -> Result<NativePlaygroundIn
         )
     } else {
         (
-            "game.control_y",
+            "kinematics.control_y",
             "UpArrow",
             "DownArrow",
             "press ArrowUp vertical paddle control",
@@ -3890,20 +4283,21 @@ fn run_game_native_playground_scenarios(name: &str) -> Result<NativePlaygroundIn
             frame_hash: hash_rgba(frame.width, frame.height, &frame.rgba),
         });
         let snapshot = state.snapshot()?;
-        let x = snapshot_i64(&snapshot, "game.ball_x")?;
-        let y = snapshot_i64(&snapshot, "game.ball_y")?;
-        let dx = snapshot_i64(&snapshot, "game.ball_dx")?;
-        let dy = snapshot_i64(&snapshot, "game.ball_dy")?;
+        let x = snapshot_i64(&snapshot, "kinematics.body_x")?;
+        let y = snapshot_i64(&snapshot, "kinematics.body_y")?;
+        let dx = snapshot_i64(&snapshot, "kinematics.body_dx")?;
+        let dy = snapshot_i64(&snapshot, "kinematics.body_dy")?;
         saw_ball_move |= x != initial_x || y != initial_y;
         saw_collision |= dx.signum() != initial_dx.signum() || dy.signum() != initial_dy.signum();
         if name == "arkanoid" {
-            saw_brick_hit |= snapshot_i64(&snapshot, "game.obstacles_live_count")? < initial_bricks;
+            saw_brick_hit |=
+                snapshot_i64(&snapshot, "kinematics.contact_field_live_count")? < initial_bricks;
         }
     }
     let frame = state
         .snapshot()?
         .values
-        .get("game.frame")
+        .get("kinematics.frame")
         .and_then(|value| value.as_u64())
         .unwrap_or(0);
     if frame == 0 {
@@ -4017,27 +4411,27 @@ fn todomvc_playground_add_toggle_filter_clear(name: &str) -> Result<NativePlaygr
         262.0,
     )?;
     expect(
-        state.snapshot()?.values.get("store.completed_todos_count"),
+        state.snapshot()?.values.get("store.marked_todos_count"),
         json!(1),
         "TodoMVC completed count after playground checkbox",
     )?;
     if name == "todo_mvc" {
         play_todo_footer_click(&mut state, &mut steps, "click completed filter", 592.0)?;
         expect(
-            state.snapshot()?.values.get("store.selected_filter"),
-            json!("completed"),
+            state.snapshot()?.values.get("store.view_selector"),
+            json!("filter_completed"),
             "TodoMVC completed filter selected",
         )?;
         play_todo_footer_click(&mut state, &mut steps, "click active filter", 482.0)?;
         expect(
-            state.snapshot()?.values.get("store.selected_filter"),
-            json!("active"),
+            state.snapshot()?.values.get("store.view_selector"),
+            json!("filter_active"),
             "TodoMVC active filter selected",
         )?;
         play_todo_footer_click(&mut state, &mut steps, "click all filter", 386.0)?;
         expect(
-            state.snapshot()?.values.get("store.selected_filter"),
-            json!("all"),
+            state.snapshot()?.values.get("store.view_selector"),
+            json!("filter_all"),
             "TodoMVC all filter selected",
         )?;
     }
@@ -4085,7 +4479,7 @@ fn todomvc_playground_edit_remove(name: &str) -> Result<NativePlaygroundScenario
     let first_id = visible_ids
         .first()
         .context("TodoMVC edit scenario has no visible first todo")?;
-    let title_key = format!("store.todos[{first_id}].title");
+    let title_key = format!("store.todos[{first_id}].content_text");
     let edited_title = state
         .snapshot()?
         .values
@@ -4428,16 +4822,20 @@ fn run_native_scripted_scenario(
                     ),
                 )?;
             }
-            expect(app.snapshot().values.get("counter"), json!(10), "counter")?;
+            expect(
+                app.snapshot().values.get("scalar_value"),
+                json!(10),
+                "counter",
+            )?;
         }
         "interval" | "interval_hold" => {
             actions.push("advance clock by 3000ms".to_string());
-            batches.push(json!("advance_fake_time 3000ms"));
-            let result = app.advance_fake_time(Duration::from_secs(3));
+            batches.push(json!("advance_time 3000ms"));
+            let result = app.advance_time(Duration::from_secs(3));
             backend.apply_patches(&result.patches)?;
             backend.render_frame()?;
             expect(
-                app.snapshot().values.get("interval_count"),
+                app.snapshot().values.get("clock_value"),
                 json!(3),
                 "interval_count",
             )?;
@@ -4542,9 +4940,9 @@ fn run_native_scripted_scenario(
                 ),
             )?;
             expect(
-                app.snapshot().values.get("store.todos[3].title"),
+                app.snapshot().values.get("store.todos[3].content_text"),
                 json!("Buy oat milk"),
-                "store.todos[3].title after edit",
+                "store.todos[3].content_text after edit",
             )?;
             dispatch!(
                 "click toggle all checkbox",
@@ -4554,9 +4952,9 @@ fn run_native_scripted_scenario(
                 ),
             )?;
             expect(
-                app.snapshot().values.get("store.completed_todos_count"),
+                app.snapshot().values.get("store.marked_todos_count"),
                 json!(3),
-                "store.completed_todos_count",
+                "store.marked_todos_count",
             )?;
             dispatch!(
                 "click todo item checkbox",
@@ -4568,9 +4966,9 @@ fn run_native_scripted_scenario(
                 ),
             )?;
             expect(
-                app.snapshot().values.get("store.completed_todos_count"),
+                app.snapshot().values.get("store.marked_todos_count"),
                 json!(2),
-                "store.completed_todos_count after item toggle",
+                "store.marked_todos_count after item toggle",
             )?;
             if name == "todo_mvc" {
                 for filter in ["completed", "active", "all"] {
@@ -4610,9 +5008,9 @@ fn run_native_scripted_scenario(
                 "store.todos_count after clear completed",
             )?;
             expect(
-                app.snapshot().values.get("store.completed_todos_count"),
+                app.snapshot().values.get("store.marked_todos_count"),
                 json!(0),
-                "store.completed_todos_count after clear completed",
+                "store.marked_todos_count after clear completed",
             )?;
         }
         "cells" => {
@@ -4730,13 +5128,17 @@ fn run_core_scenario(
                     ),
                 )?;
             }
-            expect(app.snapshot().values.get("counter"), json!(10), "counter")?;
+            expect(
+                app.snapshot().values.get("scalar_value"),
+                json!(10),
+                "counter",
+            )?;
         }
         "interval" | "interval_hold" => {
-            let result = app.advance_fake_time(Duration::from_secs(3));
+            let result = app.advance_time(Duration::from_secs(3));
             backend.apply_patches(&result.patches)?;
             expect(
-                app.snapshot().values.get("interval_count"),
+                app.snapshot().values.get("clock_value"),
                 json!(3),
                 "interval_count",
             )?;
@@ -4841,9 +5243,9 @@ fn run_core_scenario(
                 ),
             )?;
             expect(
-                app.snapshot().values.get("store.todos[3].title"),
+                app.snapshot().values.get("store.todos[3].content_text"),
                 json!("Buy oat milk"),
-                "store.todos[3].title after edit",
+                "store.todos[3].content_text after edit",
             )?;
             backend.dispatch(
                 app,
@@ -4853,9 +5255,9 @@ fn run_core_scenario(
                 ),
             )?;
             expect(
-                app.snapshot().values.get("store.completed_todos_count"),
+                app.snapshot().values.get("store.marked_todos_count"),
                 json!(3),
-                "store.completed_todos_count",
+                "store.marked_todos_count",
             )?;
             backend.dispatch(
                 app,
@@ -4867,9 +5269,9 @@ fn run_core_scenario(
                 ),
             )?;
             expect(
-                app.snapshot().values.get("store.completed_todos_count"),
+                app.snapshot().values.get("store.marked_todos_count"),
                 json!(2),
-                "store.completed_todos_count after item toggle",
+                "store.marked_todos_count after item toggle",
             )?;
             if name == "todo_mvc" {
                 for filter in ["completed", "active", "all"] {
@@ -4909,9 +5311,9 @@ fn run_core_scenario(
                 "store.todos_count after clear completed",
             )?;
             expect(
-                app.snapshot().values.get("store.completed_todos_count"),
+                app.snapshot().values.get("store.marked_todos_count"),
                 json!(0),
-                "store.completed_todos_count after clear completed",
+                "store.marked_todos_count after clear completed",
             )?;
         }
         "cells" => {
@@ -5095,14 +5497,18 @@ fn run_core_scenario_wgpu(
                     ),
                 )?;
             }
-            expect(app.snapshot().values.get("counter"), json!(10), "counter")?;
+            expect(
+                app.snapshot().values.get("scalar_value"),
+                json!(10),
+                "counter",
+            )?;
         }
         "interval" | "interval_hold" => {
-            let result = app.advance_fake_time(Duration::from_secs(3));
+            let result = app.advance_time(Duration::from_secs(3));
             backend.apply_patches(&result.patches)?;
             backend.render_frame()?;
             expect(
-                app.snapshot().values.get("interval_count"),
+                app.snapshot().values.get("clock_value"),
                 json!(3),
                 "interval_count",
             )?;
@@ -5207,9 +5613,9 @@ fn run_core_scenario_wgpu(
                 ),
             )?;
             expect(
-                app.snapshot().values.get("store.todos[3].title"),
+                app.snapshot().values.get("store.todos[3].content_text"),
                 json!("Buy oat milk"),
-                "store.todos[3].title after edit",
+                "store.todos[3].content_text after edit",
             )?;
             backend.dispatch_frame_ready(
                 app,
@@ -5219,9 +5625,9 @@ fn run_core_scenario_wgpu(
                 ),
             )?;
             expect(
-                app.snapshot().values.get("store.completed_todos_count"),
+                app.snapshot().values.get("store.marked_todos_count"),
                 json!(3),
-                "store.completed_todos_count",
+                "store.marked_todos_count",
             )?;
             backend.dispatch_frame_ready(
                 app,
@@ -5233,9 +5639,9 @@ fn run_core_scenario_wgpu(
                 ),
             )?;
             expect(
-                app.snapshot().values.get("store.completed_todos_count"),
+                app.snapshot().values.get("store.marked_todos_count"),
                 json!(2),
-                "store.completed_todos_count after item toggle",
+                "store.marked_todos_count after item toggle",
             )?;
             if name == "todo_mvc" {
                 for filter in ["completed", "active", "all"] {
@@ -5275,9 +5681,9 @@ fn run_core_scenario_wgpu(
                 "store.todos_count after clear completed",
             )?;
             expect(
-                app.snapshot().values.get("store.completed_todos_count"),
+                app.snapshot().values.get("store.marked_todos_count"),
                 json!(0),
-                "store.completed_todos_count after clear completed",
+                "store.marked_todos_count after clear completed",
             )?;
         }
         "cells" => {
@@ -5455,6 +5861,43 @@ fn event(path: &str, value: SourceValue) -> SourceBatch {
             owner_generation: None,
         }],
     }
+}
+
+fn target_event_batch(target: &HitTarget, value: SourceValue) -> SourceBatch {
+    target_event_batch_with_path(target, &target.source_path, value)
+}
+
+fn target_event_batch_with_path(target: &HitTarget, path: &str, value: SourceValue) -> SourceBatch {
+    if let Some(owner_id) = target.owner_id.as_deref() {
+        dynamic_event(path, owner_id, target.generation, value)
+    } else {
+        event(path, value)
+    }
+}
+
+fn focused_event_batch(focus: &NativeFocus, path: &str, value: SourceValue) -> SourceBatch {
+    if let Some(owner_id) = focus.owner_id.as_deref() {
+        dynamic_event(path, owner_id, focus.generation, value)
+    } else {
+        event(path, value)
+    }
+}
+
+fn focused_state_batch(focus: &NativeFocus, path: &str, value: SourceValue) -> SourceBatch {
+    if let Some(owner_id) = focus.owner_id.as_deref() {
+        dynamic_state(path, owner_id, focus.generation, value)
+    } else {
+        state(path, value)
+    }
+}
+
+fn hit_target_contains(target: &HitTarget, x: f64, y: f64) -> bool {
+    let left = f64::from(target.x);
+    let top = f64::from(target.y);
+    x >= left
+        && x <= left + f64::from(target.width)
+        && y >= top
+        && y <= top + f64::from(target.height)
 }
 
 fn state(path: &str, value: SourceValue) -> SourceBatch {

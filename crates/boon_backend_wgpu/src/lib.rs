@@ -59,7 +59,7 @@ pub fn rasterize_native_gui_frame(
     examples: &[&str],
     current_index: usize,
     frame_scene: Option<&FrameScene>,
-    fallback_text: &str,
+    frame_text: &str,
     controls: &str,
 ) -> Vec<u8> {
     let mut rgba = solid_frame(width, height, [16, 20, 26, 255]);
@@ -164,7 +164,7 @@ pub fn rasterize_native_gui_frame(
         2,
         frame_scene
             .map(|scene| scene.title.as_str())
-            .unwrap_or_else(|| current_example_title(fallback_text)),
+            .unwrap_or_else(|| current_frame_title(frame_text)),
         [236, 244, 247, 255],
     );
     draw_text(
@@ -225,7 +225,7 @@ pub fn rasterize_native_gui_frame(
             content_x + 32,
             content_y + 32,
             2,
-            fallback_text,
+            frame_text,
             [28, 42, 52, 255],
         );
     }
@@ -623,7 +623,7 @@ struct GlyphonRenderer {
     text_renderer: TextRenderer,
     header_buffer: Buffer,
     body_buffer: Buffer,
-    footer_buffer: Buffer,
+    status_buffer: Buffer,
 }
 
 impl GlyphonRenderer {
@@ -646,7 +646,7 @@ impl GlyphonRenderer {
             TextRenderer::new(&mut atlas, device, wgpu::MultisampleState::default(), None);
         let header_buffer = Buffer::new(&mut font_system, Metrics::new(30.0, 38.0));
         let body_buffer = Buffer::new(&mut font_system, Metrics::new(14.0, 17.0));
-        let footer_buffer = Buffer::new(&mut font_system, Metrics::new(12.0, 16.0));
+        let status_buffer = Buffer::new(&mut font_system, Metrics::new(12.0, 16.0));
 
         Ok(Self {
             font_system,
@@ -657,7 +657,7 @@ impl GlyphonRenderer {
             text_renderer,
             header_buffer,
             body_buffer,
-            footer_buffer,
+            status_buffer,
         })
     }
 
@@ -704,16 +704,16 @@ impl GlyphonRenderer {
         self.body_buffer
             .shape_until_scroll(&mut self.font_system, false);
 
-        self.footer_buffer
+        self.status_buffer
             .set_size(&mut self.font_system, Some(360.0), Some(20.0));
-        self.footer_buffer.set_text(
+        self.status_buffer.set_text(
             &mut self.font_system,
             "internal deterministic RGBA frame",
             &Attrs::new().family(Family::Monospace),
             Shaping::Advanced,
             None,
         );
-        self.footer_buffer
+        self.status_buffer
             .shape_until_scroll(&mut self.font_system, false);
 
         self.text_renderer.prepare(
@@ -752,7 +752,7 @@ impl GlyphonRenderer {
                     custom_glyphs: &[],
                 },
                 TextArea {
-                    buffer: &self.footer_buffer,
+                    buffer: &self.status_buffer,
                     left: 44.0,
                     top: height.saturating_sub(32) as f32,
                     scale: 1.0,
@@ -966,7 +966,7 @@ fn rasterize_frame_background(
     rgba
 }
 
-fn current_example_title(frame_text: &str) -> &str {
+fn current_frame_title(frame_text: &str) -> &str {
     frame_text.lines().next().unwrap_or("Boon")
 }
 
@@ -1412,6 +1412,7 @@ mod tests {
                     color: [240, 10, 20, 255],
                 },
             ],
+            hit_targets: Vec::new(),
         };
         let mut rgba = vec![0; 100 * 100 * 4];
         draw_frame_scene(&mut rgba, 100, 100, 0, 0, 100, 100, &scene);

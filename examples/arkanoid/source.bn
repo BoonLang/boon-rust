@@ -11,17 +11,17 @@ store:
 game:
     title: TEXT { Arkanoid }
 
-motion:
+kinematics:
     arena:
         width: 1000
         height: 700
-    ball:
+    body:
         x: 470
         y: 205
         dx: 10
         dy: -12
         size: 22
-    player:
+    primary_control:
         axis: Horizontal
         position: 50
         step: 8
@@ -30,14 +30,14 @@ motion:
         width: 160
         height: 18
         auto_track: False
-    bricks:
+    contact_field:
         rows: 6
         columns: 12
         top: 56
         margin: 36
         gap: 8
         height: 28
-        score_per_hit: 10
+        value_per_contact: 10
 
 world:
     0 |> HOLD frame {

@@ -71,7 +71,7 @@
       ],
       "owner": {
         "DynamicFamily": {
-          "owner_path": "todos item"
+          "owner_path": "todos record"
         }
       }
     },
@@ -85,7 +85,7 @@
       ],
       "owner": {
         "DynamicFamily": {
-          "owner_path": "todos item"
+          "owner_path": "todos record"
         }
       }
     },
@@ -99,7 +99,7 @@
       ],
       "owner": {
         "DynamicFamily": {
-          "owner_path": "todos item"
+          "owner_path": "todos record"
         }
       }
     },
@@ -113,7 +113,7 @@
       ],
       "owner": {
         "DynamicFamily": {
-          "owner_path": "todos item"
+          "owner_path": "todos record"
         }
       }
     },
@@ -138,7 +138,7 @@
       ],
       "owner": {
         "DynamicFamily": {
-          "owner_path": "todos item"
+          "owner_path": "todos record"
         }
       }
     },
@@ -152,7 +152,7 @@
       ],
       "owner": {
         "DynamicFamily": {
-          "owner_path": "todos item"
+          "owner_path": "todos record"
         }
       }
     }

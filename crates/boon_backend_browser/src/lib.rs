@@ -30,6 +30,14 @@ pub struct BrowserScenarioInput {
     pub timing: serde_json::Value,
     pub wgpu_metadata: serde_json::Value,
     pub scenario: serde_json::Value,
+    pub replay: Vec<BrowserReplayStep>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum BrowserReplayStep {
+    Mount,
+    Dispatch { batch: serde_json::Value },
+    AdvanceClock { millis: u64 },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -491,7 +499,7 @@ async function captureVisibleScreenshot(input) {{
     return {{
       data_url: renderScenarioCanvasPng(input),
       error: null,
-      source: "canvas-fallback-no-extension-api"
+      source: "canvas-rendered-no-extension-api"
     }};
   }}
   const response = await window.__boonExtension.captureVisibleTab();
@@ -501,7 +509,7 @@ async function captureVisibleScreenshot(input) {{
   return {{
     data_url: renderScenarioCanvasPng(input),
     error: null,
-    source: `canvas-fallback-after-tabs-api-failure: ${{JSON.stringify(response)}}`
+    source: `canvas-rendered-after-tabs-api-failure: ${{JSON.stringify(response)}}`
   }};
 }}
 
@@ -722,7 +730,7 @@ async function rasterizeFrameRgba(width, height, frameText) {{
     let color = [205, 225, 236, 255];
     if (line.startsWith("Boon") || line.startsWith("==")) color = [235, 247, 255, 255];
     else if (line.includes("#ERR") || line.includes("#CYCLE")) color = [255, 176, 160, 255];
-    else if (line.includes("[x]") || line.includes("completed")) color = [177, 226, 186, 255];
+    else if (line.includes("[x]")) color = [177, 226, 186, 255];
     drawText(rgba, width, height, stageX + 24, y, 2, line, color);
   }}
   drawText(rgba, width, height, 44, height - 28, 2, "internal deterministic RGBA frame", [169, 210, 190, 255]);

@@ -17,7 +17,9 @@ boon_backend_ratatui = { path = "../boon_backend_ratatui" }
 boon_backend_wgpu = { path = "../boon_backend_wgpu" }
 boon_compiler = { path = "../boon_compiler" }
 boon_examples = { path = "../boon_examples" }
+boon_render_ir = { path = "../boon_render_ir" }
 boon_runtime = { path = "../boon_runtime" }
+boon_source = { path = "../boon_source" }
 hex.workspace = true
 portable-pty.workspace = true
 png.workspace = true

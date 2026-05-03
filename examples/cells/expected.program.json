@@ -1,18 +1,18 @@
 {
   "title": "cells",
-  "scene": "table",
-  "scalar_counter": null,
-  "timer_counter": null,
-  "collection": null,
-  "table": {
+  "scene": "dense_grid",
+  "scalar_accumulator": null,
+  "clock_accumulator": null,
+  "sequence": null,
+  "dense_grid": {
     "rows": 100,
     "columns": 26,
     "editor_source_family": "cells[*].sources.editor",
-    "formula_functions": [
+    "expression_functions": [
       "add",
       "sum"
     ]
   },
-  "playfield": null,
+  "kinematics": null,
   "physical_debug": false
 }

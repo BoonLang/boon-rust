@@ -79,6 +79,31 @@ completed_todos_count: todos |> List/retain(item, if: item.completed) |> List/co
 active_todos_count: todos_count - completed_todos_count
 all_completed: todos_count == completed_todos_count
 
+view:
+    title_line: TEXT { todos }
+    entry_hint: TEXT { What needs to be done? }
+    count_suffix: TEXT { items left }
+    selectors:
+        filter_all:
+            label: TEXT { All }
+            visibility: All
+        filter_active:
+            label: TEXT { Active }
+            visibility: Unmarked
+        filter_completed:
+            label: TEXT { Completed }
+            visibility: Marked
+    actions:
+        mass_mark:
+            source: toggle_all_checkbox
+        remove_marked:
+            source: clear_completed_button
+            label: TEXT { Clear completed }
+    auxiliary:
+        hint: TEXT { Double-click to edit an item }
+        author: TEXT { Created by Boon }
+        note: TEXT { Part of the classic app examples }
+
 document:
     Document/new(
         root:

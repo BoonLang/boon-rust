@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use std::env;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 fn main() -> Result<()> {
@@ -9,17 +10,13 @@ fn main() -> Result<()> {
         .and_then(Path::parent)
         .context("boon_examples must live under crates/")?;
     let out_dir = PathBuf::from(env::var("OUT_DIR")?);
-    let examples = [
-        "counter",
-        "counter_hold",
-        "interval",
-        "interval_hold",
-        "todo_mvc",
-        "todo_mvc_physical",
-        "cells",
-        "pong",
-        "arkanoid",
-    ];
+    let manifest = root.join("examples").join("manifest.json");
+    println!("cargo:rerun-if-changed={}", manifest.display());
+    let examples: Vec<String> = serde_json::from_str(
+        &fs::read_to_string(&manifest)
+            .with_context(|| format!("reading example manifest {}", manifest.display()))?,
+    )
+    .with_context(|| format!("parsing example manifest {}", manifest.display()))?;
     let inputs = examples
         .iter()
         .map(|name| {
@@ -27,7 +24,10 @@ fn main() -> Result<()> {
                 "cargo:rerun-if-changed={}",
                 root.join("examples").join(name).join("source.bn").display()
             );
-            (*name, root.join("examples").join(name).join("source.bn"))
+            (
+                name.as_str(),
+                root.join("examples").join(name).join("source.bn"),
+            )
         })
         .collect::<Vec<_>>();
     boon_codegen_rust::generate_examples_module(&inputs, &out_dir.join("generated_examples.rs"))?;

@@ -11,6 +11,10 @@ counter:
         |> THEN { state + 1 }
     }
 
+view:
+    action:
+        label: TEXT { Increment }
+
 document:
     Document/new(
         root:
@@ -19,4 +23,3 @@ document:
                 label: counter |> Text/from_number()
             )
     )
-

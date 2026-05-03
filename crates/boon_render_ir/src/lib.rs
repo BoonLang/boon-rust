@@ -12,7 +12,7 @@ pub enum NodeKind {
     TextInput,
     Checkbox,
     Grid,
-    Game,
+    KinematicSurface,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -38,7 +38,7 @@ pub enum HostPatch {
         id: NodeId,
         source_path: String,
     },
-    SetGridCell {
+    SetDenseSlot {
         id: NodeId,
         row: usize,
         col: usize,
@@ -70,6 +70,43 @@ pub struct FrameInfo {
 pub struct FrameScene {
     pub title: String,
     pub commands: Vec<DrawCommand>,
+    #[serde(default)]
+    pub hit_targets: Vec<HitTarget>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct HitTarget {
+    pub id: String,
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+    pub action: HitTargetAction,
+    pub source_path: String,
+    #[serde(default)]
+    pub owner_id: Option<String>,
+    #[serde(default)]
+    pub generation: u32,
+    #[serde(default)]
+    pub text_state_path: Option<String>,
+    #[serde(default)]
+    pub text_value: Option<String>,
+    #[serde(default)]
+    pub key_event_path: Option<String>,
+    #[serde(default)]
+    pub change_event_path: Option<String>,
+    #[serde(default)]
+    pub focus_event_path: Option<String>,
+    #[serde(default)]
+    pub blur_event_path: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HitTargetAction {
+    Press,
+    FocusText,
+    DoubleClick,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

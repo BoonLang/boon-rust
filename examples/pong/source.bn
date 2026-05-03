@@ -11,17 +11,17 @@ store:
 game:
     title: TEXT { Pong }
 
-motion:
+kinematics:
     arena:
         width: 1000
         height: 700
-    ball:
+    body:
         x: 84
         y: 350
         dx: -12
         dy: 8
         size: 22
-    player:
+    primary_control:
         axis: Vertical
         position: 50
         step: 8
@@ -30,7 +30,7 @@ motion:
         width: 18
         height: 128
         auto_track: False
-    opponent:
+    tracked_control:
         axis: Vertical
         position: 50
         step: 8

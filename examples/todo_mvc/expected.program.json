@@ -1,25 +1,53 @@
 {
   "title": "todo mvc",
-  "scene": "collection",
-  "scalar_counter": null,
-  "timer_counter": null,
-  "collection": {
-    "initial_titles": [
+  "scene": "sequence",
+  "scalar_accumulator": null,
+  "clock_accumulator": null,
+  "sequence": {
+    "initial_texts": [
       "Buy groceries",
       "Clean room"
     ],
-    "append_from_text_input": true,
-    "toggle_all_from_checkbox": true,
-    "clear_completed_from_button": true,
-    "filters": [
-      "all",
-      "active",
-      "completed"
+    "append_on_submit": true,
+    "actions": {
+      "mass_mark_event_path": "store.sources.toggle_all_checkbox.event.click",
+      "remove_marked_event_path": "store.sources.clear_completed_button.event.press"
+    },
+    "view_selectors": [
+      {
+        "id": "filter_all",
+        "event_path": "store.sources.filter_all.event.press",
+        "label": "All",
+        "visibility": "all"
+      },
+      {
+        "id": "filter_active",
+        "event_path": "store.sources.filter_active.event.press",
+        "label": "Active",
+        "visibility": "unmarked"
+      },
+      {
+        "id": "filter_completed",
+        "event_path": "store.sources.filter_completed.event.press",
+        "label": "Completed",
+        "visibility": "marked"
+      }
     ],
-    "item_checkbox_toggle": true,
-    "item_remove_button": true
+    "view": {
+      "title_line": "todos",
+      "entry_hint": "What needs to be done?",
+      "count_suffix": "items left",
+      "remove_marked_label": "Clear completed",
+      "auxiliary_lines": [
+        "Double-click to edit an item",
+        "Created by Boon",
+        "Part of the classic app examples"
+      ]
+    },
+    "dynamic_mark_toggle": true,
+    "dynamic_remove": true
   },
-  "table": null,
-  "playfield": null,
+  "dense_grid": null,
+  "kinematics": null,
   "physical_debug": false
 }

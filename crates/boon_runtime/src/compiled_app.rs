@@ -1,10 +1,12 @@
 use crate::{
-    AppSnapshot, BoonApp, FakeClock, SourceBatch, SourceEmission, SourceInventory, SourceValue,
+    AppSnapshot, BoonApp, RuntimeClock, SourceBatch, SourceEmission, SourceInventory, SourceValue,
     StateDelta, TurnId, TurnMetrics, TurnResult,
 };
 use anyhow::{Result, bail};
-use boon_compiler::{ControlAxis, ProgramSpec, SurfaceKind};
-use boon_render_ir::{DrawCommand, FrameScene, HostPatch, NodeId, NodeKind};
+use boon_compiler::{ControlAxis, ProgramSpec, RecordVisibility, SequenceViewSpec, SurfaceKind};
+use boon_render_ir::{
+    DrawCommand, FrameScene, HitTarget, HitTargetAction, HostPatch, NodeId, NodeKind,
+};
 use boon_shape::Shape;
 use boon_source::{SourceEntry, SourceOwner};
 use serde_json::json;
@@ -12,56 +14,56 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
 #[derive(Clone, Debug)]
-pub struct ExampleApp {
+pub struct CompiledApp {
     program: ProgramSpec,
     inventory: SourceInventory,
     wiring: RuntimeWiring,
     turn: u64,
     frame_text: String,
-    counter: i64,
-    interval_count: i64,
-    clock: FakeClock,
-    list_items: Vec<ListItem>,
-    next_list_item_id: u64,
-    input_text: String,
+    scalar_value: i64,
+    clock_value: i64,
+    clock: RuntimeClock,
+    records: Vec<DynamicRecord>,
+    next_record_id: u64,
+    entry_text: String,
     source_state: BTreeMap<String, SourceValue>,
-    filter: String,
-    table: FormulaTableState,
-    game_frame: u64,
-    game: PlayfieldState,
+    view_selector: String,
+    grid: DenseGridState,
+    frame_index: u64,
+    kinematics: KinematicState,
 }
 
 #[derive(Clone, Debug, Default)]
 struct RuntimeWiring {
-    counter_event: Option<String>,
-    collection: Option<CollectionBinding>,
-    table: Option<TableBinding>,
-    playfield_frame_event: Option<String>,
-    playfield_control_event: Option<String>,
+    scalar_event: Option<String>,
+    sequence: Option<SequenceBinding>,
+    grid: Option<DenseBinding>,
+    kinematic_frame_event: Option<String>,
+    kinematic_control_event: Option<String>,
 }
 
 #[derive(Clone, Debug)]
-struct CollectionBinding {
+struct SequenceBinding {
     family: String,
     root: String,
-    input_text: Option<String>,
+    entry_text: Option<String>,
     input_key: Option<String>,
     input_focus: Option<String>,
     input_blur: Option<String>,
     input_change: Option<String>,
-    toggle_all: Option<String>,
-    clear_completed: Option<String>,
-    filter_events: BTreeMap<String, String>,
-    item_checkbox: Option<String>,
-    item_remove: Option<String>,
-    item_edit_text: Option<String>,
-    item_edit_key: Option<String>,
-    item_edit_blur: Option<String>,
-    item_edit_change: Option<String>,
+    static_mass_mark_event: Option<String>,
+    static_remove_marked_event: Option<String>,
+    view_selector_events: BTreeMap<String, String>,
+    dynamic_mark_event: Option<String>,
+    dynamic_remove_event: Option<String>,
+    dynamic_text_value: Option<String>,
+    dynamic_text_key: Option<String>,
+    dynamic_text_blur: Option<String>,
+    dynamic_text_change: Option<String>,
 }
 
 #[derive(Clone, Debug)]
-struct TableBinding {
+struct DenseBinding {
     family: String,
     root: String,
     display_double_click: Option<String>,
@@ -72,68 +74,56 @@ struct TableBinding {
 
 impl RuntimeWiring {
     fn from_program(program: &ProgramSpec, inventory: &SourceInventory) -> Self {
-        let counter_event = program
-            .scalar_counter
+        let scalar_event = program
+            .scalar_accumulator
             .as_ref()
-            .map(|counter| counter.event_path.clone());
-        let collection = program
-            .collection
+            .map(|scalar_value| scalar_value.event_path.clone());
+        let sequence = program
+            .sequence
             .as_ref()
-            .and_then(|_| CollectionBinding::from_inventory(inventory));
-        let table = program
-            .table
+            .and_then(|sequence| SequenceBinding::from_inventory(inventory, sequence));
+        let grid = program
+            .dense_grid
             .as_ref()
-            .and_then(|_| TableBinding::from_inventory(inventory));
-        let playfield_frame_event = program
-            .playfield
+            .and_then(|_| DenseBinding::from_inventory(inventory));
+        let kinematic_frame_event = program
+            .kinematics
             .as_ref()
-            .map(|playfield| playfield.frame_event_path.clone());
-        let playfield_control_event = program
-            .playfield
+            .map(|kinematics| kinematics.frame_event_path.clone());
+        let kinematic_control_event = program
+            .kinematics
             .as_ref()
-            .map(|playfield| playfield.control_event_path.clone());
+            .map(|kinematics| kinematics.control_event_path.clone());
         Self {
-            counter_event,
-            collection,
-            table,
-            playfield_frame_event,
-            playfield_control_event,
+            scalar_event,
+            sequence,
+            grid,
+            kinematic_frame_event,
+            kinematic_control_event,
         }
     }
 }
 
-impl CollectionBinding {
-    fn from_inventory(inventory: &SourceInventory) -> Option<Self> {
+impl SequenceBinding {
+    fn from_inventory(
+        inventory: &SourceInventory,
+        spec: &boon_compiler::SequenceSpec,
+    ) -> Option<Self> {
         let family = first_dynamic_family(inventory, "Element/checkbox(element.event.click)")
             .or_else(|| first_dynamic_family(inventory, "Element/text_input(element.text)"))?;
         let root = dynamic_family_root(&family);
         let input_base = static_base_for_producer(inventory, "Element/text_input(element.text)");
-        let item_edit_base =
+        let dynamic_text_base =
             dynamic_base_for_producer(inventory, &family, "Element/text_input(element.text)");
-        let mut filter_events = BTreeMap::new();
-        for event in static_paths_for_producer(inventory, "Element/button(element.event.press)") {
-            let Some(base) = event.strip_suffix(".event.press") else {
-                continue;
-            };
-            let Some(name) = base.rsplit('.').next() else {
-                continue;
-            };
-            if let Some(filter) = name.strip_prefix("filter_") {
-                filter_events.insert(filter.to_string(), event);
-            }
-        }
-        let clear_completed =
-            static_paths_for_producer(inventory, "Element/button(element.event.press)")
-                .into_iter()
-                .find(|path| {
-                    path.strip_suffix(".event.press")
-                        .and_then(|base| base.rsplit('.').next())
-                        .is_none_or(|name| !name.starts_with("filter_"))
-                });
+        let view_selector_events = spec
+            .view_selectors
+            .iter()
+            .map(|selector| (selector.id.clone(), selector.event_path.clone()))
+            .collect();
         Some(Self {
             family: family.clone(),
             root,
-            input_text: input_base.as_ref().map(|base| format!("{base}.text")),
+            entry_text: input_base.as_ref().map(|base| format!("{base}.text")),
             input_key: input_base
                 .as_ref()
                 .and_then(|base| existing_path(inventory, &format!("{base}.event.key_down.key"))),
@@ -146,39 +136,36 @@ impl CollectionBinding {
             input_change: input_base
                 .as_ref()
                 .and_then(|base| existing_path(inventory, &format!("{base}.event.change"))),
-            toggle_all: static_paths_for_producer(
-                inventory,
-                "Element/checkbox(element.event.click)",
-            )
-            .into_iter()
-            .next(),
-            clear_completed,
-            filter_events,
-            item_checkbox: dynamic_path_for_producer(
+            static_mass_mark_event: spec.actions.mass_mark_event_path.clone(),
+            static_remove_marked_event: spec.actions.remove_marked_event_path.clone(),
+            view_selector_events,
+            dynamic_mark_event: dynamic_path_for_producer(
                 inventory,
                 &family,
                 "Element/checkbox(element.event.click)",
             ),
-            item_remove: dynamic_path_for_producer(
+            dynamic_remove_event: dynamic_path_for_producer(
                 inventory,
                 &family,
                 "Element/button(element.event.press)",
             ),
-            item_edit_text: item_edit_base.as_ref().map(|base| format!("{base}.text")),
-            item_edit_key: item_edit_base
+            dynamic_text_value: dynamic_text_base
+                .as_ref()
+                .map(|base| format!("{base}.text")),
+            dynamic_text_key: dynamic_text_base
                 .as_ref()
                 .and_then(|base| existing_path(inventory, &format!("{base}.event.key_down.key"))),
-            item_edit_blur: item_edit_base
+            dynamic_text_blur: dynamic_text_base
                 .as_ref()
                 .and_then(|base| existing_path(inventory, &format!("{base}.event.blur"))),
-            item_edit_change: item_edit_base
+            dynamic_text_change: dynamic_text_base
                 .as_ref()
                 .and_then(|base| existing_path(inventory, &format!("{base}.event.change"))),
         })
     }
 }
 
-impl TableBinding {
+impl DenseBinding {
     fn from_inventory(inventory: &SourceInventory) -> Option<Self> {
         let family =
             first_dynamic_family(inventory, "Element/text_input(element.text)").or_else(|| {
@@ -303,34 +290,34 @@ fn dynamic_family_root(family: &str) -> String {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct ListItem {
+struct DynamicRecord {
     id: u64,
     generation: u32,
-    title: String,
-    completed: bool,
-    editing: bool,
+    content_text: String,
+    mark: bool,
+    edit_focus: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct FormulaTableState {
+struct DenseGridState {
     rows: usize,
     columns: usize,
     selected: (usize, usize),
-    editing: Option<(usize, usize)>,
+    edit_focus: Option<(usize, usize)>,
     text: Vec<String>,
     value: Vec<String>,
     deps: Vec<Vec<usize>>,
     rev_deps: Vec<Vec<usize>>,
 }
 
-impl FormulaTableState {
+impl DenseGridState {
     fn new(rows: usize, columns: usize) -> Self {
         let len = rows * columns;
         Self {
             rows,
             columns,
             selected: (1, 1),
-            editing: None,
+            edit_focus: None,
             text: vec![String::new(); len],
             value: vec![String::new(); len],
             deps: vec![Vec::new(); len],
@@ -340,57 +327,63 @@ impl FormulaTableState {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct PlayfieldState {
-    ball_x: i64,
-    ball_y: i64,
-    ball_dx: i64,
-    ball_dy: i64,
+struct KinematicState {
+    body_x: i64,
+    body_y: i64,
+    body_dx: i64,
+    body_dy: i64,
     control_x: i64,
     control_y: i64,
-    peer_control_y: i64,
-    bricks_rows: usize,
-    bricks_cols: usize,
-    bricks: Vec<bool>,
-    score: i64,
-    lives: i64,
+    tracked_control_y: i64,
+    contact_field_rows: usize,
+    contact_field_cols: usize,
+    contact_field: Vec<bool>,
+    contact_value: i64,
+    resets_remaining: i64,
 }
 
-impl PlayfieldState {
-    fn from_spec(spec: Option<&boon_compiler::PlayfieldSpec>) -> Self {
+impl KinematicState {
+    fn from_spec(spec: Option<&boon_compiler::KinematicSpec>) -> Self {
         let Some(spec) = spec else {
             return Self::default();
         };
-        let bricks_rows = spec.bricks.as_ref().map_or(0, |bricks| bricks.rows);
-        let bricks_cols = spec.bricks.as_ref().map_or(0, |bricks| bricks.columns);
+        let contact_field_rows = spec
+            .contact_field
+            .as_ref()
+            .map_or(0, |contact_field| contact_field.rows);
+        let contact_field_cols = spec
+            .contact_field
+            .as_ref()
+            .map_or(0, |contact_field| contact_field.columns);
         Self {
-            ball_x: spec.ball.x,
-            ball_y: spec.ball.y,
-            ball_dx: spec.ball.dx,
-            ball_dy: spec.ball.dy,
-            control_x: if matches!(spec.player.axis, ControlAxis::Horizontal) {
-                spec.player.position
+            body_x: spec.body.x,
+            body_y: spec.body.y,
+            body_dx: spec.body.dx,
+            body_dy: spec.body.dy,
+            control_x: if matches!(spec.primary_control.axis, ControlAxis::Horizontal) {
+                spec.primary_control.position
             } else {
                 50
             },
-            control_y: if matches!(spec.player.axis, ControlAxis::Vertical) {
-                spec.player.position
+            control_y: if matches!(spec.primary_control.axis, ControlAxis::Vertical) {
+                spec.primary_control.position
             } else {
                 50
             },
-            peer_control_y: spec
-                .opponent
+            tracked_control_y: spec
+                .tracked_control
                 .as_ref()
-                .map_or(50, |opponent| opponent.position),
-            bricks_rows,
-            bricks_cols,
-            bricks: vec![true; bricks_rows * bricks_cols],
-            score: 0,
-            lives: 3,
+                .map_or(50, |tracked_control| tracked_control.position),
+            contact_field_rows,
+            contact_field_cols,
+            contact_field: vec![true; contact_field_rows * contact_field_cols],
+            contact_value: 0,
+            resets_remaining: 3,
         }
     }
 
-    fn live_brick_indices(&self) -> String {
-        self.bricks
+    fn live_contact_field_indices(&self) -> String {
+        self.contact_field
             .iter()
             .enumerate()
             .filter_map(|(idx, live)| live.then_some(idx.to_string()))
@@ -399,70 +392,80 @@ impl PlayfieldState {
     }
 }
 
-impl Default for PlayfieldState {
+impl Default for KinematicState {
     fn default() -> Self {
         Self {
-            ball_x: 0,
-            ball_y: 0,
-            ball_dx: 0,
-            ball_dy: 0,
+            body_x: 0,
+            body_y: 0,
+            body_dx: 0,
+            body_dy: 0,
             control_x: 50,
             control_y: 50,
-            peer_control_y: 50,
-            bricks_rows: 0,
-            bricks_cols: 0,
-            bricks: Vec::new(),
-            score: 0,
-            lives: 3,
+            tracked_control_y: 50,
+            contact_field_rows: 0,
+            contact_field_cols: 0,
+            contact_field: Vec::new(),
+            contact_value: 0,
+            resets_remaining: 3,
         }
     }
 }
 
-impl ExampleApp {
+impl CompiledApp {
     pub fn new(compiled: boon_compiler::CompiledModule) -> Self {
         let inventory = compiled.sources;
         let program = compiled.program;
         let wiring = RuntimeWiring::from_program(&program, &inventory);
-        let initial_titles = program
-            .collection
+        let initial_texts = program
+            .sequence
             .as_ref()
-            .map(|list_item| list_item.initial_titles.clone())
+            .map(|record| record.initial_texts.clone())
             .unwrap_or_default();
-        let table = program
-            .table
+        let grid = program
+            .dense_grid
             .as_ref()
-            .map(|table| FormulaTableState::new(table.rows, table.columns))
-            .unwrap_or_else(|| FormulaTableState::new(100, 26));
-        let game = PlayfieldState::from_spec(program.playfield.as_ref());
+            .map(|grid| DenseGridState::new(grid.rows, grid.columns))
+            .unwrap_or_else(|| DenseGridState::new(100, 26));
+        let kinematics = KinematicState::from_spec(program.kinematics.as_ref());
+        let initial_view_selector = program
+            .sequence
+            .as_ref()
+            .and_then(|sequence| {
+                sequence
+                    .view_selectors
+                    .first()
+                    .map(|selector| selector.id.clone())
+            })
+            .unwrap_or_else(|| "all".to_string());
         let mut app = Self {
             program,
             inventory,
             wiring,
             turn: 0,
             frame_text: String::new(),
-            counter: 0,
-            interval_count: 0,
-            clock: FakeClock::default(),
-            list_items: initial_titles
+            scalar_value: 0,
+            clock_value: 0,
+            clock: RuntimeClock::default(),
+            records: initial_texts
                 .into_iter()
                 .enumerate()
-                .map(|(idx, title)| ListItem {
+                .map(|(idx, content_text)| DynamicRecord {
                     id: idx as u64 + 1,
                     generation: 0,
-                    title,
-                    completed: false,
-                    editing: false,
+                    content_text,
+                    mark: false,
+                    edit_focus: false,
                 })
                 .collect(),
-            next_list_item_id: 1,
-            input_text: String::new(),
+            next_record_id: 1,
+            entry_text: String::new(),
             source_state: BTreeMap::new(),
-            filter: "all".to_string(),
-            table,
-            game_frame: 0,
-            game,
+            view_selector: initial_view_selector,
+            grid,
+            frame_index: 0,
+            kinematics,
         };
-        app.next_list_item_id = app.list_items.len() as u64 + 1;
+        app.next_record_id = app.records.len() as u64 + 1;
         app.frame_text = app.render_text();
         app
     }
@@ -498,71 +501,71 @@ impl ExampleApp {
         ]
     }
 
-    fn list_root(&self) -> Option<&str> {
+    fn record_root(&self) -> Option<&str> {
         self.wiring
-            .collection
+            .sequence
             .as_ref()
-            .map(|collection| collection.root.as_str())
+            .map(|sequence| sequence.root.as_str())
     }
 
-    fn list_state_prefix(&self) -> Option<String> {
-        self.list_root().map(|root| format!("store.{root}"))
+    fn record_state_prefix(&self) -> Option<String> {
+        self.record_root().map(|root| format!("store.{root}"))
     }
 
-    fn list_change_paths(&self) -> Vec<String> {
-        self.list_state_prefix()
+    fn record_change_paths(&self) -> Vec<String> {
+        self.record_state_prefix()
             .into_iter()
             .chain(
                 self.wiring
-                    .collection
+                    .sequence
                     .as_ref()
-                    .and_then(|collection| collection.input_text.clone()),
+                    .and_then(|sequence| sequence.entry_text.clone()),
             )
             .collect()
     }
 
-    fn list_count_change_paths(&self) -> Vec<String> {
-        let Some(root) = self.list_root() else {
+    fn record_count_change_paths(&self) -> Vec<String> {
+        let Some(root) = self.record_root() else {
             return Vec::new();
         };
         vec![
             format!("store.{root}_count"),
-            format!("store.completed_{root}_count"),
-            format!("store.active_{root}_count"),
+            format!("store.marked_{root}_count"),
+            format!("store.unmarked_{root}_count"),
         ]
     }
 
-    fn list_input_change_paths(&self) -> Vec<String> {
+    fn record_input_change_paths(&self) -> Vec<String> {
         self.wiring
-            .collection
+            .sequence
             .as_ref()
-            .and_then(|collection| collection.input_text.clone())
+            .and_then(|sequence| sequence.entry_text.clone())
             .into_iter()
             .collect()
     }
 
-    fn grid_change_paths(&self) -> Vec<String> {
+    fn dense_change_paths(&self) -> Vec<String> {
         self.wiring
-            .table
+            .grid
             .as_ref()
-            .map(|table| vec![table.root.clone()])
+            .map(|grid| vec![grid.root.clone()])
             .unwrap_or_default()
     }
 
-    fn grid_selection_change_paths(&self) -> Vec<String> {
+    fn dense_selection_change_paths(&self) -> Vec<String> {
         self.wiring
-            .table
+            .grid
             .as_ref()
-            .map(|table| vec![format!("{}.selected", table.root)])
+            .map(|grid| vec![format!("{}.selected", grid.root)])
             .unwrap_or_default()
     }
 
-    fn list_static_text_event_matches(&self, path: &str) -> bool {
-        self.wiring.collection.as_ref().is_some_and(|collection| {
+    fn static_text_event_matches(&self, path: &str) -> bool {
+        self.wiring.sequence.as_ref().is_some_and(|sequence| {
             [
-                &collection.input_focus,
-                &collection.input_blur,
-                &collection.input_change,
+                &sequence.input_focus,
+                &sequence.input_blur,
+                &sequence.input_change,
             ]
             .into_iter()
             .flatten()
@@ -570,45 +573,55 @@ impl ExampleApp {
         })
     }
 
-    fn list_dynamic_text_event_matches(&self, path: &str) -> bool {
-        self.wiring.collection.as_ref().is_some_and(|collection| {
-            [&collection.item_edit_blur, &collection.item_edit_change]
+    fn dynamic_text_event_matches(&self, path: &str) -> bool {
+        self.wiring.sequence.as_ref().is_some_and(|sequence| {
+            [&sequence.dynamic_text_blur, &sequence.dynamic_text_change]
                 .into_iter()
                 .flatten()
                 .any(|candidate| candidate == path)
         })
     }
 
-    fn filter_for_event_path(&self, path: &str) -> Option<String> {
-        self.wiring.collection.as_ref().and_then(|collection| {
-            collection
-                .filter_events
+    fn view_selector_for_event_path(&self, path: &str) -> Option<String> {
+        self.wiring.sequence.as_ref().and_then(|sequence| {
+            sequence
+                .view_selector_events
                 .iter()
-                .find_map(|(filter, event_path)| (event_path == path).then(|| filter.clone()))
+                .find_map(|(view_selector, event_path)| {
+                    (event_path == path).then(|| view_selector.clone())
+                })
         })
+    }
+
+    fn sequence_view(&self) -> Option<&SequenceViewSpec> {
+        self.program
+            .sequence
+            .as_ref()
+            .map(|sequence| &sequence.view)
     }
 
     fn render_text(&self) -> String {
         match self.program.scene {
-            SurfaceKind::Collection => self.render_collection_text(),
-            SurfaceKind::Table => self.render_table_text(),
+            SurfaceKind::Sequence => self.render_record_sequence_text(),
+            SurfaceKind::DenseGrid => self.render_dense_plane_text(),
             SurfaceKind::ActionValue => {
                 let label = self
                     .program
-                    .scalar_counter
+                    .scalar_accumulator
                     .as_ref()
-                    .map(|counter| counter.button_label.as_str())
-                    .unwrap_or("Increment");
+                    .map(|scalar_value| scalar_value.button_label.as_str())
+                    .filter(|label| !label.is_empty())
+                    .unwrap_or("action");
                 format!(
-                    "{}\nsurface: button-counter\n[ {label} ]\ncount: {}",
-                    self.program.title, self.counter
+                    "{}\nsurface: button-scalar\n[ {label} ]\ncount: {}",
+                    self.program.title, self.scalar_value
                 )
             }
             SurfaceKind::ClockValue => format!(
-                "{}\nsurface: clock-counter\nfake_clock_ms: {}\nticks: {}",
-                self.program.title, self.clock.millis, self.interval_count
+                "{}\nsurface: clock-scalar\nruntime_clock_ms: {}\nticks: {}",
+                self.program.title, self.clock.millis, self.clock_value
             ),
-            SurfaceKind::Playfield => self.render_playfield_text(),
+            SurfaceKind::Kinematics => self.render_kinematic_text(),
             SurfaceKind::Blank => String::new(),
         }
     }
@@ -617,14 +630,15 @@ impl ExampleApp {
         let mut scene = FrameScene {
             title: self.program.title.clone(),
             commands: Vec::new(),
+            hit_targets: Vec::new(),
         };
         push_rect(&mut scene, 0, 0, 1000, 1000, [245, 245, 245, 255]);
         match self.program.scene {
-            SurfaceKind::Collection => self.render_collection_scene(&mut scene),
-            SurfaceKind::Table => self.render_table_scene(&mut scene),
+            SurfaceKind::Sequence => self.render_record_sequence_scene(&mut scene),
+            SurfaceKind::DenseGrid => self.render_dense_grid_scene(&mut scene),
             SurfaceKind::ActionValue => self.render_action_value_scene(&mut scene),
             SurfaceKind::ClockValue => self.render_clock_value_scene(&mut scene),
-            SurfaceKind::Playfield => self.render_playfield_scene(&mut scene),
+            SurfaceKind::Kinematics => self.render_kinematic_scene(&mut scene),
             SurfaceKind::Blank => {}
         }
         scene
@@ -635,19 +649,32 @@ impl ExampleApp {
         push_text(scene, 84, 108, 3, &self.program.title, [25, 40, 52, 255]);
         push_rect(scene, 338, 388, 324, 92, [46, 125, 166, 255]);
         push_rect_outline(scene, 338, 388, 324, 92, [21, 91, 128, 255]);
+        if let Some(path) = self.wiring.scalar_event.as_deref() {
+            push_hit_target(
+                scene,
+                "scalar_action",
+                338,
+                388,
+                324,
+                92,
+                HitTargetAction::Press,
+                path,
+            );
+        }
         let label = self
             .program
-            .scalar_counter
+            .scalar_accumulator
             .as_ref()
-            .map(|counter| counter.button_label.as_str())
-            .unwrap_or("Increment");
+            .map(|scalar_value| scalar_value.button_label.as_str())
+            .filter(|label| !label.is_empty())
+            .unwrap_or("action");
         push_text(scene, 424, 424, 2, label, [255, 255, 255, 255]);
         push_text(
             scene,
             424,
             548,
             3,
-            &format!("count {}", self.counter),
+            &format!("count {}", self.scalar_value),
             [35, 55, 68, 255],
         );
     }
@@ -662,7 +689,7 @@ impl ExampleApp {
             184,
             348,
             4,
-            &format!("ticks {}", self.interval_count),
+            &format!("ticks {}", self.clock_value),
             [240, 250, 255, 255],
         );
         push_text(
@@ -670,44 +697,156 @@ impl ExampleApp {
             184,
             456,
             2,
-            &format!("fake clock {} ms", self.clock.millis),
+            &format!("runtime clock {} ms", self.clock.millis),
             [166, 207, 224, 255],
         );
     }
 
-    fn render_collection_scene(&self, scene: &mut FrameScene) {
+    fn render_record_sequence_scene(&self, scene: &mut FrameScene) {
+        let view = self.sequence_view();
         push_rect(scene, 0, 0, 1000, 1000, [245, 245, 245, 255]);
-        push_text(scene, 340, 66, 4, "todos", [186, 137, 137, 255]);
+        push_text(
+            scene,
+            340,
+            66,
+            4,
+            view.map(|view| view.title_line.as_str())
+                .filter(|title_line| !title_line.is_empty())
+                .unwrap_or(&self.program.title),
+            [186, 137, 137, 255],
+        );
         push_rect(scene, 206, 160, 588, 72, [255, 255, 255, 255]);
         push_rect_outline(scene, 206, 160, 588, 72, [225, 225, 225, 255]);
         push_rect_outline(scene, 226, 184, 28, 28, [198, 198, 198, 255]);
+        if let Some(sequence) = &self.wiring.sequence {
+            if let Some(text_path) = sequence.entry_text.as_deref() {
+                push_text_hit_target(
+                    scene,
+                    "sequence_entry_text",
+                    260,
+                    160,
+                    534,
+                    72,
+                    text_path,
+                    text_path,
+                    sequence.input_key.clone(),
+                    sequence.input_change.clone(),
+                    sequence.input_focus.clone(),
+                    sequence.input_blur.clone(),
+                );
+            }
+            if let Some(path) = sequence.static_mass_mark_event.as_deref() {
+                push_hit_target(
+                    scene,
+                    "sequence_mass_mark",
+                    206,
+                    160,
+                    54,
+                    72,
+                    HitTargetAction::Press,
+                    path,
+                );
+            }
+        }
         push_text(scene, 234, 191, 1, "v", [116, 116, 116, 255]);
         push_text(
             scene,
             274,
             186,
             2,
-            if self.input_text.is_empty() {
-                "What needs to be done?"
+            if self.entry_text.is_empty() {
+                view.map(|view| view.entry_hint.as_str())
+                    .unwrap_or_default()
             } else {
-                &self.input_text
+                &self.entry_text
             },
-            if self.input_text.is_empty() {
+            if self.entry_text.is_empty() {
                 [180, 180, 180, 255]
             } else {
                 [54, 54, 54, 255]
             },
         );
-        let visible_items: Vec<_> = self.visible_keyed_items().collect();
+        let visible_records: Vec<_> = self.visible_records().collect();
         let mut y = 234;
-        for item in &visible_items {
+        for record in &visible_records {
             if y >= 1000 {
                 break;
             }
             push_rect(scene, 206, y, 588, 62, [255, 255, 255, 255]);
             push_rect_outline(scene, 206, y, 588, 62, [232, 232, 232, 255]);
             push_rect_outline(scene, 226, y + 18, 24, 24, [126, 178, 164, 255]);
-            if item.completed {
+            if let Some(sequence) = &self.wiring.sequence {
+                if let Some(path) = sequence.dynamic_mark_event.as_deref() {
+                    scene.hit_targets.push(attach_owner(
+                        HitTarget {
+                            id: format!("sequence_mark_{}", record.id),
+                            x: 206,
+                            y,
+                            width: 58,
+                            height: 62,
+                            action: HitTargetAction::Press,
+                            source_path: path.to_string(),
+                            owner_id: None,
+                            generation: 0,
+                            text_state_path: None,
+                            text_value: None,
+                            key_event_path: None,
+                            change_event_path: None,
+                            focus_event_path: None,
+                            blur_event_path: None,
+                        },
+                        record.id.to_string(),
+                        record.generation,
+                    ));
+                }
+                if let Some(path) = sequence.dynamic_remove_event.as_deref() {
+                    scene.hit_targets.push(attach_owner(
+                        HitTarget {
+                            id: format!("sequence_remove_{}", record.id),
+                            x: 736,
+                            y,
+                            width: 58,
+                            height: 62,
+                            action: HitTargetAction::Press,
+                            source_path: path.to_string(),
+                            owner_id: None,
+                            generation: 0,
+                            text_state_path: None,
+                            text_value: None,
+                            key_event_path: None,
+                            change_event_path: None,
+                            focus_event_path: None,
+                            blur_event_path: None,
+                        },
+                        record.id.to_string(),
+                        record.generation,
+                    ));
+                }
+                if let Some(text_path) = sequence.dynamic_text_value.as_deref() {
+                    scene.hit_targets.push(attach_owner(
+                        HitTarget {
+                            id: format!("sequence_text_{}", record.id),
+                            x: 264,
+                            y,
+                            width: 472,
+                            height: 62,
+                            action: HitTargetAction::FocusText,
+                            source_path: text_path.to_string(),
+                            owner_id: None,
+                            generation: 0,
+                            text_state_path: Some(text_path.to_string()),
+                            text_value: Some(record.content_text.clone()),
+                            key_event_path: sequence.dynamic_text_key.clone(),
+                            change_event_path: sequence.dynamic_text_change.clone(),
+                            focus_event_path: None,
+                            blur_event_path: sequence.dynamic_text_blur.clone(),
+                        },
+                        record.id.to_string(),
+                        record.generation,
+                    ));
+                }
+            }
+            if record.mark {
                 push_text(scene, 231, y + 19, 1, "x", [68, 146, 126, 255]);
             }
             push_text(
@@ -715,8 +854,8 @@ impl ExampleApp {
                 270,
                 y + 22,
                 2,
-                &item.title,
-                if item.completed {
+                &record.content_text,
+                if record.mark {
                     [160, 160, 160, 255]
                 } else {
                     [60, 60, 60, 255]
@@ -725,9 +864,9 @@ impl ExampleApp {
             push_text(scene, 744, y + 22, 1, "x", [172, 84, 84, 255]);
             y += 62;
         }
-        let completed = self.list_items.iter().filter(|item| item.completed).count();
-        let active = self.list_items.len().saturating_sub(completed);
-        y = 234 + visible_items.len() as u32 * 62;
+        let mark = self.records.iter().filter(|record| record.mark).count();
+        let unmarked = self.records.len().saturating_sub(mark);
+        y = 234 + visible_records.len() as u32 * 62;
         if y >= 1000 {
             return;
         }
@@ -738,72 +877,103 @@ impl ExampleApp {
             230,
             y + 20,
             1,
-            &format!("{active} items left"),
+            &format!(
+                "{unmarked} {}",
+                view.map(|view| view.count_suffix.as_str())
+                    .unwrap_or("unmarked")
+            ),
             [116, 116, 116, 255],
         );
-        let filters = [
-            ("all", 366, 64),
-            ("active", 438, 84),
-            ("completed", 536, 116),
-        ];
-        for (filter, x, outline_w) in filters {
-            if self.filter == filter {
+        let view_selectors = self.sequence_view_selector_layout();
+        for (view_selector, x, outline_w, label) in view_selectors {
+            if self.view_selector == view_selector {
                 push_rect_outline(scene, x - 10, y + 12, outline_w, 28, [218, 185, 185, 255]);
             }
-            push_text(scene, x, y + 21, 1, filter, [116, 116, 116, 255]);
+            if let Some(path) = self
+                .wiring
+                .sequence
+                .as_ref()
+                .and_then(|sequence| sequence.view_selector_events.get(&view_selector))
+            {
+                push_hit_target(
+                    scene,
+                    format!("sequence_selector_{view_selector}"),
+                    x - 10,
+                    y + 12,
+                    outline_w,
+                    28,
+                    HitTargetAction::Press,
+                    path,
+                );
+            }
+            push_text(scene, x, y + 21, 1, &label, [116, 116, 116, 255]);
         }
-        if completed > 0 {
-            push_text(
-                scene,
-                680,
-                y + 21,
-                1,
-                "Clear completed",
-                [116, 116, 116, 255],
-            );
+        if mark > 0
+            && let Some(label) = view.and_then(|view| view.remove_marked_label.as_deref())
+        {
+            if let Some(path) = self
+                .wiring
+                .sequence
+                .as_ref()
+                .and_then(|sequence| sequence.static_remove_marked_event.as_deref())
+            {
+                push_hit_target(
+                    scene,
+                    "sequence_remove_marked",
+                    670,
+                    y + 12,
+                    124,
+                    28,
+                    HitTargetAction::Press,
+                    path,
+                );
+            }
+            push_text(scene, 680, y + 21, 1, label, [116, 116, 116, 255]);
         }
-        push_text(
-            scene,
-            342,
-            y + 82,
-            1,
-            "Double-click to edit an item",
-            [150, 150, 150, 255],
-        );
-        push_text(
-            scene,
-            366,
-            y + 116,
-            1,
-            "Created by Boon",
-            [150, 150, 150, 255],
-        );
-        push_text(
-            scene,
-            338,
-            y + 150,
-            1,
-            "Part of the classic app examples",
-            [150, 150, 150, 255],
-        );
-        if self.program.physical_debug {
-            push_text(
-                scene,
-                232,
-                y + 184,
-                1,
-                "physical debug: depth bounds and source bindings stable",
-                [115, 130, 145, 255],
-            );
+        if let Some(view) = view {
+            for (index, line) in view.auxiliary_lines.iter().enumerate() {
+                push_text(
+                    scene,
+                    338,
+                    y + 82 + index as u32 * 34,
+                    1,
+                    line,
+                    [150, 150, 150, 255],
+                );
+            }
         }
     }
 
-    fn render_table_scene(&self, scene: &mut FrameScene) {
+    fn sequence_view_selector_layout(&self) -> Vec<(String, u32, u32, String)> {
+        let view_selectors = self
+            .program
+            .sequence
+            .as_ref()
+            .map(|sequence| sequence.view_selectors.clone())
+            .unwrap_or_default();
+        let mut x = 366;
+        view_selectors
+            .into_iter()
+            .map(|view_selector| {
+                let label = if view_selector.label.is_empty() {
+                    view_selector.id.clone()
+                } else {
+                    view_selector.label.clone()
+                };
+                let width = (label.chars().count() as u32 * 10 + 28).max(48);
+                let selector = (view_selector.id, x, width, label);
+                x += width + 22;
+                selector
+            })
+            .collect()
+    }
+
+    fn render_dense_grid_scene(&self, scene: &mut FrameScene) {
         push_rect(scene, 0, 0, 1000, 1000, [248, 249, 250, 255]);
         let selected = format!(
             "{}{}",
-            column_name(self.table.selected.1),
-            self.table.selected.0
+            column_name(self.grid.selected.1),
+            self.grid.selected.0
         );
         push_text(scene, 48, 34, 2, &self.program.title, [31, 46, 60, 255]);
         push_rect(scene, 48, 82, 904, 50, [255, 255, 255, 255]);
@@ -814,7 +984,7 @@ impl ExampleApp {
             142,
             100,
             1,
-            self.grid_text(self.table.selected.0, self.table.selected.1),
+            self.dense_text(self.grid.selected.0, self.grid.selected.1),
             [35, 50, 64, 255],
         );
         let origin_x = 48;
@@ -848,14 +1018,14 @@ impl ExampleApp {
             );
             for col in 1..=9 {
                 let x = origin_x + 52 + (col - 1) * col_w;
-                let selected_cell = self.table.selected == (row as usize, col as usize);
+                let selected_slot = self.grid.selected == (row as usize, col as usize);
                 push_rect(
                     scene,
                     x,
                     y,
                     col_w,
                     row_h,
-                    if selected_cell {
+                    if selected_slot {
                         [226, 242, 255, 255]
                     } else {
                         [255, 255, 255, 255]
@@ -867,13 +1037,41 @@ impl ExampleApp {
                     y,
                     col_w,
                     row_h,
-                    if selected_cell {
+                    if selected_slot {
                         [57, 132, 198, 255]
                     } else {
                         [214, 222, 228, 255]
                     },
                 );
-                let value = self.grid_value(row as usize, col as usize);
+                if let Some(grid) = &self.wiring.grid {
+                    let owner_id = format!("{}{}", column_name(col as usize), row);
+                    if let Some(path) = grid.display_double_click.as_deref() {
+                        scene.hit_targets.push(attach_owner(
+                            HitTarget {
+                                id: format!("dense_slot_{owner_id}"),
+                                x,
+                                y,
+                                width: col_w,
+                                height: row_h,
+                                action: HitTargetAction::FocusText,
+                                source_path: path.to_string(),
+                                owner_id: None,
+                                generation: 0,
+                                text_state_path: grid.editor_text.clone(),
+                                text_value: Some(
+                                    self.dense_text(row as usize, col as usize).to_string(),
+                                ),
+                                key_event_path: grid.editor_key.clone(),
+                                change_event_path: None,
+                                focus_event_path: None,
+                                blur_event_path: None,
+                            },
+                            owner_id,
+                            0,
+                        ));
+                    }
+                }
+                let value = self.dense_value(row as usize, col as usize);
                 if !value.is_empty() {
                     push_text(scene, x + 8, y + 14, 1, value, [40, 55, 68, 255]);
                 }
@@ -881,8 +1079,8 @@ impl ExampleApp {
         }
     }
 
-    fn render_playfield_scene(&self, scene: &mut FrameScene) {
-        let Some(playfield) = self.program.playfield.as_ref() else {
+    fn render_kinematic_scene(&self, scene: &mut FrameScene) {
+        let Some(kinematics) = self.program.kinematics.as_ref() else {
             return;
         };
         push_rect(scene, 0, 0, 1000, 1000, [18, 24, 32, 255]);
@@ -893,8 +1091,8 @@ impl ExampleApp {
             66,
             1,
             &format!(
-                "frame {} score {} lives {}",
-                self.game_frame, self.game.score, self.game.lives
+                "frame {} contact_value {} resets_remaining {}",
+                self.frame_index, self.kinematics.contact_value, self.kinematics.resets_remaining
             ),
             [153, 183, 198, 255],
         );
@@ -905,438 +1103,472 @@ impl ExampleApp {
         push_rect(scene, x0, y0, w, h, [12, 20, 29, 255]);
         push_rect_outline(scene, x0, y0, w, h, [74, 103, 122, 255]);
         let sx = |value: i64| {
-            x0 + ((value.clamp(0, playfield.arena_width) as u32) * w
-                / playfield.arena_width.max(1) as u32)
+            x0 + ((value.clamp(0, kinematics.arena_width) as u32) * w
+                / kinematics.arena_width.max(1) as u32)
         };
         let sy = |value: i64| {
-            y0 + ((value.clamp(0, playfield.arena_height) as u32) * h
-                / playfield.arena_height.max(1) as u32)
+            y0 + ((value.clamp(0, kinematics.arena_height) as u32) * h
+                / kinematics.arena_height.max(1) as u32)
         };
         let sw =
-            |value: i64| ((value.max(1) as u32) * w / playfield.arena_width.max(1) as u32).max(1);
+            |value: i64| ((value.max(1) as u32) * w / kinematics.arena_width.max(1) as u32).max(1);
         let sh =
-            |value: i64| ((value.max(1) as u32) * h / playfield.arena_height.max(1) as u32).max(1);
+            |value: i64| ((value.max(1) as u32) * h / kinematics.arena_height.max(1) as u32).max(1);
 
-        if let Some(bricks) = &playfield.bricks {
-            let brick_w = (playfield.arena_width
-                - bricks.margin * 2
-                - (bricks.columns.saturating_sub(1) as i64 * bricks.gap))
-                / bricks.columns.max(1) as i64;
-            for row in 0..bricks.rows {
-                for col in 0..bricks.columns {
-                    let idx = row * bricks.columns + col;
-                    if self.game.bricks.get(idx).copied().unwrap_or(false) {
-                        let bx = bricks.margin + col as i64 * (brick_w + bricks.gap);
-                        let by = bricks.top + row as i64 * (bricks.height + bricks.gap);
+        if let Some(contact_field) = &kinematics.contact_field {
+            let contact_w = (kinematics.arena_width
+                - contact_field.margin * 2
+                - (contact_field.columns.saturating_sub(1) as i64 * contact_field.gap))
+                / contact_field.columns.max(1) as i64;
+            for row in 0..contact_field.rows {
+                for col in 0..contact_field.columns {
+                    let idx = row * contact_field.columns + col;
+                    if self
+                        .kinematics
+                        .contact_field
+                        .get(idx)
+                        .copied()
+                        .unwrap_or(false)
+                    {
+                        let bx =
+                            contact_field.margin + col as i64 * (contact_w + contact_field.gap);
+                        let by = contact_field.top
+                            + row as i64 * (contact_field.height + contact_field.gap);
                         let color = match row % 4 {
                             0 => [232, 92, 80, 255],
                             1 => [236, 168, 72, 255],
                             2 => [86, 176, 122, 255],
                             _ => [78, 146, 210, 255],
                         };
-                        push_rect(scene, sx(bx), sy(by), sw(brick_w), sh(bricks.height), color);
+                        push_rect(
+                            scene,
+                            sx(bx),
+                            sy(by),
+                            sw(contact_w),
+                            sh(contact_field.height),
+                            color,
+                        );
                     }
                 }
             }
         }
 
-        let player_x = if playfield.player.axis == ControlAxis::Horizontal {
-            paddle_left_from_position(
-                self.game.control_x,
-                playfield.arena_width,
-                playfield.player.width,
+        let primary_x = if kinematics.primary_control.axis == ControlAxis::Horizontal {
+            controller_left_from_position(
+                self.kinematics.control_x,
+                kinematics.arena_width,
+                kinematics.primary_control.width,
             )
         } else {
-            playfield.player.x
+            kinematics.primary_control.x
         };
-        let player_y = if playfield.player.axis == ControlAxis::Vertical {
-            paddle_top_from_position(
-                self.game.control_y,
-                playfield.arena_height,
-                playfield.player.height,
+        let primary_y = if kinematics.primary_control.axis == ControlAxis::Vertical {
+            controller_top_from_position(
+                self.kinematics.control_y,
+                kinematics.arena_height,
+                kinematics.primary_control.height,
             )
         } else {
-            playfield.player.y
+            kinematics.primary_control.y
         };
         push_rect(
             scene,
-            sx(player_x),
-            sy(player_y),
-            sw(playfield.player.width),
-            sh(playfield.player.height),
+            sx(primary_x),
+            sy(primary_y),
+            sw(kinematics.primary_control.width),
+            sh(kinematics.primary_control.height),
             [85, 212, 230, 255],
         );
-        if let Some(opponent) = &playfield.opponent {
-            let opponent_y = paddle_top_from_position(
-                self.game.peer_control_y,
-                playfield.arena_height,
-                opponent.height,
+        if let Some(tracked_control) = &kinematics.tracked_control {
+            let tracked_y = controller_top_from_position(
+                self.kinematics.tracked_control_y,
+                kinematics.arena_height,
+                tracked_control.height,
             );
             push_rect(
                 scene,
-                sx(opponent.x),
-                sy(opponent_y),
-                sw(opponent.width),
-                sh(opponent.height),
+                sx(tracked_control.x),
+                sy(tracked_y),
+                sw(tracked_control.width),
+                sh(tracked_control.height),
                 [240, 244, 247, 255],
             );
         }
         push_rect(
             scene,
-            sx(self.game.ball_x),
-            sy(self.game.ball_y),
-            sw(playfield.ball.size),
-            sh(playfield.ball.size),
+            sx(self.kinematics.body_x),
+            sy(self.kinematics.body_y),
+            sw(kinematics.body.size),
+            sh(kinematics.body.size),
             [250, 250, 250, 255],
         );
     }
 
-    fn render_collection_text(&self) -> String {
-        let completed = self
-            .list_items
-            .iter()
-            .filter(|list_item| list_item.completed)
-            .count();
-        let active = self.list_items.len().saturating_sub(completed);
+    fn render_record_sequence_text(&self) -> String {
+        let view = self.sequence_view();
+        let mark = self.records.iter().filter(|record| record.mark).count();
+        let unmarked = self.records.len().saturating_sub(mark);
         let mut lines = vec![
             self.program.title.clone(),
-            "surface: collection".to_string(),
-            "What needs to be done?".to_string(),
-            format!("input: {}", self.input_text),
+            "surface: sequence".to_string(),
+            view.map(|view| view.entry_hint.clone()).unwrap_or_default(),
+            format!("input: {}", self.entry_text),
         ];
-        for list_item in self.visible_keyed_items() {
+        for record in self.visible_records() {
             lines.push(format!(
                 "{} [{}] {}",
-                list_item.id,
-                if list_item.completed { "x" } else { " " },
-                list_item.title
+                record.id,
+                if record.mark { "x" } else { " " },
+                record.content_text
             ));
         }
-        lines.push(format!("{active} items left"));
-        lines.push(format!("filter: {}", self.filter));
-        if self.program.physical_debug {
-            lines.push("physical/debug: depth bounds source-bindings stable".to_string());
+        lines.push(format!(
+            "{unmarked} {}",
+            view.map(|view| view.count_suffix.as_str())
+                .unwrap_or("unmarked")
+        ));
+        lines.push(format!("view_selector: {}", self.view_selector));
+        if let Some(view) = view {
+            lines.extend(view.auxiliary_lines.iter().cloned());
         }
         lines.join("\n")
     }
 
-    fn render_playfield_text(&self) -> String {
+    fn render_kinematic_text(&self) -> String {
         let frame_source = self
             .wiring
-            .playfield_frame_event
+            .kinematic_frame_event
             .as_deref()
             .unwrap_or("frame source");
         format!(
-            "{}\nsurface: playfield\nplayfield_mode: {}\nframe: {}\ncontrol_y: {}\ncontrol_x: {}\npeer_control_y: {}\nball_x: {}\nball_y: {}\nball_dx: {}\nball_dy: {}\nbricks_rows: {}\nbricks_cols: {}\nobstacles_active: {}\nscore: {}\nlives: {}\ndeterministic input source: {}",
+            "{}\nsurface: kinematics\nkinematic_mode: {}\nframe: {}\ncontrol_y: {}\ncontrol_x: {}\ntracked_control_y: {}\nbody_x: {}\nbody_y: {}\nbody_dx: {}\nbody_dy: {}\ncontact_field_rows: {}\ncontact_field_cols: {}\ncontact_field_live: {}\ncontact_value: {}\nresets_remaining: {}\ndeterministic input source: {}",
             self.program.title,
             if self
                 .program
-                .playfield
+                .kinematics
                 .as_ref()
-                .and_then(|playfield| playfield.bricks.as_ref())
+                .and_then(|kinematics| kinematics.contact_field.as_ref())
                 .is_some()
             {
-                "obstacle-field"
+                "contact-field"
             } else {
                 "dual-walls"
             },
-            self.game_frame,
-            self.game.control_y,
-            self.game.control_x,
-            self.game.peer_control_y,
-            self.game.ball_x,
-            self.game.ball_y,
-            self.game.ball_dx,
-            self.game.ball_dy,
-            self.game.bricks_rows,
-            self.game.bricks_cols,
-            self.game.live_brick_indices(),
-            self.game.score,
-            self.game.lives,
+            self.frame_index,
+            self.kinematics.control_y,
+            self.kinematics.control_x,
+            self.kinematics.tracked_control_y,
+            self.kinematics.body_x,
+            self.kinematics.body_y,
+            self.kinematics.body_dx,
+            self.kinematics.body_dy,
+            self.kinematics.contact_field_rows,
+            self.kinematics.contact_field_cols,
+            self.kinematics.live_contact_field_indices(),
+            self.kinematics.contact_value,
+            self.kinematics.resets_remaining,
             frame_source
         )
     }
 
-    fn advance_playfield_step(&mut self) {
-        self.game_frame += 1;
+    fn advance_kinematic_step(&mut self) {
+        self.frame_index += 1;
         if self
             .program
-            .playfield
+            .kinematics
             .as_ref()
-            .and_then(|playfield| playfield.bricks.as_ref())
+            .and_then(|kinematics| kinematics.contact_field.as_ref())
             .is_some()
         {
-            self.advance_obstacle_field_step();
+            self.advance_bounded_contact_field_step();
         } else {
-            self.advance_dual_wall_step();
+            self.advance_bounded_peer_step();
         }
     }
 
-    fn advance_dual_wall_step(&mut self) {
-        let Some(playfield) = self.program.playfield.as_ref() else {
+    fn advance_bounded_peer_step(&mut self) {
+        let Some(kinematics) = self.program.kinematics.as_ref() else {
             return;
         };
-        let Some(opponent) = playfield.opponent.as_ref() else {
+        let Some(tracked_control) = kinematics.tracked_control.as_ref() else {
             return;
         };
-        let arena_w = playfield.arena_width;
-        let arena_h = playfield.arena_height;
-        let ball = playfield.ball.size;
-        let paddle_w = playfield.player.width;
-        let paddle_h = playfield.player.height;
-        let left_x = playfield.player.x;
-        let right_x = opponent.x;
+        let arena_w = kinematics.arena_width;
+        let arena_h = kinematics.arena_height;
+        let body_size = kinematics.body.size;
+        let controller_w = kinematics.primary_control.width;
+        let controller_h = kinematics.primary_control.height;
+        let left_x = kinematics.primary_control.x;
+        let right_x = tracked_control.x;
 
-        self.game.ball_x += self.game.ball_dx;
-        self.game.ball_y += self.game.ball_dy;
-        if self.game.ball_y <= 0 {
-            self.game.ball_y = 0;
-            self.game.ball_dy = self.game.ball_dy.abs();
-        } else if self.game.ball_y + ball >= arena_h {
-            self.game.ball_y = arena_h - ball;
-            self.game.ball_dy = -self.game.ball_dy.abs();
+        self.kinematics.body_x += self.kinematics.body_dx;
+        self.kinematics.body_y += self.kinematics.body_dy;
+        if self.kinematics.body_y <= 0 {
+            self.kinematics.body_y = 0;
+            self.kinematics.body_dy = self.kinematics.body_dy.abs();
+        } else if self.kinematics.body_y + body_size >= arena_h {
+            self.kinematics.body_y = arena_h - body_size;
+            self.kinematics.body_dy = -self.kinematics.body_dy.abs();
         }
 
-        self.game.peer_control_y = position_from_paddle_top(
-            self.game.ball_y + ball / 2 - paddle_h / 2,
+        self.kinematics.tracked_control_y = position_from_controller_top(
+            self.kinematics.body_y + body_size / 2 - controller_h / 2,
             arena_h,
-            paddle_h,
+            controller_h,
         );
-        let left_y = paddle_top_from_position(self.game.control_y, arena_h, paddle_h);
-        let right_y = paddle_top_from_position(self.game.peer_control_y, arena_h, paddle_h);
+        let left_y = controller_top_from_position(self.kinematics.control_y, arena_h, controller_h);
+        let right_y =
+            controller_top_from_position(self.kinematics.tracked_control_y, arena_h, controller_h);
 
-        if self.game.ball_dx < 0
-            && self.game.ball_x <= left_x + paddle_w
-            && self.game.ball_x + ball >= left_x
+        if self.kinematics.body_dx < 0
+            && self.kinematics.body_x <= left_x + controller_w
+            && self.kinematics.body_x + body_size >= left_x
             && ranges_overlap(
-                self.game.ball_y,
-                self.game.ball_y + ball,
+                self.kinematics.body_y,
+                self.kinematics.body_y + body_size,
                 left_y,
-                left_y + paddle_h,
+                left_y + controller_h,
             )
         {
-            self.game.ball_x = left_x + paddle_w;
-            self.game.ball_dx = self.game.ball_dx.abs();
-            self.game.ball_dy = (self.game.ball_dy
-                + ((self.game.ball_y + ball / 2) - (left_y + paddle_h / 2)) / 18)
+            self.kinematics.body_x = left_x + controller_w;
+            self.kinematics.body_dx = self.kinematics.body_dx.abs();
+            self.kinematics.body_dy = (self.kinematics.body_dy
+                + ((self.kinematics.body_y + body_size / 2) - (left_y + controller_h / 2)) / 18)
                 .clamp(-18, 18);
-            self.game.score += 1;
+            self.kinematics.contact_value += 1;
         }
-        if self.game.ball_dx > 0
-            && self.game.ball_x + ball >= right_x
-            && self.game.ball_x <= right_x + paddle_w
+        if self.kinematics.body_dx > 0
+            && self.kinematics.body_x + body_size >= right_x
+            && self.kinematics.body_x <= right_x + controller_w
             && ranges_overlap(
-                self.game.ball_y,
-                self.game.ball_y + ball,
+                self.kinematics.body_y,
+                self.kinematics.body_y + body_size,
                 right_y,
-                right_y + paddle_h,
+                right_y + controller_h,
             )
         {
-            self.game.ball_x = right_x - ball;
-            self.game.ball_dx = -self.game.ball_dx.abs();
-            self.game.ball_dy = (self.game.ball_dy
-                + ((self.game.ball_y + ball / 2) - (right_y + paddle_h / 2)) / 18)
+            self.kinematics.body_x = right_x - body_size;
+            self.kinematics.body_dx = -self.kinematics.body_dx.abs();
+            self.kinematics.body_dy = (self.kinematics.body_dy
+                + ((self.kinematics.body_y + body_size / 2) - (right_y + controller_h / 2)) / 18)
                 .clamp(-18, 18);
-            self.game.score += 1;
+            self.kinematics.contact_value += 1;
         }
-        if self.game.ball_x < -ball || self.game.ball_x > arena_w + ball {
-            self.game.ball_x = arena_w / 2;
-            self.game.ball_y = arena_h / 2;
-            self.game.ball_dx = if self.game.ball_dx < 0 { 12 } else { -12 };
-            self.game.ball_dy = 8;
-            self.game.lives = (self.game.lives - 1).max(0);
+        if self.kinematics.body_x < -body_size || self.kinematics.body_x > arena_w + body_size {
+            self.kinematics.body_x = arena_w / 2;
+            self.kinematics.body_y = arena_h / 2;
+            self.kinematics.body_dx = if self.kinematics.body_dx < 0 { 12 } else { -12 };
+            self.kinematics.body_dy = 8;
+            self.kinematics.resets_remaining = (self.kinematics.resets_remaining - 1).max(0);
         }
     }
 
-    fn advance_obstacle_field_step(&mut self) {
-        let Some(playfield) = self.program.playfield.as_ref() else {
+    fn advance_bounded_contact_field_step(&mut self) {
+        let Some(kinematics) = self.program.kinematics.as_ref() else {
             return;
         };
-        let Some(bricks) = playfield.bricks.as_ref() else {
+        let Some(contact_field) = kinematics.contact_field.as_ref() else {
             return;
         };
-        let arena_w = playfield.arena_width;
-        let arena_h = playfield.arena_height;
-        let ball = playfield.ball.size;
-        let paddle_w = playfield.player.width;
-        let paddle_h = playfield.player.height;
-        let control_y = playfield.player.y;
+        let arena_w = kinematics.arena_width;
+        let arena_h = kinematics.arena_height;
+        let body_size = kinematics.body.size;
+        let controller_w = kinematics.primary_control.width;
+        let controller_h = kinematics.primary_control.height;
+        let control_y = kinematics.primary_control.y;
 
-        self.game.ball_x += self.game.ball_dx;
-        self.game.ball_y += self.game.ball_dy;
-        if self.game.ball_x <= 0 {
-            self.game.ball_x = 0;
-            self.game.ball_dx = self.game.ball_dx.abs();
-        } else if self.game.ball_x + ball >= arena_w {
-            self.game.ball_x = arena_w - ball;
-            self.game.ball_dx = -self.game.ball_dx.abs();
+        self.kinematics.body_x += self.kinematics.body_dx;
+        self.kinematics.body_y += self.kinematics.body_dy;
+        if self.kinematics.body_x <= 0 {
+            self.kinematics.body_x = 0;
+            self.kinematics.body_dx = self.kinematics.body_dx.abs();
+        } else if self.kinematics.body_x + body_size >= arena_w {
+            self.kinematics.body_x = arena_w - body_size;
+            self.kinematics.body_dx = -self.kinematics.body_dx.abs();
         }
-        if self.game.ball_y <= 0 {
-            self.game.ball_y = 0;
-            self.game.ball_dy = self.game.ball_dy.abs();
+        if self.kinematics.body_y <= 0 {
+            self.kinematics.body_y = 0;
+            self.kinematics.body_dy = self.kinematics.body_dy.abs();
         }
 
-        if self.game.ball_dy < 0 {
-            let margin = bricks.margin;
-            let gap = bricks.gap;
-            let brick_h = bricks.height;
-            let rows = self.game.bricks_rows as i64;
-            let cols = self.game.bricks_cols as i64;
-            let brick_w = if cols > 0 {
+        if self.kinematics.body_dy < 0 {
+            let margin = contact_field.margin;
+            let gap = contact_field.gap;
+            let contact_h = contact_field.height;
+            let rows = self.kinematics.contact_field_rows as i64;
+            let cols = self.kinematics.contact_field_cols as i64;
+            let contact_w = if cols > 0 {
                 (arena_w - margin * 2 - gap * (cols - 1)) / cols
             } else {
                 0
             };
-            'brick_scan: for row in 0..rows {
+            'contact_field_scan: for row in 0..rows {
                 for col in 0..cols {
                     let idx = (row * cols + col) as usize;
-                    if !self.game.bricks.get(idx).copied().unwrap_or(false) {
+                    if !self
+                        .kinematics
+                        .contact_field
+                        .get(idx)
+                        .copied()
+                        .unwrap_or(false)
+                    {
                         continue;
                     }
-                    let bx = margin + col * (brick_w + gap);
-                    let by = bricks.top + row * (brick_h + gap);
+                    let bx = margin + col * (contact_w + gap);
+                    let by = contact_field.top + row * (contact_h + gap);
                     if rects_overlap(
-                        self.game.ball_x,
-                        self.game.ball_y,
-                        ball,
-                        ball,
+                        self.kinematics.body_x,
+                        self.kinematics.body_y,
+                        body_size,
+                        body_size,
                         bx,
                         by,
-                        brick_w,
-                        brick_h,
+                        contact_w,
+                        contact_h,
                     ) {
-                        self.game.bricks[idx] = false;
-                        self.game.ball_dy = self.game.ball_dy.abs();
-                        self.game.score += bricks.score_per_hit;
-                        break 'brick_scan;
+                        self.kinematics.contact_field[idx] = false;
+                        self.kinematics.body_dy = self.kinematics.body_dy.abs();
+                        self.kinematics.contact_value += contact_field.value_per_contact;
+                        break 'contact_field_scan;
                     }
                 }
             }
         }
 
-        let control_x = paddle_left_from_position(self.game.control_x, arena_w, paddle_w);
-        if self.game.ball_dy > 0
+        let control_x =
+            controller_left_from_position(self.kinematics.control_x, arena_w, controller_w);
+        if self.kinematics.body_dy > 0
             && rects_overlap(
-                self.game.ball_x,
-                self.game.ball_y,
-                ball,
-                ball,
+                self.kinematics.body_x,
+                self.kinematics.body_y,
+                body_size,
+                body_size,
                 control_x,
                 control_y,
-                paddle_w,
-                paddle_h,
+                controller_w,
+                controller_h,
             )
         {
-            self.game.ball_y = control_y - ball;
-            self.game.ball_dy = -self.game.ball_dy.abs();
-            self.game.ball_dx = (self.game.ball_dx
-                + ((self.game.ball_x + ball / 2) - (control_x + paddle_w / 2)) / 18)
+            self.kinematics.body_y = control_y - body_size;
+            self.kinematics.body_dy = -self.kinematics.body_dy.abs();
+            self.kinematics.body_dx = (self.kinematics.body_dx
+                + ((self.kinematics.body_x + body_size / 2) - (control_x + controller_w / 2)) / 18)
                 .clamp(-18, 18);
         }
-        if self.game.ball_y > arena_h {
-            self.game.ball_x = control_x + paddle_w / 2 - ball / 2;
-            self.game.ball_y = control_y - ball - 2;
-            self.game.ball_dx = playfield.ball.dx;
-            self.game.ball_dy = playfield.ball.dy;
-            self.game.lives = (self.game.lives - 1).max(0);
+        if self.kinematics.body_y > arena_h {
+            self.kinematics.body_x = control_x + controller_w / 2 - body_size / 2;
+            self.kinematics.body_y = control_y - body_size - 2;
+            self.kinematics.body_dx = kinematics.body.dx;
+            self.kinematics.body_dy = kinematics.body.dy;
+            self.kinematics.resets_remaining = (self.kinematics.resets_remaining - 1).max(0);
         }
-        if self.game.bricks.iter().all(|live| !*live) {
-            self.game.bricks.fill(true);
+        if self.kinematics.contact_field.iter().all(|live| !*live) {
+            self.kinematics.contact_field.fill(true);
         }
     }
 
-    fn visible_keyed_items(&self) -> impl Iterator<Item = &ListItem> {
-        self.list_items
-            .iter()
-            .filter(|list_item| match self.filter.as_str() {
-                "active" => !list_item.completed,
-                "completed" => list_item.completed,
-                _ => true,
+    fn visible_records(&self) -> impl Iterator<Item = &DynamicRecord> {
+        let visibility = self
+            .program
+            .sequence
+            .as_ref()
+            .and_then(|sequence| {
+                sequence
+                    .view_selectors
+                    .iter()
+                    .find(|selector| selector.id == self.view_selector)
+                    .map(|selector| &selector.visibility)
             })
+            .unwrap_or(&RecordVisibility::All);
+        self.records.iter().filter(move |record| match visibility {
+            RecordVisibility::All => true,
+            RecordVisibility::Unmarked => !record.mark,
+            RecordVisibility::Marked => record.mark,
+        })
     }
 
-    fn render_table_text(&self) -> String {
+    fn render_dense_plane_text(&self) -> String {
         let mut lines = vec![
             self.program.title.clone(),
-            "surface: table".to_string(),
+            "surface: dense_grid".to_string(),
             format!(
                 "selected: {}{}",
-                column_name(self.table.selected.1),
-                self.table.selected.0
+                column_name(self.grid.selected.1),
+                self.grid.selected.0
             ),
             format!(
-                "formula: {}",
-                self.grid_text(self.table.selected.0, self.table.selected.1)
+                "expression: {}",
+                self.dense_text(self.grid.selected.0, self.grid.selected.1)
             ),
             format!(
                 "value: {}",
-                self.grid_value(self.table.selected.0, self.table.selected.1)
+                self.dense_value(self.grid.selected.0, self.grid.selected.1)
             ),
             "columns: A B C D E F ... Z".to_string(),
         ];
-        for row in 1..=self.table.rows.min(5) {
+        for row in 1..=self.grid.rows.min(5) {
             lines.push(format!(
                 "row {row}: A={} | B={} | C={}",
-                self.grid_value(row, 1.min(self.table.columns)),
-                self.grid_value(row, 2.min(self.table.columns)),
-                self.grid_value(row, 3.min(self.table.columns))
+                self.dense_value(row, 1.min(self.grid.columns)),
+                self.dense_value(row, 2.min(self.grid.columns)),
+                self.dense_value(row, 3.min(self.grid.columns))
             ));
         }
         lines.push(format!(
             "row {} and column {} reachable",
-            self.table.rows,
-            column_name(self.table.columns)
+            self.grid.rows,
+            column_name(self.grid.columns)
         ));
         lines.join("\n")
     }
 
-    fn grid_value(&self, row: usize, col: usize) -> &str {
-        &self.table.value[self.grid_idx(row, col)]
+    fn dense_value(&self, row: usize, col: usize) -> &str {
+        &self.grid.value[self.dense_idx(row, col)]
     }
 
-    fn grid_text(&self, row: usize, col: usize) -> &str {
-        &self.table.text[self.grid_idx(row, col)]
+    fn dense_text(&self, row: usize, col: usize) -> &str {
+        &self.grid.text[self.dense_idx(row, col)]
     }
 
-    fn grid_idx(&self, row: usize, col: usize) -> usize {
-        (row - 1) * self.table.columns + (col - 1)
+    fn dense_idx(&self, row: usize, col: usize) -> usize {
+        (row - 1) * self.grid.columns + (col - 1)
     }
 
-    fn set_grid_text(&mut self, row: usize, col: usize, text: String) {
-        let idx = self.grid_idx(row, col);
-        for dep in self.table.deps[idx].drain(..) {
-            self.table.rev_deps[dep].retain(|dependent| *dependent != idx);
+    fn set_dense_text(&mut self, row: usize, col: usize, text: String) {
+        let idx = self.dense_idx(row, col);
+        for dep in self.grid.deps[idx].drain(..) {
+            self.grid.rev_deps[dep].retain(|dependent| *dependent != idx);
         }
-        let deps = self.collect_formula_refs(&text);
+        let deps = self.collect_dense_expression_refs(&text);
         for dep in &deps {
-            if !self.table.rev_deps[*dep].contains(&idx) {
-                self.table.rev_deps[*dep].push(idx);
+            if !self.grid.rev_deps[*dep].contains(&idx) {
+                self.grid.rev_deps[*dep].push(idx);
             }
         }
-        self.table.deps[idx] = deps;
-        self.table.text[idx] = text;
-        self.recalc_dirty_grid(idx);
+        self.grid.deps[idx] = deps;
+        self.grid.text[idx] = text;
+        self.recalc_dirty_dense(idx);
     }
 
-    fn recalc_dirty_grid(&mut self, changed: usize) {
+    fn recalc_dirty_dense(&mut self, changed: usize) {
         let mut dirty = BTreeSet::new();
-        self.collect_grid_dependents(changed, &mut dirty);
+        self.collect_dense_dependents(changed, &mut dirty);
         let mut memo = BTreeMap::new();
         for idx in dirty {
-            let value = self.evaluate_cell(idx, &mut BTreeSet::new(), &mut memo);
-            self.table.value[idx] = value;
+            let value = self.evaluate_dense_slot(idx, &mut BTreeSet::new(), &mut memo);
+            self.grid.value[idx] = value;
         }
     }
 
-    fn collect_grid_dependents(&self, idx: usize, dirty: &mut BTreeSet<usize>) {
+    fn collect_dense_dependents(&self, idx: usize, dirty: &mut BTreeSet<usize>) {
         if dirty.insert(idx) {
-            for dependent in &self.table.rev_deps[idx] {
-                self.collect_grid_dependents(*dependent, dirty);
+            for dependent in &self.grid.rev_deps[idx] {
+                self.collect_dense_dependents(*dependent, dirty);
             }
         }
     }
 
-    fn evaluate_cell(
+    fn evaluate_dense_slot(
         &self,
         idx: usize,
         visiting: &mut BTreeSet<usize>,
@@ -1348,9 +1580,9 @@ impl ExampleApp {
         if !visiting.insert(idx) {
             return "#CYCLE".to_string();
         }
-        let text = &self.table.text[idx];
-        let value = if let Some(formula) = text.strip_prefix('=') {
-            self.resolve_formula_text(formula, visiting, memo)
+        let text = &self.grid.text[idx];
+        let value = if let Some(expression) = text.strip_prefix('=') {
+            self.resolve_dense_expression(expression, visiting, memo)
         } else {
             text.clone()
         };
@@ -1359,14 +1591,14 @@ impl ExampleApp {
         value
     }
 
-    fn resolve_formula_text(
+    fn resolve_dense_expression(
         &self,
-        formula: &str,
+        expression: &str,
         visiting: &mut BTreeSet<usize>,
         memo: &mut BTreeMap<usize, String>,
     ) -> String {
-        if self.cell_formula_enabled("add")
-            && let Some(args) = formula
+        if self.dense_expression_enabled("add")
+            && let Some(args) = expression
                 .strip_prefix("add(")
                 .and_then(|rest| rest.strip_suffix(')'))
         {
@@ -1374,33 +1606,33 @@ impl ExampleApp {
             if parts.len() != 2 {
                 return "#ERR".to_string();
             }
-            let Some(left) = self.decode_table_ref(parts[0]) else {
+            let Some(left) = self.decode_dense_ref(parts[0]) else {
                 return "#ERR".to_string();
             };
-            let Some(right) = self.decode_table_ref(parts[1]) else {
+            let Some(right) = self.decode_dense_ref(parts[1]) else {
                 return "#ERR".to_string();
             };
-            let Some(left) = self.evaluate_grid_number(left, visiting, memo) else {
+            let Some(left) = self.evaluate_dense_number(left, visiting, memo) else {
                 return "#CYCLE".to_string();
             };
-            let Some(right) = self.evaluate_grid_number(right, visiting, memo) else {
+            let Some(right) = self.evaluate_dense_number(right, visiting, memo) else {
                 return "#CYCLE".to_string();
             };
             return (left + right).to_string();
         }
-        if self.cell_formula_enabled("sum")
-            && let Some(args) = formula
+        if self.dense_expression_enabled("sum")
+            && let Some(args) = expression
                 .strip_prefix("sum(")
                 .and_then(|rest| rest.strip_suffix(')'))
         {
-            let Some((start, end)) = self.parse_cell_range(args.trim()) else {
+            let Some((start, end)) = self.parse_dense_range(args.trim()) else {
                 return "#ERR".to_string();
             };
             let mut sum = 0;
             for row in start.0.min(end.0)..=start.0.max(end.0) {
                 for col in start.1.min(end.1)..=start.1.max(end.1) {
                     let Some(value) =
-                        self.evaluate_grid_number(self.grid_idx(row, col), visiting, memo)
+                        self.evaluate_dense_number(self.dense_idx(row, col), visiting, memo)
                     else {
                         return "#CYCLE".to_string();
                     };
@@ -1412,39 +1644,38 @@ impl ExampleApp {
         "#ERR".to_string()
     }
 
-    fn cell_formula_enabled(&self, name: &str) -> bool {
-        self.program.table.as_ref().is_some_and(|table| {
-            table
-                .formula_functions
+    fn dense_expression_enabled(&self, name: &str) -> bool {
+        self.program.dense_grid.as_ref().is_some_and(|grid| {
+            grid.expression_functions
                 .iter()
                 .any(|function| function == name)
         })
     }
 
-    fn collect_formula_refs(&self, text: &str) -> Vec<usize> {
-        let Some(formula) = text.strip_prefix('=') else {
+    fn collect_dense_expression_refs(&self, text: &str) -> Vec<usize> {
+        let Some(expression) = text.strip_prefix('=') else {
             return Vec::new();
         };
-        if self.cell_formula_enabled("add")
-            && let Some(args) = formula
+        if self.dense_expression_enabled("add")
+            && let Some(args) = expression
                 .strip_prefix("add(")
                 .and_then(|rest| rest.strip_suffix(')'))
         {
             return args
                 .split(',')
-                .filter_map(|arg| self.decode_table_ref(arg.trim()))
+                .filter_map(|arg| self.decode_dense_ref(arg.trim()))
                 .collect();
         }
-        if self.cell_formula_enabled("sum")
-            && let Some(args) = formula
+        if self.dense_expression_enabled("sum")
+            && let Some(args) = expression
                 .strip_prefix("sum(")
                 .and_then(|rest| rest.strip_suffix(')'))
-            && let Some((start, end)) = self.parse_cell_range(args.trim())
+            && let Some((start, end)) = self.parse_dense_range(args.trim())
         {
             let mut deps = Vec::new();
             for row in start.0.min(end.0)..=start.0.max(end.0) {
                 for col in start.1.min(end.1)..=start.1.max(end.1) {
-                    deps.push(self.grid_idx(row, col));
+                    deps.push(self.dense_idx(row, col));
                 }
             }
             return deps;
@@ -1452,20 +1683,20 @@ impl ExampleApp {
         Vec::new()
     }
 
-    fn parse_cell_range(&self, text: &str) -> Option<((usize, usize), (usize, usize))> {
+    fn parse_dense_range(&self, text: &str) -> Option<((usize, usize), (usize, usize))> {
         let (start, end) = text.split_once(':')?;
         Some((
-            self.decode_table_ref_tuple(start)?,
-            self.decode_table_ref_tuple(end)?,
+            self.decode_dense_ref_tuple(start)?,
+            self.decode_dense_ref_tuple(end)?,
         ))
     }
 
-    fn decode_table_ref(&self, text: &str) -> Option<usize> {
-        let (row, col) = self.decode_table_ref_tuple(text)?;
-        Some(self.grid_idx(row, col))
+    fn decode_dense_ref(&self, text: &str) -> Option<usize> {
+        let (row, col) = self.decode_dense_ref_tuple(text)?;
+        Some(self.dense_idx(row, col))
     }
 
-    fn decode_table_ref_tuple(&self, text: &str) -> Option<(usize, usize)> {
+    fn decode_dense_ref_tuple(&self, text: &str) -> Option<(usize, usize)> {
         let mut chars = text.chars();
         let col = chars.next()?.to_ascii_uppercase();
         if !col.is_ascii_uppercase() {
@@ -1473,25 +1704,24 @@ impl ExampleApp {
         }
         let row = chars.as_str().parse::<usize>().ok()?;
         let col = (col as u8).checked_sub(b'A')? as usize + 1;
-        if row == 0 || row > self.table.rows || col == 0 || col > self.table.columns {
+        if row == 0 || row > self.grid.rows || col == 0 || col > self.grid.columns {
             return None;
         }
         Some((row, col))
     }
 
-    fn parse_grid_owner(&self, owner_id: &str) -> Result<(usize, usize)> {
-        self.decode_table_ref_tuple(owner_id).ok_or_else(|| {
-            anyhow::anyhow!("grid_cell owner_id `{owner_id}` is outside compiled table")
-        })
+    fn parse_dense_owner(&self, owner_id: &str) -> Result<(usize, usize)> {
+        self.decode_dense_ref_tuple(owner_id)
+            .ok_or_else(|| anyhow::anyhow!("dense owner_id `{owner_id}` is outside compiled grid"))
     }
 
-    fn evaluate_grid_number(
+    fn evaluate_dense_number(
         &self,
         idx: usize,
         visiting: &mut BTreeSet<usize>,
         memo: &mut BTreeMap<usize, String>,
     ) -> Option<i64> {
-        let value = self.evaluate_cell(idx, visiting, memo);
+        let value = self.evaluate_dense_slot(idx, visiting, memo);
         if value == "#CYCLE" {
             None
         } else {
@@ -1547,32 +1777,30 @@ impl ExampleApp {
     }
 
     fn live_generation(&self, path: &str, owner_id: &str) -> Result<u32> {
-        if let Some(collection) = &self.wiring.collection
-            && path.starts_with(&collection.family)
+        if let Some(sequence) = &self.wiring.sequence
+            && path.starts_with(&sequence.family)
         {
-            let list_item_id = owner_id
+            let record_id = owner_id
                 .parse::<u64>()
-                .map_err(|_| anyhow::anyhow!("list_item owner_id `{owner_id}` is not numeric"))?;
+                .map_err(|_| anyhow::anyhow!("record owner_id `{owner_id}` is not numeric"))?;
             return self
-                .list_items
+                .records
                 .iter()
-                .find(|list_item| list_item.id == list_item_id)
-                .map(|list_item| list_item.generation)
-                .ok_or_else(|| {
-                    anyhow::anyhow!("dynamic list_item owner `{owner_id}` is not live")
-                });
+                .find(|record| record.id == record_id)
+                .map(|record| record.generation)
+                .ok_or_else(|| anyhow::anyhow!("dynamic record owner `{owner_id}` is not live"));
         }
-        if let Some(table) = &self.wiring.table
-            && path.starts_with(&table.family)
+        if let Some(grid) = &self.wiring.grid
+            && path.starts_with(&grid.family)
         {
-            self.parse_grid_owner(owner_id)?;
+            self.parse_dense_owner(owner_id)?;
             return Ok(0);
         }
-        bail!("dynamic SOURCE `{path}` has no owner generation table")
+        bail!("dynamic SOURCE `{path}` has no owner generation grid")
     }
 }
 
-impl BoonApp for ExampleApp {
+impl BoonApp for CompiledApp {
     fn mount(&mut self) -> TurnResult {
         let mut patches = vec![HostPatch::CreateNode {
             id: NodeId(0),
@@ -1601,19 +1829,19 @@ impl BoonApp for ExampleApp {
                 .insert(source_state_key(&update), update.value.clone());
             if self
                 .wiring
-                .collection
+                .sequence
                 .as_ref()
-                .and_then(|collection| collection.input_text.as_ref())
+                .and_then(|sequence| sequence.entry_text.as_ref())
                 .is_some_and(|path| update.path == *path)
             {
                 if let SourceValue::Text(value) = update.value {
-                    self.input_text = value;
+                    self.entry_text = value;
                 }
             } else if self
                 .wiring
-                .collection
+                .sequence
                 .as_ref()
-                .and_then(|collection| collection.item_edit_text.as_ref())
+                .and_then(|sequence| sequence.dynamic_text_value.as_ref())
                 .is_some_and(|path| update.path == *path)
                 && let SourceValue::Text(value) = update.value
             {
@@ -1621,31 +1849,31 @@ impl BoonApp for ExampleApp {
                     .owner_id
                     .as_deref()
                     .expect("dynamic edit text owner_id was validated");
-                let list_item_id = owner_id.parse::<u64>().map_err(|_| {
-                    anyhow::anyhow!("list_item owner_id `{owner_id}` is not numeric")
-                })?;
-                let list_item = self
-                    .list_items
+                let record_id = owner_id
+                    .parse::<u64>()
+                    .map_err(|_| anyhow::anyhow!("record owner_id `{owner_id}` is not numeric"))?;
+                let record = self
+                    .records
                     .iter_mut()
-                    .find(|list_item| list_item.id == list_item_id)
-                    .ok_or_else(|| anyhow::anyhow!("list_item owner `{owner_id}` is not live"))?;
-                list_item.title = value;
-                list_item.editing = true;
+                    .find(|record| record.id == record_id)
+                    .ok_or_else(|| anyhow::anyhow!("record owner `{owner_id}` is not live"))?;
+                record.content_text = value;
+                record.edit_focus = true;
             } else if self
                 .wiring
-                .table
+                .grid
                 .as_ref()
-                .and_then(|table| table.editor_text.as_ref())
+                .and_then(|grid| grid.editor_text.as_ref())
                 .is_some_and(|path| update.path == *path)
                 && let SourceValue::Text(value) = update.value
             {
                 let (row, col) = update
                     .owner_id
                     .as_deref()
-                    .map(|owner_id| self.parse_grid_owner(owner_id))
+                    .map(|owner_id| self.parse_dense_owner(owner_id))
                     .transpose()?
-                    .unwrap_or(self.table.selected);
-                self.set_grid_text(row, col, value);
+                    .unwrap_or(self.grid.selected);
+                self.set_dense_text(row, col, value);
             }
         }
 
@@ -1657,276 +1885,265 @@ impl BoonApp for ExampleApp {
             };
             if self
                 .wiring
-                .counter_event
+                .scalar_event
                 .as_ref()
                 .is_some_and(|path| event.path == *path)
             {
-                self.counter += self
+                self.scalar_value += self
                     .program
-                    .scalar_counter
+                    .scalar_accumulator
                     .as_ref()
-                    .map(|counter| counter.step)
+                    .map(|scalar_value| scalar_value.step)
                     .unwrap_or(0);
-                results.push(self.emit_frame(&["counter"], metrics));
+                results.push(self.emit_frame(&["scalar_value"], metrics));
             } else if self
                 .wiring
-                .collection
+                .sequence
                 .as_ref()
-                .and_then(|collection| collection.input_key.as_ref())
+                .and_then(|sequence| sequence.input_key.as_ref())
                 .is_some_and(|path| event.path == *path)
             {
                 if matches!(event.value, SourceValue::Tag(ref key) if key == "Enter") {
-                    let trimmed = self.input_text.trim().to_string();
+                    let trimmed = self.entry_text.trim().to_string();
                     if self
                         .program
-                        .collection
+                        .sequence
                         .as_ref()
-                        .is_some_and(|collection| collection.append_from_text_input)
+                        .is_some_and(|sequence| sequence.append_on_submit)
                         && !trimmed.is_empty()
                     {
-                        self.list_items.push(ListItem {
-                            id: self.next_list_item_id,
+                        self.records.push(DynamicRecord {
+                            id: self.next_record_id,
                             generation: 0,
-                            title: trimmed,
-                            completed: false,
-                            editing: false,
+                            content_text: trimmed,
+                            mark: false,
+                            edit_focus: false,
                         });
-                        self.next_list_item_id += 1;
+                        self.next_record_id += 1;
                     }
-                    self.input_text.clear();
+                    self.entry_text.clear();
                 }
-                results.push(self.emit_frame_owned(self.list_change_paths(), metrics));
-            } else if self.list_static_text_event_matches(&event.path) {
-                results.push(self.emit_frame_owned(self.list_input_change_paths(), metrics));
+                results.push(self.emit_frame_owned(self.record_change_paths(), metrics));
+            } else if self.static_text_event_matches(&event.path) {
+                results.push(self.emit_frame_owned(self.record_input_change_paths(), metrics));
             } else if self
                 .wiring
-                .collection
+                .sequence
                 .as_ref()
-                .and_then(|collection| collection.toggle_all.as_ref())
+                .and_then(|sequence| sequence.static_mass_mark_event.as_ref())
                 .is_some_and(|path| event.path == *path)
             {
-                if self
-                    .program
-                    .collection
-                    .as_ref()
-                    .is_some_and(|collection| collection.toggle_all_from_checkbox)
-                {
-                    let all_completed = self.list_items.iter().all(|list_item| list_item.completed);
-                    for list_item in &mut self.list_items {
-                        list_item.completed = !all_completed;
-                    }
+                let all_marked = self.records.iter().all(|record| record.mark);
+                for record in &mut self.records {
+                    record.mark = !all_marked;
                 }
-                metrics.list_rows_touched = self.list_items.len();
-                results.push(self.emit_frame_owned(self.list_count_change_paths(), metrics));
+                metrics.dynamic_rows_touched = self.records.len();
+                results.push(self.emit_frame_owned(self.record_count_change_paths(), metrics));
             } else if self
                 .wiring
-                .collection
+                .sequence
                 .as_ref()
-                .and_then(|collection| collection.item_checkbox.as_ref())
+                .and_then(|sequence| sequence.dynamic_mark_event.as_ref())
                 .is_some_and(|path| event.path == *path)
             {
                 let owner_id = event
                     .owner_id
                     .as_deref()
                     .expect("dynamic event owner_id was validated");
-                let list_item_id = owner_id.parse::<u64>().map_err(|_| {
-                    anyhow::anyhow!("list_item owner_id `{owner_id}` is not numeric")
-                })?;
-                let list_item = self
-                    .list_items
+                let record_id = owner_id
+                    .parse::<u64>()
+                    .map_err(|_| anyhow::anyhow!("record owner_id `{owner_id}` is not numeric"))?;
+                let record = self
+                    .records
                     .iter_mut()
-                    .find(|list_item| list_item.id == list_item_id)
-                    .ok_or_else(|| anyhow::anyhow!("list_item owner `{owner_id}` is not live"))?;
+                    .find(|record| record.id == record_id)
+                    .ok_or_else(|| anyhow::anyhow!("record owner `{owner_id}` is not live"))?;
                 if self
                     .program
-                    .collection
+                    .sequence
                     .as_ref()
-                    .is_some_and(|collection| collection.item_checkbox_toggle)
+                    .is_some_and(|sequence| sequence.dynamic_mark_toggle)
                 {
-                    list_item.completed = !list_item.completed;
+                    record.mark = !record.mark;
                 }
-                metrics.list_rows_touched = 1;
-                results.push(self.emit_frame_owned(self.list_count_change_paths(), metrics));
+                metrics.dynamic_rows_touched = 1;
+                results.push(self.emit_frame_owned(self.record_count_change_paths(), metrics));
             } else if self
                 .wiring
-                .collection
+                .sequence
                 .as_ref()
-                .and_then(|collection| collection.item_remove.as_ref())
+                .and_then(|sequence| sequence.dynamic_remove_event.as_ref())
                 .is_some_and(|path| event.path == *path)
             {
                 let owner_id = event
                     .owner_id
                     .as_deref()
                     .expect("dynamic event owner_id was validated");
-                let list_item_id = owner_id.parse::<u64>().map_err(|_| {
-                    anyhow::anyhow!("list_item owner_id `{owner_id}` is not numeric")
-                })?;
+                let record_id = owner_id
+                    .parse::<u64>()
+                    .map_err(|_| anyhow::anyhow!("record owner_id `{owner_id}` is not numeric"))?;
                 if self
                     .program
-                    .collection
+                    .sequence
                     .as_ref()
-                    .is_some_and(|collection| collection.item_remove_button)
+                    .is_some_and(|sequence| sequence.dynamic_remove)
                 {
-                    self.list_items
-                        .retain(|list_item| list_item.id != list_item_id);
+                    self.records.retain(|record| record.id != record_id);
                 }
-                results.push(self.emit_frame_owned(self.list_change_paths(), metrics));
+                results.push(self.emit_frame_owned(self.record_change_paths(), metrics));
             } else if self
                 .wiring
-                .collection
+                .sequence
                 .as_ref()
-                .and_then(|collection| collection.clear_completed.as_ref())
+                .and_then(|sequence| sequence.static_remove_marked_event.as_ref())
                 .is_some_and(|path| event.path == *path)
             {
-                if self
-                    .program
-                    .collection
-                    .as_ref()
-                    .is_some_and(|collection| collection.clear_completed_from_button)
-                {
-                    self.list_items.retain(|list_item| !list_item.completed);
-                }
-                results.push(self.emit_frame_owned(self.list_change_paths(), metrics));
-            } else if let Some(filter) = self.filter_for_event_path(&event.path) {
-                self.filter = filter;
-                results.push(self.emit_frame(&["store.selected_filter"], metrics));
+                self.records.retain(|record| !record.mark);
+                results.push(self.emit_frame_owned(self.record_change_paths(), metrics));
+            } else if let Some(view_selector) = self.view_selector_for_event_path(&event.path) {
+                self.view_selector = view_selector;
+                let changed = view_selector_state_key();
+                results.push(self.emit_frame(&[changed.as_str()], metrics));
             } else if self
                 .wiring
-                .collection
+                .sequence
                 .as_ref()
-                .and_then(|collection| collection.item_edit_key.as_ref())
+                .and_then(|sequence| sequence.dynamic_text_key.as_ref())
                 .is_some_and(|path| event.path == *path)
             {
                 let owner_id = event
                     .owner_id
                     .as_deref()
                     .expect("dynamic edit_input key owner_id was validated");
-                let list_item_id = owner_id.parse::<u64>().map_err(|_| {
-                    anyhow::anyhow!("list_item owner_id `{owner_id}` is not numeric")
-                })?;
-                if let Some(list_item) = self
-                    .list_items
+                let record_id = owner_id
+                    .parse::<u64>()
+                    .map_err(|_| anyhow::anyhow!("record owner_id `{owner_id}` is not numeric"))?;
+                if let Some(record) = self
+                    .records
                     .iter_mut()
-                    .find(|list_item| list_item.id == list_item_id)
+                    .find(|record| record.id == record_id)
                     && matches!(event.value, SourceValue::Tag(ref key) if key == "Enter")
                 {
-                    list_item.editing = false;
+                    record.edit_focus = false;
                 }
-                results.push(self.emit_frame_owned(self.list_change_paths(), metrics));
-            } else if self.list_dynamic_text_event_matches(&event.path) {
+                results.push(self.emit_frame_owned(self.record_change_paths(), metrics));
+            } else if self.dynamic_text_event_matches(&event.path) {
                 let owner_id = event
                     .owner_id
                     .as_deref()
                     .expect("dynamic edit_input event owner_id was validated");
-                let list_item_id = owner_id.parse::<u64>().map_err(|_| {
-                    anyhow::anyhow!("list_item owner_id `{owner_id}` is not numeric")
-                })?;
-                if let Some(list_item) = self
-                    .list_items
+                let record_id = owner_id
+                    .parse::<u64>()
+                    .map_err(|_| anyhow::anyhow!("record owner_id `{owner_id}` is not numeric"))?;
+                if let Some(record) = self
+                    .records
                     .iter_mut()
-                    .find(|list_item| list_item.id == list_item_id)
+                    .find(|record| record.id == record_id)
                     && event.path.ends_with(".event.blur")
                 {
-                    list_item.editing = false;
+                    record.edit_focus = false;
                 }
-                results.push(self.emit_frame_owned(self.list_change_paths(), metrics));
+                results.push(self.emit_frame_owned(self.record_change_paths(), metrics));
             } else if self
                 .wiring
-                .table
+                .grid
                 .as_ref()
-                .and_then(|table| table.display_double_click.as_ref())
+                .and_then(|grid| grid.display_double_click.as_ref())
                 .is_some_and(|path| event.path == *path)
             {
                 let (row, col) = event
                     .owner_id
                     .as_deref()
-                    .map(|owner_id| self.parse_grid_owner(owner_id))
+                    .map(|owner_id| self.parse_dense_owner(owner_id))
                     .transpose()?
-                    .unwrap_or(self.table.selected);
-                self.table.selected = (row, col);
-                self.table.editing = Some((row, col));
-                results.push(self.emit_frame_owned(self.grid_change_paths(), metrics));
+                    .unwrap_or(self.grid.selected);
+                self.grid.selected = (row, col);
+                self.grid.edit_focus = Some((row, col));
+                results.push(self.emit_frame_owned(self.dense_change_paths(), metrics));
             } else if self
                 .wiring
-                .table
+                .grid
                 .as_ref()
-                .and_then(|table| table.editor_key.as_ref())
+                .and_then(|grid| grid.editor_key.as_ref())
                 .is_some_and(|path| event.path == *path)
             {
                 if matches!(event.value, SourceValue::Tag(ref key) if key == "Enter") {
-                    self.table.editing = None;
+                    self.grid.edit_focus = None;
                 }
-                results.push(self.emit_frame_owned(self.grid_change_paths(), metrics));
+                results.push(self.emit_frame_owned(self.dense_change_paths(), metrics));
             } else if self
                 .wiring
-                .table
+                .grid
                 .as_ref()
-                .and_then(|table| table.viewport_key.as_ref())
+                .and_then(|grid| grid.viewport_key.as_ref())
                 .is_some_and(|path| event.path == *path)
             {
                 if let SourceValue::Tag(key) = &event.value {
                     match key.as_str() {
                         "ArrowUp" => {
-                            self.table.selected.0 = self.table.selected.0.saturating_sub(1).max(1);
+                            self.grid.selected.0 = self.grid.selected.0.saturating_sub(1).max(1);
                         }
                         "ArrowDown" => {
-                            self.table.selected.0 =
-                                (self.table.selected.0 + 1).min(self.table.rows);
+                            self.grid.selected.0 = (self.grid.selected.0 + 1).min(self.grid.rows);
                         }
                         "ArrowLeft" => {
-                            self.table.selected.1 = self.table.selected.1.saturating_sub(1).max(1);
+                            self.grid.selected.1 = self.grid.selected.1.saturating_sub(1).max(1);
                         }
                         "ArrowRight" => {
-                            self.table.selected.1 =
-                                (self.table.selected.1 + 1).min(self.table.columns);
+                            self.grid.selected.1 =
+                                (self.grid.selected.1 + 1).min(self.grid.columns);
                         }
                         _ => {}
                     }
                 }
-                results.push(self.emit_frame_owned(self.grid_selection_change_paths(), metrics));
+                results.push(self.emit_frame_owned(self.dense_selection_change_paths(), metrics));
             } else if self
                 .wiring
-                .playfield_control_event
+                .kinematic_control_event
                 .as_ref()
                 .is_some_and(|path| event.path == *path)
             {
                 if let SourceValue::Tag(key) = &event.value
-                    && let Some(playfield) = self.program.playfield.as_ref()
+                    && let Some(kinematics) = self.program.kinematics.as_ref()
                 {
-                    match playfield.player.axis {
+                    match kinematics.primary_control.axis {
                         ControlAxis::Horizontal => match key.as_str() {
                             "ArrowLeft" | "ArrowUp" => {
-                                self.game.control_x =
-                                    (self.game.control_x - playfield.player.step).max(0);
+                                self.kinematics.control_x = (self.kinematics.control_x
+                                    - kinematics.primary_control.step)
+                                    .max(0);
                             }
                             "ArrowRight" | "ArrowDown" => {
-                                self.game.control_x =
-                                    (self.game.control_x + playfield.player.step).min(100);
+                                self.kinematics.control_x = (self.kinematics.control_x
+                                    + kinematics.primary_control.step)
+                                    .min(100);
                             }
                             _ => {}
                         },
                         ControlAxis::Vertical => match key.as_str() {
                             "ArrowUp" | "ArrowLeft" => {
-                                self.game.control_y =
-                                    (self.game.control_y - playfield.player.step).max(0);
+                                self.kinematics.control_y = (self.kinematics.control_y
+                                    - kinematics.primary_control.step)
+                                    .max(0);
                             }
                             "ArrowDown" | "ArrowRight" => {
-                                self.game.control_y =
-                                    (self.game.control_y + playfield.player.step).min(100);
+                                self.kinematics.control_y = (self.kinematics.control_y
+                                    + kinematics.primary_control.step)
+                                    .min(100);
                             }
                             _ => {}
                         },
                     }
                 }
-                results.push(self.emit_frame(&["game.control"], metrics));
+                results.push(self.emit_frame(&["kinematics.control"], metrics));
             } else if self
                 .wiring
-                .playfield_frame_event
+                .kinematic_frame_event
                 .as_ref()
                 .is_some_and(|path| event.path == *path)
             {
-                self.advance_playfield_step();
-                results.push(self.emit_frame(&["frame", "game.ball"], metrics));
+                self.advance_kinematic_step();
+                results.push(self.emit_frame(&["frame", "kinematics.body"], metrics));
             }
         }
         if results.is_empty() && !changed_paths.is_empty() {
@@ -1936,148 +2153,172 @@ impl BoonApp for ExampleApp {
         Ok(results)
     }
 
-    fn advance_fake_time(&mut self, delta: Duration) -> TurnResult {
+    fn advance_time(&mut self, delta: Duration) -> TurnResult {
         self.clock.advance(delta);
         let ticks = self.clock.millis / 1000;
-        self.interval_count = ticks as i64;
-        self.emit_frame(&["clock", "interval_count"], TurnMetrics::default())
+        self.clock_value = ticks as i64;
+        self.emit_frame(&["clock", "clock_value"], TurnMetrics::default())
     }
 
     fn snapshot(&self) -> AppSnapshot {
-        let completed = self
-            .list_items
-            .iter()
-            .filter(|list_item| list_item.completed)
-            .count() as i64;
+        let mark = self.records.iter().filter(|record| record.mark).count() as i64;
         let mut values = BTreeMap::new();
-        values.insert("counter".to_string(), json!(self.counter));
-        if let Some(root) = self.list_root() {
+        values.insert("scalar_value".to_string(), json!(self.scalar_value));
+        if let Some(root) = self.record_root() {
             values.insert(
                 format!("store.{root}_count"),
-                json!(self.list_items.len() as i64),
+                json!(self.records.len() as i64),
             );
-            values.insert(format!("store.completed_{root}_count"), json!(completed));
+            values.insert(format!("store.marked_{root}_count"), json!(mark));
             values.insert(
-                format!("store.active_{root}_count"),
-                json!(self.list_items.len() as i64 - completed),
+                format!("store.unmarked_{root}_count"),
+                json!(self.records.len() as i64 - mark),
             );
         }
-        values.insert("interval_count".to_string(), json!(self.interval_count));
-        if let Some(collection) = &self.wiring.collection {
-            if let Some(input_text) = &collection.input_text {
-                values.insert(input_text.clone(), json!(self.input_text));
+        values.insert("clock_value".to_string(), json!(self.clock_value));
+        if let Some(sequence) = &self.wiring.sequence {
+            if let Some(entry_text) = &sequence.entry_text {
+                values.insert(entry_text.clone(), json!(self.entry_text));
             }
             values.insert(
-                format!("store.{}_titles", collection.root),
+                format!("store.{}_titles", sequence.root),
                 json!(
-                    self.list_items
+                    self.records
                         .iter()
-                        .map(|list_item| list_item.title.clone())
+                        .map(|record| record.content_text.clone())
                         .collect::<Vec<_>>()
                 ),
             );
             values.insert(
-                format!("store.{}_ids", collection.root),
+                format!("store.{}_ids", sequence.root),
                 json!(
-                    self.list_items
+                    self.records
                         .iter()
-                        .map(|list_item| list_item.id)
+                        .map(|record| record.id)
                         .collect::<Vec<_>>()
                 ),
             );
             values.insert(
-                format!("store.visible_{}_ids", collection.root),
+                format!("store.visible_{}_ids", sequence.root),
                 json!(
-                    self.visible_keyed_items()
-                        .map(|list_item| list_item.id)
+                    self.visible_records()
+                        .map(|record| record.id)
                         .collect::<Vec<_>>()
                 ),
             );
-            values.insert("store.selected_filter".to_string(), json!(self.filter));
-            for list_item in &self.list_items {
+            values.insert(view_selector_state_key(), json!(self.view_selector));
+            for record in &self.records {
                 values.insert(
-                    format!("store.{}[{}].title", collection.root, list_item.id),
-                    json!(list_item.title),
+                    format!("store.{}[{}].content_text", sequence.root, record.id),
+                    json!(record.content_text),
                 );
                 values.insert(
-                    format!("store.{}[{}].completed", collection.root, list_item.id),
-                    json!(list_item.completed),
+                    format!("store.{}[{}].mark", sequence.root, record.id),
+                    json!(record.mark),
                 );
                 values.insert(
-                    format!("store.{}[{}].editing", collection.root, list_item.id),
-                    json!(list_item.editing),
+                    format!("store.{}[{}].edit_focus", sequence.root, record.id),
+                    json!(record.edit_focus),
                 );
             }
         }
-        values.insert("game.frame".to_string(), json!(self.game_frame));
-        values.insert("game.control_y".to_string(), json!(self.game.control_y));
-        values.insert("game.control_x".to_string(), json!(self.game.control_x));
+        values.insert("kinematics.frame".to_string(), json!(self.frame_index));
         values.insert(
-            "game.peer_control_y".to_string(),
-            json!(self.game.peer_control_y),
-        );
-        values.insert("game.ball_x".to_string(), json!(self.game.ball_x));
-        values.insert("game.ball_y".to_string(), json!(self.game.ball_y));
-        values.insert("game.ball_dx".to_string(), json!(self.game.ball_dx));
-        values.insert("game.ball_dy".to_string(), json!(self.game.ball_dy));
-        values.insert(
-            "game.bricks_rows".to_string(),
-            json!(self.game.bricks_rows as i64),
+            "kinematics.control_y".to_string(),
+            json!(self.kinematics.control_y),
         );
         values.insert(
-            "game.bricks_cols".to_string(),
-            json!(self.game.bricks_cols as i64),
+            "kinematics.control_x".to_string(),
+            json!(self.kinematics.control_x),
         );
         values.insert(
-            "game.obstacles_live_count".to_string(),
-            json!(self.game.bricks.iter().filter(|live| **live).count() as i64),
+            "kinematics.tracked_control_y".to_string(),
+            json!(self.kinematics.tracked_control_y),
         );
-        values.insert("game.score".to_string(), json!(self.game.score));
-        values.insert("game.lives".to_string(), json!(self.game.lives));
+        values.insert(
+            "kinematics.body_x".to_string(),
+            json!(self.kinematics.body_x),
+        );
+        values.insert(
+            "kinematics.body_y".to_string(),
+            json!(self.kinematics.body_y),
+        );
+        values.insert(
+            "kinematics.body_dx".to_string(),
+            json!(self.kinematics.body_dx),
+        );
+        values.insert(
+            "kinematics.body_dy".to_string(),
+            json!(self.kinematics.body_dy),
+        );
+        values.insert(
+            "kinematics.contact_field_rows".to_string(),
+            json!(self.kinematics.contact_field_rows as i64),
+        );
+        values.insert(
+            "kinematics.contact_field_cols".to_string(),
+            json!(self.kinematics.contact_field_cols as i64),
+        );
+        values.insert(
+            "kinematics.contact_field_live_count".to_string(),
+            json!(
+                self.kinematics
+                    .contact_field
+                    .iter()
+                    .filter(|live| **live)
+                    .count() as i64
+            ),
+        );
+        values.insert(
+            "kinematics.contact_value".to_string(),
+            json!(self.kinematics.contact_value),
+        );
+        values.insert(
+            "kinematics.resets_remaining".to_string(),
+            json!(self.kinematics.resets_remaining),
+        );
         let grid_root = self
             .wiring
-            .table
+            .grid
             .as_ref()
-            .map(|table| table.root.as_str())
-            .unwrap_or("table");
-        values.insert(format!("{grid_root}.A1"), json!(self.grid_value(1, 1)));
-        values.insert(format!("{grid_root}.A2"), json!(self.grid_value(2, 1)));
-        values.insert(format!("{grid_root}.A3"), json!(self.grid_value(3, 1)));
-        values.insert(format!("{grid_root}.B1"), json!(self.grid_value(1, 2)));
-        values.insert(format!("{grid_root}.B2"), json!(self.grid_value(2, 2)));
-        for (row, col, name) in [
-            (1, 1, "A1"),
-            (2, 1, "A2"),
-            (3, 1, "A3"),
-            (1, 2, "B1"),
-            (2, 2, "B2"),
-        ] {
-            values.insert(
-                format!("{grid_root}.{name}.formula"),
-                json!(self.grid_text(row, col)),
-            );
+            .map(|grid| grid.root.as_str())
+            .unwrap_or("grid");
+        if self.wiring.grid.is_some() {
+            for row in 1..=self.grid.rows {
+                for col in 1..=self.grid.columns {
+                    let coordinate = format!("{}{}", column_name(col), row);
+                    values.insert(
+                        format!("{grid_root}.{coordinate}"),
+                        json!(self.dense_value(row, col)),
+                    );
+                    values.insert(
+                        format!("{grid_root}.{coordinate}.expression"),
+                        json!(self.dense_text(row, col)),
+                    );
+                }
+            }
         }
         values.insert(
-            format!("{grid_root}.selected_formula"),
-            json!(self.grid_text(self.table.selected.0, self.table.selected.1)),
+            format!("{grid_root}.selected_expression"),
+            json!(self.dense_text(self.grid.selected.0, self.grid.selected.1)),
         );
         values.insert(
             format!("{grid_root}.selected_value"),
-            json!(self.grid_value(self.table.selected.0, self.table.selected.1)),
+            json!(self.dense_value(self.grid.selected.0, self.grid.selected.1)),
         );
         values.insert(
             format!("{grid_root}.selected"),
             json!(format!(
                 "{}{}",
-                column_name(self.table.selected.1),
-                self.table.selected.0
+                column_name(self.grid.selected.1),
+                self.grid.selected.0
             )),
         );
         values.insert(
-            format!("{grid_root}.editing"),
+            format!("{grid_root}.edit_focus"),
             json!(
-                self.table
-                    .editing
+                self.grid
+                    .edit_focus
                     .map(|(row, col)| format!("{}{}", column_name(col), row))
             ),
         );
@@ -2133,16 +2374,92 @@ fn push_text(scene: &mut FrameScene, x: u32, y: u32, scale: u32, text: &str, col
     });
 }
 
-fn paddle_top_from_position(position: i64, arena_h: i64, paddle_h: i64) -> i64 {
-    ((arena_h - paddle_h).max(0) * position.clamp(0, 100) / 100).clamp(0, arena_h - paddle_h)
+#[allow(clippy::too_many_arguments)]
+fn push_hit_target(
+    scene: &mut FrameScene,
+    id: impl Into<String>,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    action: HitTargetAction,
+    source_path: impl Into<String>,
+) {
+    scene.hit_targets.push(HitTarget {
+        id: id.into(),
+        x,
+        y,
+        width,
+        height,
+        action,
+        source_path: source_path.into(),
+        owner_id: None,
+        generation: 0,
+        text_state_path: None,
+        text_value: None,
+        key_event_path: None,
+        change_event_path: None,
+        focus_event_path: None,
+        blur_event_path: None,
+    });
 }
 
-fn paddle_left_from_position(position: i64, arena_w: i64, paddle_w: i64) -> i64 {
-    ((arena_w - paddle_w).max(0) * position.clamp(0, 100) / 100).clamp(0, arena_w - paddle_w)
+#[allow(clippy::too_many_arguments)]
+fn push_text_hit_target(
+    scene: &mut FrameScene,
+    id: impl Into<String>,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    source_path: impl Into<String>,
+    text_state_path: impl Into<String>,
+    key_event_path: Option<String>,
+    change_event_path: Option<String>,
+    focus_event_path: Option<String>,
+    blur_event_path: Option<String>,
+) {
+    scene.hit_targets.push(HitTarget {
+        id: id.into(),
+        x,
+        y,
+        width,
+        height,
+        action: HitTargetAction::FocusText,
+        source_path: source_path.into(),
+        owner_id: None,
+        generation: 0,
+        text_state_path: Some(text_state_path.into()),
+        text_value: None,
+        key_event_path,
+        change_event_path,
+        focus_event_path,
+        blur_event_path,
+    });
 }
 
-fn position_from_paddle_top(top: i64, arena_h: i64, paddle_h: i64) -> i64 {
-    let span = (arena_h - paddle_h).max(1);
+fn attach_owner(mut target: HitTarget, owner_id: impl Into<String>, generation: u32) -> HitTarget {
+    target.owner_id = Some(owner_id.into());
+    target.generation = generation;
+    target
+}
+
+fn view_selector_state_key() -> String {
+    "store.view_selector".to_string()
+}
+
+fn controller_top_from_position(position: i64, arena_h: i64, controller_h: i64) -> i64 {
+    ((arena_h - controller_h).max(0) * position.clamp(0, 100) / 100)
+        .clamp(0, arena_h - controller_h)
+}
+
+fn controller_left_from_position(position: i64, arena_w: i64, controller_w: i64) -> i64 {
+    ((arena_w - controller_w).max(0) * position.clamp(0, 100) / 100)
+        .clamp(0, arena_w - controller_w)
+}
+
+fn position_from_controller_top(top: i64, arena_h: i64, controller_h: i64) -> i64 {
+    let span = (arena_h - controller_h).max(1);
     (top.clamp(0, span) * 100 / span).clamp(0, 100)
 }
 

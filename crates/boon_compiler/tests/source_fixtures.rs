@@ -2,29 +2,17 @@ use boon_compiler::compile_source;
 use std::fs;
 use std::path::PathBuf;
 
-const EXAMPLES: &[&str] = &[
-    "counter",
-    "counter_hold",
-    "interval",
-    "interval_hold",
-    "todo_mvc",
-    "todo_mvc_physical",
-    "cells",
-    "pong",
-    "arkanoid",
-];
-
 #[test]
 fn maintained_examples_compile_and_match_source_snapshots() {
     let root = repo_root();
-    for name in EXAMPLES {
-        let source_path = root.join("examples").join(name).join("source.bn");
+    for name in manifest_examples(&root) {
+        let source_path = root.join("examples").join(&name).join("source.bn");
         let expected_path = root
             .join("examples")
-            .join(name)
+            .join(&name)
             .join("expected.source_inventory.json");
         let source = fs::read_to_string(&source_path).expect("example source readable");
-        let compiled = compile_source(name, &source).expect("example compiles");
+        let compiled = compile_source(&name, &source).expect("example compiles");
         let actual = serde_json::to_value(&compiled.sources).expect("inventory serializes");
         let expected: serde_json::Value = serde_json::from_str(
             &fs::read_to_string(&expected_path).expect("expected inventory readable"),
@@ -34,7 +22,7 @@ fn maintained_examples_compile_and_match_source_snapshots() {
 
         let expected_path = root
             .join("examples")
-            .join(name)
+            .join(&name)
             .join("expected.program.json");
         let actual = serde_json::to_value(&compiled.program).expect("program spec serializes");
         let expected: serde_json::Value = serde_json::from_str(
@@ -43,6 +31,12 @@ fn maintained_examples_compile_and_match_source_snapshots() {
         .expect("expected program spec parses");
         assert_eq!(actual, expected, "compiled program spec changed for {name}");
     }
+}
+
+fn manifest_examples(root: &std::path::Path) -> Vec<String> {
+    let path = root.join("examples").join("manifest.json");
+    serde_json::from_str(&fs::read_to_string(&path).expect("example manifest readable"))
+        .expect("example manifest parses")
 }
 
 #[test]

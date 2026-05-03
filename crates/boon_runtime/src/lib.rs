@@ -8,7 +8,8 @@ use std::time::Duration;
 
 mod compiled_app;
 
-pub use compiled_app::ExampleApp;
+pub use compiled_app::CompiledApp;
+pub type ExampleApp = CompiledApp;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum SourceValue {
@@ -40,8 +41,8 @@ pub struct TurnMetrics {
     pub turn_ms: f64,
     pub patch_count: usize,
     pub events_processed: usize,
-    pub list_rows_touched: usize,
-    pub list_structure_rebuilds: usize,
+    pub dynamic_rows_touched: usize,
+    pub dynamic_structure_rebuilds: usize,
     pub source_rebindings: usize,
 }
 
@@ -67,7 +68,7 @@ pub struct AppSnapshot {
 pub trait BoonApp {
     fn mount(&mut self) -> TurnResult;
     fn dispatch_batch(&mut self, batch: SourceBatch) -> Result<Vec<TurnResult>>;
-    fn advance_fake_time(&mut self, _delta: Duration) -> TurnResult {
+    fn advance_time(&mut self, _delta: Duration) -> TurnResult {
         TurnResult::default()
     }
     fn snapshot(&self) -> AppSnapshot;
@@ -80,11 +81,11 @@ pub struct ClockTime {
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub struct FakeClock {
+pub struct RuntimeClock {
     pub millis: u64,
 }
 
-impl FakeClock {
+impl RuntimeClock {
     pub fn advance(&mut self, delta: Duration) {
         self.millis += delta.as_millis() as u64;
     }

@@ -3,9 +3,10 @@ use boon_hir::{HirModule, lower};
 use boon_host_schema::{HostContract, element_contracts};
 use boon_shape::Shape;
 use boon_source::{SourceEntry, SourceInventory, SourceOwner};
-use boon_syntax::parse_module;
+use boon_syntax::{ParsedModule, ParsedRecordEntry, parse_module};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use sha2::{Digest, Sha256};
+use std::collections::{BTreeMap, HashSet};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CompiledModule {
@@ -13,17 +14,33 @@ pub struct CompiledModule {
     pub hir: HirModule,
     pub sources: SourceInventory,
     pub program: ProgramSpec,
+    pub provenance: CompiledProvenance,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CompiledProvenance {
+    pub source_sha256: String,
+    pub hir_sha256: String,
+    pub source_spans: Vec<CompiledSourceSpan>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CompiledSourceSpan {
+    pub kind: String,
+    pub path: String,
+    pub line: usize,
+    pub column: usize,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ProgramSpec {
     pub title: String,
     pub scene: SurfaceKind,
-    pub scalar_counter: Option<AccumulatorSpec>,
-    pub timer_counter: Option<ClockAccumulatorSpec>,
-    pub collection: Option<CollectionSpec>,
-    pub table: Option<TableSpec>,
-    pub playfield: Option<PlayfieldSpec>,
+    pub scalar_accumulator: Option<AccumulatorSpec>,
+    pub clock_accumulator: Option<ClockAccumulatorSpec>,
+    pub sequence: Option<SequenceSpec>,
+    pub dense_grid: Option<DenseGridSpec>,
+    pub kinematics: Option<KinematicSpec>,
     pub physical_debug: bool,
 }
 
@@ -34,9 +51,9 @@ pub enum SurfaceKind {
     Blank,
     ActionValue,
     ClockValue,
-    Collection,
-    Table,
-    Playfield,
+    Sequence,
+    DenseGrid,
+    Kinematics,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -56,38 +73,70 @@ pub struct ClockAccumulatorSpec {
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub struct CollectionSpec {
-    pub initial_titles: Vec<String>,
-    pub append_from_text_input: bool,
-    pub toggle_all_from_checkbox: bool,
-    pub clear_completed_from_button: bool,
-    pub filters: Vec<String>,
-    pub item_checkbox_toggle: bool,
-    pub item_remove_button: bool,
+pub struct SequenceSpec {
+    pub initial_texts: Vec<String>,
+    pub append_on_submit: bool,
+    pub actions: SequenceActionsSpec,
+    pub view_selectors: Vec<SequenceSelectorSpec>,
+    pub view: SequenceViewSpec,
+    pub dynamic_mark_toggle: bool,
+    pub dynamic_remove: bool,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SequenceActionsSpec {
+    pub mass_mark_event_path: Option<String>,
+    pub remove_marked_event_path: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct TableSpec {
+pub struct SequenceSelectorSpec {
+    pub id: String,
+    pub event_path: String,
+    pub label: String,
+    pub visibility: RecordVisibility,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SequenceViewSpec {
+    pub title_line: String,
+    pub entry_hint: String,
+    pub count_suffix: String,
+    pub remove_marked_label: Option<String>,
+    pub auxiliary_lines: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecordVisibility {
+    #[default]
+    All,
+    Unmarked,
+    Marked,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DenseGridSpec {
     pub rows: usize,
     pub columns: usize,
     pub editor_source_family: String,
-    pub formula_functions: Vec<String>,
+    pub expression_functions: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct PlayfieldSpec {
+pub struct KinematicSpec {
     pub frame_event_path: String,
     pub control_event_path: String,
     pub arena_width: i64,
     pub arena_height: i64,
-    pub ball: BallSpec,
-    pub player: PaddleSpec,
-    pub opponent: Option<PaddleSpec>,
-    pub bricks: Option<BrickFieldSpec>,
+    pub body: MovingBodySpec,
+    pub primary_control: ControllerSpec,
+    pub tracked_control: Option<ControllerSpec>,
+    pub contact_field: Option<ContactFieldSpec>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct BallSpec {
+pub struct MovingBodySpec {
     pub x: i64,
     pub y: i64,
     pub dx: i64,
@@ -96,7 +145,7 @@ pub struct BallSpec {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct PaddleSpec {
+pub struct ControllerSpec {
     pub axis: ControlAxis,
     pub position: i64,
     pub step: i64,
@@ -115,32 +164,34 @@ pub enum ControlAxis {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct BrickFieldSpec {
+pub struct ContactFieldSpec {
     pub rows: usize,
     pub columns: usize,
     pub top: i64,
     pub margin: i64,
     pub gap: i64,
     pub height: i64,
-    pub score_per_hit: i64,
+    pub value_per_contact: i64,
 }
 
 pub fn compile_source(name: &str, source: &str) -> Result<CompiledModule> {
     let parsed = parse_module(name, source)?;
     let hir = lower(parsed.clone());
-    let dynamic_list_root = infer_dynamic_list_root(source);
-    let dynamic_grid_root = infer_grid_source_root(source);
-    let host_bindings = collect_host_bindings(
-        source,
-        dynamic_list_root.as_deref(),
-        dynamic_grid_root.as_deref(),
+    let provenance = compiled_provenance(source, &hir)?;
+    let dynamic_sequence_root = infer_dynamic_sequence_root(&parsed);
+    let dynamic_dense_root = infer_dense_source_root(&parsed);
+    let map_alias_roots = map_alias_roots(
+        &parsed,
+        dynamic_sequence_root.as_deref(),
+        dynamic_dense_root.as_deref(),
     );
+    let host_bindings = collect_host_bindings(&parsed, &map_alias_roots);
     let contracts = element_contracts();
     let mut seen = HashSet::new();
     let mut entries = Vec::new();
 
     for leaf in &parsed.source_leaves {
-        let source_path = normalize_source_path(&leaf.path, dynamic_list_root.as_deref());
+        let source_path = normalize_source_path(&leaf.path, dynamic_sequence_root.as_deref());
         if source_path.is_empty() {
             bail!("SOURCE at line {} has no data path", leaf.span.line);
         }
@@ -175,12 +226,40 @@ pub fn compile_source(name: &str, source: &str) -> Result<CompiledModule> {
     }
 
     let sources = SourceInventory { entries };
-    let program = program_spec(name, source, &sources);
+    let program = program_spec(name, &parsed, &sources);
     Ok(CompiledModule {
         name: name.to_string(),
         hir,
         sources,
         program,
+        provenance,
+    })
+}
+
+fn compiled_provenance(source: &str, hir: &HirModule) -> Result<CompiledProvenance> {
+    let source_sha256 = hex::encode(Sha256::digest(source.as_bytes()));
+    let hir_sha256 = hex::encode(Sha256::digest(serde_json::to_vec(hir)?));
+    let mut source_spans = Vec::new();
+    for leaf in &hir.parsed.source_leaves {
+        source_spans.push(CompiledSourceSpan {
+            kind: "SOURCE".to_string(),
+            path: leaf.path.clone(),
+            line: leaf.span.line,
+            column: leaf.span.column,
+        });
+    }
+    for call in &hir.parsed.module_calls {
+        source_spans.push(CompiledSourceSpan {
+            kind: "module_call".to_string(),
+            path: call.path.clone(),
+            line: call.span.line,
+            column: call.span.column,
+        });
+    }
+    Ok(CompiledProvenance {
+        source_sha256,
+        hir_sha256,
+        source_spans,
     })
 }
 
@@ -198,116 +277,30 @@ struct SourceBinding {
 }
 
 fn collect_host_bindings(
-    source: &str,
-    dynamic_list_root: Option<&str>,
-    dynamic_grid_root: Option<&str>,
+    parsed: &ParsedModule,
+    map_alias_roots: &BTreeMap<String, String>,
 ) -> Vec<HostBinding> {
-    let mut bindings = Vec::new();
-    let lines = source.lines().collect::<Vec<_>>();
-    for (line_idx, line) in lines.iter().enumerate() {
-        let mut search_from = 0;
-        while let Some(element_idx) = line[search_from..].find("Element/") {
-            let absolute_idx = search_from + element_idx;
-            let function = line[absolute_idx..]
-                .chars()
-                .take_while(|ch| ch.is_ascii_alphanumeric() || *ch == '/' || *ch == '_')
-                .collect::<String>();
-            if function.is_empty() {
-                search_from = absolute_idx + "Element/".len();
-                continue;
-            }
-            let block = call_block(&lines, line_idx, absolute_idx);
-            for source_base in element_args(&block, dynamic_list_root, dynamic_grid_root) {
-                bindings.push(HostBinding {
-                    function: function.clone(),
-                    source_base,
-                });
-            }
-            search_from = absolute_idx + function.len();
-        }
-    }
-    bindings
+    parsed
+        .module_calls
+        .iter()
+        .filter(|call| call.path.starts_with("Element/"))
+        .flat_map(|call| {
+            call.args
+                .iter()
+                .filter(|arg| arg.name == "element")
+                .map(|arg| HostBinding {
+                    function: call.path.clone(),
+                    source_base: normalize_binding_expr(&arg.value, map_alias_roots),
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
 }
 
-fn call_block(lines: &[&str], start_line: usize, start_col: usize) -> String {
-    let mut block = String::new();
-    let mut depth = 0isize;
-    let mut saw_open = false;
-    for line in &lines[start_line..] {
-        let text = if block.is_empty() {
-            line.get(start_col..).unwrap_or_default()
-        } else {
-            line
-        };
-        for ch in text.chars() {
-            if ch == '(' {
-                depth += 1;
-                saw_open = true;
-            } else if ch == ')' {
-                depth -= 1;
-            }
-            block.push(ch);
-            if saw_open && depth <= 0 {
-                return block;
-            }
-        }
-        block.push('\n');
-    }
-    block
-}
-
-fn element_args(
-    block: &str,
-    dynamic_list_root: Option<&str>,
-    dynamic_grid_root: Option<&str>,
-) -> Vec<String> {
-    let mut args = Vec::new();
-    let mut depth = 0isize;
-    let mut idx = 0;
-    while idx < block.len() {
-        let ch = block[idx..].chars().next().unwrap_or_default();
-        if ch == '(' {
-            depth += 1;
-            idx += ch.len_utf8();
-            continue;
-        }
-        if ch == ')' {
-            depth -= 1;
-            idx += ch.len_utf8();
-            continue;
-        }
-        if depth == 1 && block[idx..].starts_with("element:") {
-            let rest = &block[idx + "element:".len()..];
-            let expr = rest
-                .trim_start()
-                .chars()
-                .take_while(|ch| ch.is_ascii_alphanumeric() || *ch == '_' || *ch == '.')
-                .collect::<String>();
-            if !expr.is_empty() {
-                args.push(normalize_binding_expr(
-                    &expr,
-                    dynamic_list_root,
-                    dynamic_grid_root,
-                ));
-            }
-            idx += "element:".len();
-            continue;
-        }
-        idx += ch.len_utf8();
-    }
-    args
-}
-
-fn normalize_binding_expr(
-    expr: &str,
-    dynamic_list_root: Option<&str>,
-    dynamic_grid_root: Option<&str>,
-) -> String {
-    if let Some(tail) = expr.strip_prefix("item.sources.") {
-        let root = dynamic_list_root.unwrap_or("items");
-        format!("{root}[*].sources.{tail}")
-    } else if let Some(tail) = expr.strip_prefix("cell.sources.") {
-        let root = dynamic_grid_root.unwrap_or("table");
+fn normalize_binding_expr(expr: &str, map_alias_roots: &BTreeMap<String, String>) -> String {
+    if let Some((alias, tail)) = expr.split_once(".sources.")
+        && let Some(root) = map_alias_roots.get(alias)
+    {
         format!("{root}[*].sources.{tail}")
     } else if let Some((root, tail)) = expr.split_once(".sources.") {
         if root == "store" {
@@ -317,6 +310,54 @@ fn normalize_binding_expr(
         }
     } else {
         expr.to_string()
+    }
+}
+
+fn map_alias_roots(
+    parsed: &ParsedModule,
+    dynamic_sequence_root: Option<&str>,
+    dynamic_dense_root: Option<&str>,
+) -> BTreeMap<String, String> {
+    let mut roots = BTreeMap::new();
+    for binding in &parsed.map_bindings {
+        let collection = binding.collection_root();
+        let root = collection
+            .and_then(|collection| roots.get(collection).cloned())
+            .or_else(|| {
+                collection
+                    .zip(dynamic_sequence_root)
+                    .and_then(|(collection, root)| (collection == root).then(|| root.to_string()))
+            })
+            .or_else(|| {
+                collection
+                    .zip(dynamic_dense_root)
+                    .and_then(|(collection, root)| (collection == root).then(|| root.to_string()))
+            })
+            .or_else(|| {
+                (dynamic_sequence_root.is_some() && dynamic_dense_root.is_none())
+                    .then(|| dynamic_sequence_root.expect("checked").to_string())
+            })
+            .or_else(|| {
+                (dynamic_dense_root.is_some() && dynamic_sequence_root.is_none())
+                    .then(|| dynamic_dense_root.expect("checked").to_string())
+            })
+            .or_else(|| Some("records".to_string()));
+        if let Some(root) = root {
+            roots.insert(binding.variable.clone(), root);
+        }
+    }
+    roots
+}
+
+trait MapBindingRoot {
+    fn collection_root(&self) -> Option<&str>;
+}
+
+impl MapBindingRoot for boon_syntax::MapBinding {
+    fn collection_root(&self) -> Option<&str> {
+        self.collection
+            .split(|ch: char| ch.is_whitespace() || ch == '.' || ch == '|')
+            .find(|part| !part.is_empty())
     }
 }
 
@@ -356,47 +397,44 @@ fn binding_for_source(
     }
 }
 
-fn program_spec(name: &str, source: &str, sources: &SourceInventory) -> ProgramSpec {
-    let has_grid_element = source.contains("Element/grid(");
+fn program_spec(name: &str, parsed: &ParsedModule, sources: &SourceInventory) -> ProgramSpec {
+    let title = first_child_text(parsed, "title").unwrap_or_else(|| name.replace('_', " "));
+    let has_dense_element = parsed
+        .module_calls
+        .iter()
+        .any(|call| call.path == "Element/grid");
     let dynamic_families = dynamic_source_families(sources);
-    let list_family = (!has_grid_element)
+    let sequence_family = (!has_dense_element)
         .then(|| dynamic_families.first().cloned())
         .flatten();
-    let grid_family = has_grid_element
+    let dense_family = has_dense_element
         .then(|| dynamic_families.first().cloned())
         .flatten();
 
-    let collection = list_family.as_ref().map(|family| CollectionSpec {
-        initial_titles: extract_initial_collection_titles(source),
-        append_from_text_input: source.contains("|> List/append(")
+    let view_selectors = sequence_view_selectors(parsed, sources);
+    let sequence = sequence_family.as_ref().map(|family| SequenceSpec {
+        initial_texts: initial_sequence_literals(parsed, family),
+        append_on_submit: module_called(parsed, "List/append")
             && static_source_with_producer(sources, "Element/text_input(element.text)").is_some(),
-        toggle_all_from_checkbox: static_source_with_producer(
-            sources,
-            "Element/checkbox(element.event.click)",
-        )
-        .is_some(),
-        clear_completed_from_button: static_source_with_producer(
-            sources,
-            "Element/button(element.event.press)",
-        )
-        .is_some(),
-        filters: static_view_names(sources),
-        item_checkbox_toggle: source_family_with_producer(
+        actions: sequence_actions(parsed, sources),
+        view_selectors,
+        view: sequence_view_spec(parsed, &title),
+        dynamic_mark_toggle: source_family_with_producer(
             sources,
             family,
             "Element/checkbox(element.event.click)",
         )
         .is_some(),
-        item_remove_button: source_family_with_producer(
+        dynamic_remove: source_family_with_producer(
             sources,
             family,
             "Element/button(element.event.press)",
         )
         .is_some(),
     });
-    let table = grid_family.as_ref().map(|family| TableSpec {
-        rows: extract_range_to(source, "rows").unwrap_or(100),
-        columns: extract_range_to(source, "columns").unwrap_or(26),
+    let dense_grid = dense_family.as_ref().map(|family| DenseGridSpec {
+        rows: range_to(parsed, "rows").unwrap_or(100),
+        columns: range_to(parsed, "columns").unwrap_or(26),
         editor_source_family: source_family_with_producer(
             sources,
             family,
@@ -404,80 +442,78 @@ fn program_spec(name: &str, source: &str, sources: &SourceInventory) -> ProgramS
         )
         .and_then(|path| path.strip_suffix(".text").map(str::to_string))
         .unwrap_or_else(|| format!("{family}.sources.editor")),
-        formula_functions: extract_formula_functions(source),
+        expression_functions: expression_functions(parsed),
     });
-    let scalar_counter =
+    let scalar_accumulator =
         static_source_with_producer(sources, "Element/button(element.event.press)")
-            .filter(|_| collection.is_none() && table.is_none() && !source.contains("\nmotion:"))
+            .filter(|_| {
+                sequence.is_none()
+                    && dense_grid.is_none()
+                    && top_record(parsed, "kinematics").is_none()
+            })
             .map(|event_path| AccumulatorSpec {
                 event_path,
-                state_path: "counter".to_string(),
+                state_path: "scalar_value".to_string(),
                 initial: 0,
-                step: extract_hold_increment(source, "counter").unwrap_or(0),
-                button_label: extract_text_record_field(source, "button", "label")
-                    .unwrap_or_else(|| "Increment".to_string()),
+                step: first_hold_step(parsed).unwrap_or(0),
+                button_label: scalar_button_label(parsed).unwrap_or_default(),
             });
-    let timer_counter = static_tick_source(sources)
-        .filter(|_| scalar_counter.is_none() && !source.contains("\nmotion:"))
+    let clock_accumulator = static_tick_source(sources)
+        .filter(|_| scalar_accumulator.is_none() && top_record(parsed, "kinematics").is_none())
         .map(|event_path| ClockAccumulatorSpec {
             event_path,
-            state_path: "interval_count".to_string(),
+            state_path: "clock_value".to_string(),
             quantum_ms: 1000,
         });
-    let playfield = source
-        .contains("\nmotion:")
-        .then(|| playfield_spec(source, sources));
-    let title = extract_text_record_field(source, "game", "title")
-        .unwrap_or_else(|| name.replace('_', " "));
-    let scene = if collection.is_some() {
-        SurfaceKind::Collection
-    } else if table.is_some() {
-        SurfaceKind::Table
-    } else if scalar_counter.is_some() {
+    let kinematics = top_record(parsed, "kinematics").map(|record| kinematic_spec(record, sources));
+    let scene = if sequence.is_some() {
+        SurfaceKind::Sequence
+    } else if dense_grid.is_some() {
+        SurfaceKind::DenseGrid
+    } else if scalar_accumulator.is_some() {
         SurfaceKind::ActionValue
-    } else if timer_counter.is_some() {
+    } else if clock_accumulator.is_some() {
         SurfaceKind::ClockValue
-    } else if playfield.is_some() {
-        SurfaceKind::Playfield
+    } else if kinematics.is_some() {
+        SurfaceKind::Kinematics
     } else {
         SurfaceKind::Blank
     };
     ProgramSpec {
         title,
         scene,
-        scalar_counter,
-        timer_counter,
-        collection,
-        table,
-        playfield,
-        physical_debug: source.contains("physical_debug: True"),
+        scalar_accumulator,
+        clock_accumulator,
+        sequence,
+        dense_grid,
+        kinematics,
+        physical_debug: record_bool(top_record(parsed, "view"), "physical_debug").unwrap_or(false),
     }
 }
 
-fn playfield_spec(source: &str, sources: &SourceInventory) -> PlayfieldSpec {
-    let playfield = named_block(source, "motion").unwrap_or_default();
-    let arena = named_block(&playfield, "arena").unwrap_or_default();
-    let ball = named_block(&playfield, "ball").unwrap_or_default();
-    let player = named_block(&playfield, "player").unwrap_or_default();
-    let opponent = named_block(&playfield, "opponent");
-    let bricks = named_block(&playfield, "bricks");
-    PlayfieldSpec {
+fn kinematic_spec(record: &ParsedRecordEntry, sources: &SourceInventory) -> KinematicSpec {
+    let arena = child_record(record, "arena");
+    let body = child_record(record, "body");
+    let primary_control = child_record(record, "primary_control");
+    let tracked_control = child_record(record, "tracked_control");
+    let contact_field = child_record(record, "contact_field");
+    KinematicSpec {
         frame_event_path: first_static_path_matching(sources, ".event.frame").unwrap_or_default(),
         control_event_path: first_static_path_matching(sources, ".event.key_down.key")
             .unwrap_or_default(),
-        arena_width: number_field(&arena, "width").unwrap_or(1000),
-        arena_height: number_field(&arena, "height").unwrap_or(700),
-        ball: BallSpec {
-            x: number_field(&ball, "x").unwrap_or(500),
-            y: number_field(&ball, "y").unwrap_or(350),
-            dx: number_field(&ball, "dx").unwrap_or(10),
-            dy: number_field(&ball, "dy").unwrap_or(8),
-            size: number_field(&ball, "size").unwrap_or(22),
+        arena_width: record_number(arena, "width").unwrap_or(1000),
+        arena_height: record_number(arena, "height").unwrap_or(700),
+        body: MovingBodySpec {
+            x: record_number(body, "x").unwrap_or(500),
+            y: record_number(body, "y").unwrap_or(350),
+            dx: record_number(body, "dx").unwrap_or(10),
+            dy: record_number(body, "dy").unwrap_or(8),
+            size: record_number(body, "size").unwrap_or(22),
         },
-        player: paddle_spec(
-            &player,
+        primary_control: controller_spec(
+            primary_control,
             ControlAxis::Vertical,
-            PaddleSpec {
+            ControllerSpec {
                 axis: ControlAxis::Vertical,
                 position: 50,
                 step: 8,
@@ -488,11 +524,11 @@ fn playfield_spec(source: &str, sources: &SourceInventory) -> PlayfieldSpec {
                 auto_track: false,
             },
         ),
-        opponent: opponent.as_deref().map(|block| {
-            paddle_spec(
-                block,
+        tracked_control: tracked_control.map(|block| {
+            controller_spec(
+                Some(block),
                 ControlAxis::Vertical,
-                PaddleSpec {
+                ControllerSpec {
                     axis: ControlAxis::Vertical,
                     position: 50,
                     step: 8,
@@ -504,28 +540,32 @@ fn playfield_spec(source: &str, sources: &SourceInventory) -> PlayfieldSpec {
                 },
             )
         }),
-        bricks: bricks.as_deref().map(|block| BrickFieldSpec {
-            rows: number_field(block, "rows").unwrap_or(6).max(0) as usize,
-            columns: number_field(block, "columns").unwrap_or(12).max(0) as usize,
-            top: number_field(block, "top").unwrap_or(56),
-            margin: number_field(block, "margin").unwrap_or(36),
-            gap: number_field(block, "gap").unwrap_or(8),
-            height: number_field(block, "height").unwrap_or(28),
-            score_per_hit: number_field(block, "score_per_hit").unwrap_or(10),
+        contact_field: contact_field.map(|block| ContactFieldSpec {
+            rows: record_number(Some(block), "rows").unwrap_or(6).max(0) as usize,
+            columns: record_number(Some(block), "columns").unwrap_or(12).max(0) as usize,
+            top: record_number(Some(block), "top").unwrap_or(56),
+            margin: record_number(Some(block), "margin").unwrap_or(36),
+            gap: record_number(Some(block), "gap").unwrap_or(8),
+            height: record_number(Some(block), "height").unwrap_or(28),
+            value_per_contact: record_number(Some(block), "value_per_contact").unwrap_or(10),
         }),
     }
 }
 
-fn paddle_spec(block: &str, default_axis: ControlAxis, default: PaddleSpec) -> PaddleSpec {
-    PaddleSpec {
-        axis: axis_field(block, "axis").unwrap_or(default_axis),
-        position: number_field(block, "position").unwrap_or(default.position),
-        step: number_field(block, "step").unwrap_or(default.step),
-        x: number_field(block, "x").unwrap_or(default.x),
-        y: number_field(block, "y").unwrap_or(default.y),
-        width: number_field(block, "width").unwrap_or(default.width),
-        height: number_field(block, "height").unwrap_or(default.height),
-        auto_track: tag_field(block, "auto_track").unwrap_or(default.auto_track),
+fn controller_spec(
+    block: Option<&ParsedRecordEntry>,
+    default_axis: ControlAxis,
+    default: ControllerSpec,
+) -> ControllerSpec {
+    ControllerSpec {
+        axis: record_axis(block, "axis").unwrap_or(default_axis),
+        position: record_number(block, "position").unwrap_or(default.position),
+        step: record_number(block, "step").unwrap_or(default.step),
+        x: record_number(block, "x").unwrap_or(default.x),
+        y: record_number(block, "y").unwrap_or(default.y),
+        width: record_number(block, "width").unwrap_or(default.width),
+        height: record_number(block, "height").unwrap_or(default.height),
+        auto_track: record_bool(block, "auto_track").unwrap_or(default.auto_track),
     }
 }
 
@@ -548,6 +588,15 @@ fn static_source_with_producer(sources: &SourceInventory, producer: &str) -> Opt
         .iter()
         .find(|entry| matches!(&entry.owner, SourceOwner::Static) && entry.producer == producer)
         .map(|entry| entry.path.clone())
+}
+
+fn static_paths_for_producer(sources: &SourceInventory, producer: &str) -> Vec<String> {
+    sources
+        .entries
+        .iter()
+        .filter(|entry| matches!(&entry.owner, SourceOwner::Static) && entry.producer == producer)
+        .map(|entry| entry.path.clone())
+        .collect()
 }
 
 fn source_family_with_producer(
@@ -574,82 +623,163 @@ fn static_tick_source(sources: &SourceInventory) -> Option<String> {
     first_static_path_matching(sources, ".event.tick")
 }
 
-fn static_view_names(sources: &SourceInventory) -> Vec<String> {
-    sources
-        .entries
-        .iter()
-        .filter(|entry| {
-            matches!(&entry.owner, SourceOwner::Static)
-                && entry.producer == "Element/button(element.event.press)"
+fn sequence_view_selectors(
+    parsed: &ParsedModule,
+    sources: &SourceInventory,
+) -> Vec<SequenceSelectorSpec> {
+    top_record(parsed, "view")
+        .and_then(|view| child_record(view, "selectors"))
+        .map(|selectors| {
+            selectors
+                .children
+                .iter()
+                .filter_map(|selector| {
+                    let event_path = static_source_event_by_base_name(
+                        sources,
+                        &selector.key,
+                        "Element/button(element.event.press)",
+                    )?;
+                    let label = child_text(parsed, selector, "label")
+                        .unwrap_or_else(|| selector.key.clone());
+                    let visibility =
+                        record_visibility(child_record(selector, "visibility")).unwrap_or_default();
+                    Some(SequenceSelectorSpec {
+                        id: selector.key.clone(),
+                        event_path,
+                        label,
+                        visibility,
+                    })
+                })
+                .collect()
         })
-        .filter_map(|entry| {
-            entry
-                .path
-                .strip_suffix(".event.press")
-                .and_then(|base| base.rsplit('.').next())
-                .and_then(|name| name.strip_prefix("filter_"))
-                .map(str::to_string)
-        })
-        .collect()
+        .unwrap_or_default()
 }
 
-fn infer_dynamic_list_root(source: &str) -> Option<String> {
-    top_level_blocks(source)
-        .into_iter()
-        .find(|(_, block)| block.contains("LIST {") && block.contains("|> List/append("))
-        .map(|(name, _)| name)
-}
-
-fn infer_grid_source_root(source: &str) -> Option<String> {
-    source.contains("Element/grid(").then_some(())?;
-    top_level_blocks(source)
-        .into_iter()
-        .find(|(name, block)| {
-            name != "store" && block.lines().any(|line| line.trim() == "sources:")
-        })
-        .map(|(name, _)| name)
-}
-
-fn top_level_blocks(source: &str) -> Vec<(String, String)> {
-    let lines = source.lines().collect::<Vec<_>>();
-    let mut blocks = Vec::new();
-    let mut idx = 0;
-    while idx < lines.len() {
-        let line = lines[idx];
-        if line.starts_with(' ') || line.trim().is_empty() || line.trim_start().starts_with('#') {
-            idx += 1;
-            continue;
-        }
-        let Some((name, _)) = line.trim().split_once(':') else {
-            idx += 1;
-            continue;
-        };
-        if !is_plain_identifier(name.trim()) {
-            idx += 1;
-            continue;
-        }
-        let start = idx;
-        idx += 1;
-        while idx < lines.len() && (lines[idx].starts_with(' ') || lines[idx].trim().is_empty()) {
-            idx += 1;
-        }
-        blocks.push((name.trim().to_string(), lines[start..idx].join("\n")));
+fn sequence_actions(parsed: &ParsedModule, sources: &SourceInventory) -> SequenceActionsSpec {
+    let action_record = top_record(parsed, "view").and_then(|view| child_record(view, "actions"));
+    let mass_mark_event_path = action_record
+        .and_then(|actions| child_record(actions, "mass_mark"))
+        .and_then(|action| action_source_name(action))
+        .and_then(|source_name| {
+            static_source_event_by_base_name(
+                sources,
+                source_name,
+                "Element/checkbox(element.event.click)",
+            )
+        });
+    let remove_marked_event_path = action_record
+        .and_then(|actions| child_record(actions, "remove_marked"))
+        .and_then(|action| action_source_name(action))
+        .and_then(|source_name| {
+            static_source_event_by_base_name(
+                sources,
+                source_name,
+                "Element/button(element.event.press)",
+            )
+        });
+    SequenceActionsSpec {
+        mass_mark_event_path,
+        remove_marked_event_path,
     }
-    blocks
 }
 
-fn is_plain_identifier(value: &str) -> bool {
-    !value.is_empty()
-        && value
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+fn action_source_name(action: &ParsedRecordEntry) -> Option<&str> {
+    child_record(action, "source")?
+        .value
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
 }
 
-fn normalize_source_path(path: &str, dynamic_list_root: Option<&str>) -> String {
+fn static_source_event_by_base_name(
+    sources: &SourceInventory,
+    source_name: &str,
+    producer: &str,
+) -> Option<String> {
+    static_paths_for_producer(sources, producer)
+        .into_iter()
+        .find(|path| {
+            path.strip_suffix(source_event_suffix(producer))
+                .and_then(|base| base.rsplit('.').next())
+                == Some(source_name)
+        })
+}
+
+fn source_event_suffix(producer: &str) -> &'static str {
+    match producer {
+        "Element/checkbox(element.event.click)" => ".event.click",
+        "Element/button(element.event.press)" => ".event.press",
+        _ => "",
+    }
+}
+
+fn sequence_view_spec(parsed: &ParsedModule, title: &str) -> SequenceViewSpec {
+    let view = top_record(parsed, "view");
+    let auxiliary_lines = view
+        .and_then(|view| child_record(view, "auxiliary"))
+        .map(|auxiliary| {
+            auxiliary
+                .children
+                .iter()
+                .filter_map(|entry| text_literal_on_line(parsed, entry.span.line))
+                .filter(|text| !text.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    SequenceViewSpec {
+        title_line: view
+            .and_then(|view| child_text(parsed, view, "title_line"))
+            .unwrap_or_else(|| title.to_string()),
+        entry_hint: view
+            .and_then(|view| child_text(parsed, view, "entry_hint"))
+            .unwrap_or_default(),
+        count_suffix: view
+            .and_then(|view| child_text(parsed, view, "count_suffix"))
+            .unwrap_or_else(|| "unmarked".to_string()),
+        remove_marked_label: view
+            .and_then(|view| child_record(view, "actions"))
+            .and_then(|actions| child_record(actions, "remove_marked"))
+            .and_then(|action| child_text(parsed, action, "label")),
+        auxiliary_lines,
+    }
+}
+
+fn record_visibility(record: Option<&ParsedRecordEntry>) -> Option<RecordVisibility> {
+    match record?.value.as_deref()?.trim() {
+        "All" => Some(RecordVisibility::All),
+        "Unmarked" => Some(RecordVisibility::Unmarked),
+        "Marked" => Some(RecordVisibility::Marked),
+        _ => None,
+    }
+}
+
+fn infer_dynamic_sequence_root(parsed: &ParsedModule) -> Option<String> {
+    let has_append = module_called(parsed, "List/append");
+    parsed
+        .records
+        .iter()
+        .find(|record| {
+            has_append
+                && record.key != "store"
+                && module_called_under_record(parsed, record, "List/append")
+        })
+        .map(|record| record.key.clone())
+}
+
+fn infer_dense_source_root(parsed: &ParsedModule) -> Option<String> {
+    module_called(parsed, "Element/grid").then_some(())?;
+    parsed
+        .records
+        .iter()
+        .find(|record| record.key != "store" && child_record(record, "sources").is_some())
+        .map(|record| record.key.clone())
+}
+
+fn normalize_source_path(path: &str, dynamic_sequence_root: Option<&str>) -> String {
     if path.starts_with("store.sources.") {
         path.to_string()
     } else if let Some(tail) = path.strip_prefix("sources.") {
-        let root = dynamic_list_root.unwrap_or("items");
+        let root = dynamic_sequence_root.unwrap_or("records");
         format!("{root}[*].sources.{tail}")
     } else if let Some((root, tail)) = path.split_once(".sources.") {
         if root == "store" {
@@ -664,153 +794,162 @@ fn normalize_source_path(path: &str, dynamic_list_root: Option<&str>) -> String 
 
 fn owner_path(path: &str) -> String {
     path.split_once("[*]")
-        .map(|(root, _)| format!("{root} item"))
-        .unwrap_or_else(|| "dynamic item".to_string())
+        .map(|(root, _)| format!("{root} record"))
+        .unwrap_or_else(|| "dynamic record".to_string())
 }
 
-fn extract_initial_collection_titles(source: &str) -> Vec<String> {
-    let mut titles = Vec::new();
-    let list_start = source.find("LIST {").unwrap_or(0);
-    let list_end = source[list_start..]
-        .find("\n    }")
-        .map(|idx| list_start + idx)
-        .unwrap_or(source.len());
-    let mut rest = &source[list_start..list_end];
-    let needle = "TEXT {";
-    while let Some(idx) = rest.find(needle) {
-        rest = &rest[idx + needle.len()..];
-        let Some(end) = rest.find('}') else {
-            break;
-        };
-        titles.push(rest[..end].trim().to_string());
-        rest = &rest[end + 1..];
-    }
-    titles
-}
-
-fn extract_range_to(source: &str, binding: &str) -> Option<usize> {
-    let binding_idx = source.find(&format!("{binding}:"))?;
-    let rest = &source[binding_idx..source.len().min(binding_idx + 160)];
-    let to_idx = rest.find("to:")?;
-    let rest = &rest[to_idx + "to:".len()..];
-    let digits = rest
-        .trim_start()
-        .chars()
-        .take_while(|ch| ch.is_ascii_digit())
-        .collect::<String>();
-    digits.parse().ok()
-}
-
-fn extract_hold_increment(source: &str, binding: &str) -> Option<i64> {
-    let binding_idx = source.find(&format!("{binding}:"))?;
-    let block = &source[binding_idx..source.len().min(binding_idx + 240)];
-    let state_idx = block.find("state +")?;
-    let rest = &block[state_idx + "state +".len()..];
-    let digits = rest
-        .trim_start()
-        .chars()
-        .take_while(|ch| ch.is_ascii_digit() || *ch == '-')
-        .collect::<String>();
-    digits.parse().ok()
-}
-
-fn extract_text_record_field(source: &str, record: &str, field: &str) -> Option<String> {
-    let record_idx = source.find(&format!("{record}:"))?;
-    let field_idx = source[record_idx..].find(&format!("{field}: TEXT {{"))? + record_idx;
-    let rest = &source[field_idx + format!("{field}: TEXT {{").len()..];
-    let end = rest.find('}')?;
-    Some(rest[..end].trim().to_string())
-}
-
-fn named_block(source: &str, name: &str) -> Option<String> {
-    let header = format!("{name}:");
-    let lines = source.lines().collect::<Vec<_>>();
-    let start = lines.iter().position(|line| line.trim_start() == header)?;
-    let base_indent = lines[start].chars().take_while(|ch| *ch == ' ').count();
-    let mut block = Vec::new();
-    for line in lines.iter().skip(start + 1) {
-        if line.trim().is_empty() {
-            block.push(String::new());
-            continue;
-        }
-        let indent = line.chars().take_while(|ch| *ch == ' ').count();
-        if indent <= base_indent {
-            break;
-        }
-        block.push((*line).to_string());
-    }
-    Some(block.join("\n"))
-}
-
-fn number_field(block: &str, field: &str) -> Option<i64> {
-    let marker = format!("{field}:");
-    for line in block.lines() {
-        let trimmed = line.trim_start();
-        let Some(rest) = trimmed.strip_prefix(&marker) else {
-            continue;
-        };
-        let value = rest
-            .trim_start()
-            .chars()
-            .take_while(|ch| ch.is_ascii_digit() || *ch == '-')
-            .collect::<String>();
-        return value.parse().ok();
-    }
-    None
-}
-
-fn axis_field(block: &str, field: &str) -> Option<ControlAxis> {
-    let marker = format!("{field}:");
-    for line in block.lines() {
-        let trimmed = line.trim_start();
-        let Some(rest) = trimmed.strip_prefix(&marker) else {
-            continue;
-        };
-        return match rest.trim() {
-            "Horizontal" => Some(ControlAxis::Horizontal),
-            "Vertical" => Some(ControlAxis::Vertical),
-            _ => None,
-        };
-    }
-    None
-}
-
-fn tag_field(block: &str, field: &str) -> Option<bool> {
-    let marker = format!("{field}:");
-    for line in block.lines() {
-        let trimmed = line.trim_start();
-        let Some(rest) = trimmed.strip_prefix(&marker) else {
-            continue;
-        };
-        return match rest.trim() {
-            "True" => Some(true),
-            "False" => Some(false),
-            _ => None,
-        };
-    }
-    None
-}
-
-fn extract_formula_functions(source: &str) -> Vec<String> {
-    let mut functions = Vec::new();
-    let Some(formulas_idx) = source.find("formulas:") else {
-        return functions;
+fn initial_sequence_literals(parsed: &ParsedModule, binding: &str) -> Vec<String> {
+    let root = binding.strip_suffix("[*]").unwrap_or(binding);
+    let Some(record) = top_record(parsed, root) else {
+        return Vec::new();
     };
-    for raw_line in source[formulas_idx..].lines().skip(1) {
-        let trimmed = raw_line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') || trimmed == "functions:" {
-            continue;
-        }
-        let indent = raw_line.chars().take_while(|ch| *ch == ' ').count();
-        if indent == 0 {
-            break;
-        }
-        if let Some((name, module)) = trimmed.split_once(':') {
-            let module = module.trim();
-            if module.starts_with("Math/") {
-                functions.push(name.trim().to_string());
-            }
-        }
+    parsed
+        .text_literals
+        .iter()
+        .filter(|literal| span_under_record(parsed, literal.span.line, record))
+        .map(|literal| literal.value.clone())
+        .collect()
+}
+
+fn range_to(parsed: &ParsedModule, binding: &str) -> Option<usize> {
+    let record = top_record(parsed, binding)?;
+    parsed
+        .module_calls
+        .iter()
+        .find(|call| span_under_record(parsed, call.span.line, record) && call.path == "List/range")
+        .and_then(|call| call_arg(call, "to"))
+        .and_then(|value| value.parse().ok())
+}
+
+fn call_arg<'a>(call: &'a boon_syntax::ModuleCall, name: &str) -> Option<&'a str> {
+    call.args
+        .iter()
+        .find(|arg| arg.name == name)
+        .map(|arg| arg.value.as_str())
+}
+
+fn module_called_under_record(
+    parsed: &ParsedModule,
+    record: &ParsedRecordEntry,
+    path: &str,
+) -> bool {
+    parsed
+        .module_calls
+        .iter()
+        .any(|call| call.path == path && span_under_record(parsed, call.span.line, record))
+}
+
+fn span_under_record(parsed: &ParsedModule, line: usize, record: &ParsedRecordEntry) -> bool {
+    let start_line = record.span.line;
+    let end_line = top_record_end_line(parsed, record).unwrap_or(usize::MAX);
+    line >= start_line && line < end_line
+}
+
+fn top_record_end_line(parsed: &ParsedModule, record: &ParsedRecordEntry) -> Option<usize> {
+    parsed
+        .records
+        .iter()
+        .filter(|candidate| candidate.span.line > record.span.line)
+        .map(|candidate| candidate.span.line)
+        .min()
+}
+
+fn first_hold_step(parsed: &ParsedModule) -> Option<i64> {
+    let record = parsed.records.iter().find(|record| {
+        !matches!(
+            record.key.as_str(),
+            "store" | "view" | "document" | "kinematics"
+        ) && parsed
+            .state_steps
+            .iter()
+            .any(|step| step.state == "state" && span_under_record(parsed, step.span.line, record))
+    })?;
+    parsed
+        .state_steps
+        .iter()
+        .find(|step| step.state == "state" && span_under_record(parsed, step.span.line, record))
+        .map(|step| step.amount)
+}
+
+fn child_text(
+    parsed: &ParsedModule,
+    record: &ParsedRecordEntry,
+    child_key: &str,
+) -> Option<String> {
+    child_record(record, child_key).and_then(|child| text_literal_on_line(parsed, child.span.line))
+}
+
+fn scalar_button_label(parsed: &ParsedModule) -> Option<String> {
+    top_record(parsed, "view")
+        .and_then(|view| child_record(view, "action"))
+        .and_then(|action| child_text(parsed, action, "label"))
+}
+
+fn first_child_text(parsed: &ParsedModule, field: &str) -> Option<String> {
+    parsed
+        .records
+        .iter()
+        .find_map(|record| child_record(record, field))
+        .and_then(|child| text_literal_on_line(parsed, child.span.line))
+}
+
+fn text_literal_on_line(parsed: &ParsedModule, line: usize) -> Option<String> {
+    parsed
+        .text_literals
+        .iter()
+        .find(|literal| literal.span.line == line)
+        .map(|literal| literal.value.clone())
+}
+
+fn top_record<'a>(parsed: &'a ParsedModule, key: &str) -> Option<&'a ParsedRecordEntry> {
+    parsed.records.iter().find(|entry| entry.key == key)
+}
+
+fn child_record<'a>(record: &'a ParsedRecordEntry, key: &str) -> Option<&'a ParsedRecordEntry> {
+    record.children.iter().find(|entry| entry.key == key)
+}
+
+fn record_number(record: Option<&ParsedRecordEntry>, field: &str) -> Option<i64> {
+    child_record(record?, field)?
+        .value
+        .as_deref()?
+        .trim()
+        .parse()
+        .ok()
+}
+
+fn record_axis(record: Option<&ParsedRecordEntry>, field: &str) -> Option<ControlAxis> {
+    match child_record(record?, field)?.value.as_deref()?.trim() {
+        "Horizontal" => Some(ControlAxis::Horizontal),
+        "Vertical" => Some(ControlAxis::Vertical),
+        _ => None,
     }
-    functions
+}
+
+fn record_bool(record: Option<&ParsedRecordEntry>, field: &str) -> Option<bool> {
+    match child_record(record?, field)?.value.as_deref()?.trim() {
+        "True" => Some(true),
+        "False" => Some(false),
+        _ => None,
+    }
+}
+
+fn expression_functions(parsed: &ParsedModule) -> Vec<String> {
+    parsed
+        .records
+        .iter()
+        .filter_map(|record| child_record(record, "functions"))
+        .flat_map(|functions| functions.children.iter())
+        .filter(|entry| {
+            entry
+                .value
+                .as_deref()
+                .is_some_and(|value| value.trim().starts_with("Math/"))
+        })
+        .map(|entry| entry.key.clone())
+        .collect()
+}
+
+fn module_called(parsed: &ParsedModule, path: &str) -> bool {
+    parsed.module_calls.iter().any(|call| call.path == path)
 }

@@ -350,9 +350,14 @@ fn shaders() -> Result<()> {
 fn verify(args: &[String]) -> Result<()> {
     let root = repo_root()?;
     let artifacts = root.join("target/boon-artifacts");
+    let full_verify = args.first().map(String::as_str) == Some("all");
+    if full_verify && artifacts.exists() {
+        fs::remove_dir_all(&artifacts)
+            .with_context(|| format!("removing stale verify artifacts {}", artifacts.display()))?;
+    }
     fs::create_dir_all(&artifacts)?;
     let success_path = artifacts.join("success.json");
-    if args.first().map(String::as_str) == Some("all") && success_path.exists() {
+    if full_verify && success_path.exists() {
         fs::remove_file(&success_path)?;
     }
     let no_bootstrap = args.iter().any(|arg| arg == "--no-bootstrap");
