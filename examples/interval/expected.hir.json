@@ -66,7 +66,106 @@
         {
           "kind": "record",
           "key": "ticks",
-          "value": null,
+          "value": {
+            "kind": {
+              "kind": "pipeline",
+              "input": {
+                "kind": {
+                  "kind": "number",
+                  "value": 0
+                },
+                "span": {
+                  "line": 7,
+                  "column": 7
+                },
+                "raw": "0"
+              },
+              "stages": [
+                {
+                  "kind": {
+                    "kind": "hold",
+                    "state": "state",
+                    "body": {
+                      "kind": {
+                        "kind": "pipeline",
+                        "input": {
+                          "kind": {
+                            "kind": "path",
+                            "value": "store.sources.clock.event.tick"
+                          },
+                          "span": {
+                            "line": 7,
+                            "column": 7
+                          },
+                          "raw": "store.sources.clock.event.tick"
+                        },
+                        "stages": [
+                          {
+                            "kind": {
+                              "kind": "then",
+                              "body": {
+                                "kind": {
+                                  "kind": "binary",
+                                  "op": "add",
+                                  "left": {
+                                    "kind": {
+                                      "kind": "path",
+                                      "value": "state"
+                                    },
+                                    "span": {
+                                      "line": 7,
+                                      "column": 7
+                                    },
+                                    "raw": "state"
+                                  },
+                                  "right": {
+                                    "kind": {
+                                      "kind": "number",
+                                      "value": 1
+                                    },
+                                    "span": {
+                                      "line": 7,
+                                      "column": 7
+                                    },
+                                    "raw": "1"
+                                  }
+                                },
+                                "span": {
+                                  "line": 7,
+                                  "column": 7
+                                },
+                                "raw": "state + 1"
+                              }
+                            },
+                            "span": {
+                              "line": 7,
+                              "column": 7
+                            },
+                            "raw": "THEN { state + 1 }"
+                          }
+                        ]
+                      },
+                      "span": {
+                        "line": 7,
+                        "column": 7
+                      },
+                      "raw": "store.sources.clock.event.tick\n|> THEN { state + 1 }"
+                    }
+                  },
+                  "span": {
+                    "line": 7,
+                    "column": 7
+                  },
+                  "raw": "HOLD state {\nstore.sources.clock.event.tick\n|> THEN { state + 1 }\n}"
+                }
+              ]
+            },
+            "span": {
+              "line": 7,
+              "column": 7
+            },
+            "raw": "0 |> HOLD state {\nstore.sources.clock.event.tick\n|> THEN { state + 1 }\n}"
+          },
           "span": {
             "line": 7,
             "column": 1
@@ -76,256 +175,104 @@
         {
           "kind": "record",
           "key": "document",
-          "value": null,
+          "value": {
+            "kind": {
+              "kind": "call",
+              "path": "Document/new",
+              "args": [
+                {
+                  "name": "root",
+                  "value": {
+                    "kind": {
+                      "kind": "call",
+                      "path": "Element/label",
+                      "args": [
+                        {
+                          "name": "element",
+                          "value": {
+                            "kind": {
+                              "kind": "path",
+                              "value": "store.sources.clock"
+                            },
+                            "span": {
+                              "line": 13,
+                              "column": 10
+                            },
+                            "raw": "store.sources.clock"
+                          },
+                          "span": {
+                            "line": 13,
+                            "column": 10
+                          }
+                        },
+                        {
+                          "name": "text",
+                          "value": {
+                            "kind": {
+                              "kind": "pipeline",
+                              "input": {
+                                "kind": {
+                                  "kind": "path",
+                                  "value": "ticks"
+                                },
+                                "span": {
+                                  "line": 13,
+                                  "column": 10
+                                },
+                                "raw": "ticks"
+                              },
+                              "stages": [
+                                {
+                                  "kind": {
+                                    "kind": "call",
+                                    "path": "Text/from_number",
+                                    "args": []
+                                  },
+                                  "span": {
+                                    "line": 13,
+                                    "column": 10
+                                  },
+                                  "raw": "Text/from_number()"
+                                }
+                              ]
+                            },
+                            "span": {
+                              "line": 13,
+                              "column": 10
+                            },
+                            "raw": "ticks |> Text/from_number()"
+                          },
+                          "span": {
+                            "line": 13,
+                            "column": 10
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "line": 13,
+                      "column": 10
+                    },
+                    "raw": "Element/label(\nelement: store.sources.clock\ntext: ticks |> Text/from_number()\n)"
+                  },
+                  "span": {
+                    "line": 13,
+                    "column": 10
+                  }
+                }
+              ]
+            },
+            "span": {
+              "line": 13,
+              "column": 10
+            },
+            "raw": "Document/new(\nroot: Element/label(\nelement: store.sources.clock\ntext: ticks |> Text/from_number()\n)\n)"
+          },
           "span": {
             "line": 13,
             "column": 1
           },
-          "children": [
-            {
-              "key": "root",
-              "value": null,
-              "span": {
-                "line": 15,
-                "column": 9
-              },
-              "children": [
-                {
-                  "key": "element",
-                  "value": {
-                    "kind": {
-                      "kind": "path",
-                      "value": "store.sources.clock"
-                    },
-                    "span": {
-                      "line": 17,
-                      "column": 25
-                    },
-                    "raw": "store.sources.clock"
-                  },
-                  "span": {
-                    "line": 17,
-                    "column": 17
-                  },
-                  "children": []
-                },
-                {
-                  "key": "text",
-                  "value": {
-                    "kind": {
-                      "kind": "pipeline",
-                      "input": {
-                        "kind": {
-                          "kind": "path",
-                          "value": "ticks"
-                        },
-                        "span": {
-                          "line": 18,
-                          "column": 22
-                        },
-                        "raw": "ticks"
-                      },
-                      "stages": [
-                        {
-                          "kind": {
-                            "kind": "call",
-                            "path": "Text/from_number",
-                            "args": []
-                          },
-                          "span": {
-                            "line": 18,
-                            "column": 22
-                          },
-                          "raw": "Text/from_number()"
-                        }
-                      ]
-                    },
-                    "span": {
-                      "line": 18,
-                      "column": 22
-                    },
-                    "raw": "ticks |> Text/from_number()"
-                  },
-                  "span": {
-                    "line": 18,
-                    "column": 17
-                  },
-                  "children": []
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "kind": "expression",
-          "kind": {
-            "kind": "pipeline",
-            "input": {
-              "kind": {
-                "kind": "number",
-                "value": 0
-              },
-              "span": {
-                "line": 8,
-                "column": 5
-              },
-              "raw": "0"
-            },
-            "stages": [
-              {
-                "kind": {
-                  "kind": "hold",
-                  "state": "state",
-                  "body": {
-                    "kind": {
-                      "kind": "pipeline",
-                      "input": {
-                        "kind": {
-                          "kind": "path",
-                          "value": "store.sources.clock.event.tick"
-                        },
-                        "span": {
-                          "line": 8,
-                          "column": 5
-                        },
-                        "raw": "store.sources.clock.event.tick"
-                      },
-                      "stages": [
-                        {
-                          "kind": {
-                            "kind": "then",
-                            "body": {
-                              "kind": {
-                                "kind": "binary",
-                                "op": "add",
-                                "left": {
-                                  "kind": {
-                                    "kind": "path",
-                                    "value": "state"
-                                  },
-                                  "span": {
-                                    "line": 8,
-                                    "column": 5
-                                  },
-                                  "raw": "state"
-                                },
-                                "right": {
-                                  "kind": {
-                                    "kind": "number",
-                                    "value": 1
-                                  },
-                                  "span": {
-                                    "line": 8,
-                                    "column": 5
-                                  },
-                                  "raw": "1"
-                                }
-                              },
-                              "span": {
-                                "line": 8,
-                                "column": 5
-                              },
-                              "raw": "state + 1"
-                            }
-                          },
-                          "span": {
-                            "line": 8,
-                            "column": 5
-                          },
-                          "raw": "THEN { state + 1 }"
-                        }
-                      ]
-                    },
-                    "span": {
-                      "line": 8,
-                      "column": 5
-                    },
-                    "raw": "store.sources.clock.event.tick\n|> THEN { state + 1 }"
-                  }
-                },
-                "span": {
-                  "line": 8,
-                  "column": 5
-                },
-                "raw": "HOLD state {\nstore.sources.clock.event.tick\n|> THEN { state + 1 }\n}"
-              }
-            ]
-          },
-          "span": {
-            "line": 8,
-            "column": 5
-          },
-          "raw": "0 |> HOLD state {\nstore.sources.clock.event.tick\n|> THEN { state + 1 }\n}"
-        },
-        {
-          "kind": "expression",
-          "kind": {
-            "kind": "call",
-            "path": "Document/new",
-            "args": [
-              {
-                "name": "root",
-                "value": {
-                  "kind": {
-                    "kind": "raw"
-                  },
-                  "span": {
-                    "line": 14,
-                    "column": 5
-                  },
-                  "raw": ""
-                },
-                "span": {
-                  "line": 14,
-                  "column": 5
-                }
-              },
-              {
-                "name": "Element/label(\nelement",
-                "value": {
-                  "kind": {
-                    "kind": "pipeline",
-                    "input": {
-                      "kind": {
-                        "kind": "raw"
-                      },
-                      "span": {
-                        "line": 14,
-                        "column": 5
-                      },
-                      "raw": "store.sources.clock\ntext: ticks"
-                    },
-                    "stages": [
-                      {
-                        "kind": {
-                          "kind": "raw"
-                        },
-                        "span": {
-                          "line": 14,
-                          "column": 5
-                        },
-                        "raw": "Text/from_number()\n)"
-                      }
-                    ]
-                  },
-                  "span": {
-                    "line": 14,
-                    "column": 5
-                  },
-                  "raw": "store.sources.clock\ntext: ticks |> Text/from_number()\n)"
-                },
-                "span": {
-                  "line": 14,
-                  "column": 5
-                }
-              }
-            ]
-          },
-          "span": {
-            "line": 14,
-            "column": 5
-          },
-          "raw": "Document/new(\nroot:\nElement/label(\nelement: store.sources.clock\ntext: ticks |> Text/from_number()\n)\n)"
+          "children": []
         }
       ]
     },
@@ -692,7 +639,112 @@
     {
       "kind": "record",
       "key": "ticks",
-      "value": null,
+      "value": {
+        "kind": {
+          "kind": "pipeline",
+          "input": {
+            "kind": {
+              "kind": "literal",
+              "literal": {
+                "kind": "number",
+                "value": 0
+              }
+            },
+            "span": {
+              "line": 7,
+              "column": 7
+            },
+            "raw": "0"
+          },
+          "stages": [
+            {
+              "kind": {
+                "kind": "hold",
+                "state": "state",
+                "body": {
+                  "kind": {
+                    "kind": "pipeline",
+                    "input": {
+                      "kind": {
+                        "kind": "path",
+                        "value": "store.sources.clock.event.tick"
+                      },
+                      "span": {
+                        "line": 7,
+                        "column": 7
+                      },
+                      "raw": "store.sources.clock.event.tick"
+                    },
+                    "stages": [
+                      {
+                        "kind": {
+                          "kind": "then",
+                          "body": {
+                            "kind": {
+                              "kind": "binary",
+                              "op": "add",
+                              "left": {
+                                "kind": {
+                                  "kind": "path",
+                                  "value": "state"
+                                },
+                                "span": {
+                                  "line": 7,
+                                  "column": 7
+                                },
+                                "raw": "state"
+                              },
+                              "right": {
+                                "kind": {
+                                  "kind": "literal",
+                                  "literal": {
+                                    "kind": "number",
+                                    "value": 1
+                                  }
+                                },
+                                "span": {
+                                  "line": 7,
+                                  "column": 7
+                                },
+                                "raw": "1"
+                              }
+                            },
+                            "span": {
+                              "line": 7,
+                              "column": 7
+                            },
+                            "raw": "state + 1"
+                          }
+                        },
+                        "span": {
+                          "line": 7,
+                          "column": 7
+                        },
+                        "raw": "THEN { state + 1 }"
+                      }
+                    ]
+                  },
+                  "span": {
+                    "line": 7,
+                    "column": 7
+                  },
+                  "raw": "store.sources.clock.event.tick\n|> THEN { state + 1 }"
+                }
+              },
+              "span": {
+                "line": 7,
+                "column": 7
+              },
+              "raw": "HOLD state {\nstore.sources.clock.event.tick\n|> THEN { state + 1 }\n}"
+            }
+          ]
+        },
+        "span": {
+          "line": 7,
+          "column": 7
+        },
+        "raw": "0 |> HOLD state {\nstore.sources.clock.event.tick\n|> THEN { state + 1 }\n}"
+      },
       "span": {
         "line": 7,
         "column": 1
@@ -702,271 +754,111 @@
     {
       "kind": "record",
       "key": "document",
-      "value": null,
+      "value": {
+        "kind": {
+          "kind": "host_call",
+          "path": "Document/new",
+          "args": [
+            {
+              "name": "root",
+              "value": {
+                "kind": {
+                  "kind": "host_call",
+                  "path": "Element/label",
+                  "args": [
+                    {
+                      "name": "element",
+                      "value": {
+                        "kind": {
+                          "kind": "path",
+                          "value": "store.sources.clock"
+                        },
+                        "span": {
+                          "line": 13,
+                          "column": 10
+                        },
+                        "raw": "store.sources.clock"
+                      },
+                      "span": {
+                        "line": 13,
+                        "column": 10
+                      }
+                    },
+                    {
+                      "name": "text",
+                      "value": {
+                        "kind": {
+                          "kind": "pipeline",
+                          "input": {
+                            "kind": {
+                              "kind": "path",
+                              "value": "ticks"
+                            },
+                            "span": {
+                              "line": 13,
+                              "column": 10
+                            },
+                            "raw": "ticks"
+                          },
+                          "stages": [
+                            {
+                              "kind": {
+                                "kind": "function_call",
+                                "path": "Text/from_number",
+                                "args": []
+                              },
+                              "span": {
+                                "line": 13,
+                                "column": 10
+                              },
+                              "raw": "Text/from_number()"
+                            }
+                          ]
+                        },
+                        "span": {
+                          "line": 13,
+                          "column": 10
+                        },
+                        "raw": "ticks |> Text/from_number()"
+                      },
+                      "span": {
+                        "line": 13,
+                        "column": 10
+                      }
+                    }
+                  ]
+                },
+                "span": {
+                  "line": 13,
+                  "column": 10
+                },
+                "raw": "Element/label(\nelement: store.sources.clock\ntext: ticks |> Text/from_number()\n)"
+              },
+              "span": {
+                "line": 13,
+                "column": 10
+              }
+            }
+          ]
+        },
+        "span": {
+          "line": 13,
+          "column": 10
+        },
+        "raw": "Document/new(\nroot: Element/label(\nelement: store.sources.clock\ntext: ticks |> Text/from_number()\n)\n)"
+      },
       "span": {
         "line": 13,
         "column": 1
       },
-      "children": [
-        {
-          "key": "root",
-          "value": null,
-          "span": {
-            "line": 15,
-            "column": 9
-          },
-          "children": [
-            {
-              "key": "element",
-              "value": {
-                "kind": {
-                  "kind": "path",
-                  "value": "store.sources.clock"
-                },
-                "span": {
-                  "line": 17,
-                  "column": 25
-                },
-                "raw": "store.sources.clock"
-              },
-              "span": {
-                "line": 17,
-                "column": 17
-              },
-              "children": []
-            },
-            {
-              "key": "text",
-              "value": {
-                "kind": {
-                  "kind": "pipeline",
-                  "input": {
-                    "kind": {
-                      "kind": "path",
-                      "value": "ticks"
-                    },
-                    "span": {
-                      "line": 18,
-                      "column": 22
-                    },
-                    "raw": "ticks"
-                  },
-                  "stages": [
-                    {
-                      "kind": {
-                        "kind": "function_call",
-                        "path": "Text/from_number",
-                        "args": []
-                      },
-                      "span": {
-                        "line": 18,
-                        "column": 22
-                      },
-                      "raw": "Text/from_number()"
-                    }
-                  ]
-                },
-                "span": {
-                  "line": 18,
-                  "column": 22
-                },
-                "raw": "ticks |> Text/from_number()"
-              },
-              "span": {
-                "line": 18,
-                "column": 17
-              },
-              "children": []
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "kind": "expression",
-      "kind": {
-        "kind": "pipeline",
-        "input": {
-          "kind": {
-            "kind": "literal",
-            "literal": {
-              "kind": "number",
-              "value": 0
-            }
-          },
-          "span": {
-            "line": 8,
-            "column": 5
-          },
-          "raw": "0"
-        },
-        "stages": [
-          {
-            "kind": {
-              "kind": "hold",
-              "state": "state",
-              "body": {
-                "kind": {
-                  "kind": "pipeline",
-                  "input": {
-                    "kind": {
-                      "kind": "path",
-                      "value": "store.sources.clock.event.tick"
-                    },
-                    "span": {
-                      "line": 8,
-                      "column": 5
-                    },
-                    "raw": "store.sources.clock.event.tick"
-                  },
-                  "stages": [
-                    {
-                      "kind": {
-                        "kind": "then",
-                        "body": {
-                          "kind": {
-                            "kind": "binary",
-                            "op": "add",
-                            "left": {
-                              "kind": {
-                                "kind": "path",
-                                "value": "state"
-                              },
-                              "span": {
-                                "line": 8,
-                                "column": 5
-                              },
-                              "raw": "state"
-                            },
-                            "right": {
-                              "kind": {
-                                "kind": "literal",
-                                "literal": {
-                                  "kind": "number",
-                                  "value": 1
-                                }
-                              },
-                              "span": {
-                                "line": 8,
-                                "column": 5
-                              },
-                              "raw": "1"
-                            }
-                          },
-                          "span": {
-                            "line": 8,
-                            "column": 5
-                          },
-                          "raw": "state + 1"
-                        }
-                      },
-                      "span": {
-                        "line": 8,
-                        "column": 5
-                      },
-                      "raw": "THEN { state + 1 }"
-                    }
-                  ]
-                },
-                "span": {
-                  "line": 8,
-                  "column": 5
-                },
-                "raw": "store.sources.clock.event.tick\n|> THEN { state + 1 }"
-              }
-            },
-            "span": {
-              "line": 8,
-              "column": 5
-            },
-            "raw": "HOLD state {\nstore.sources.clock.event.tick\n|> THEN { state + 1 }\n}"
-          }
-        ]
-      },
-      "span": {
-        "line": 8,
-        "column": 5
-      },
-      "raw": "0 |> HOLD state {\nstore.sources.clock.event.tick\n|> THEN { state + 1 }\n}"
-    },
-    {
-      "kind": "expression",
-      "kind": {
-        "kind": "host_call",
-        "path": "Document/new",
-        "args": [
-          {
-            "name": "root",
-            "value": {
-              "kind": {
-                "kind": "unsupported",
-                "reason": "raw syntax not yet lowered"
-              },
-              "span": {
-                "line": 14,
-                "column": 5
-              },
-              "raw": ""
-            },
-            "span": {
-              "line": 14,
-              "column": 5
-            }
-          },
-          {
-            "name": "Element/label(\nelement",
-            "value": {
-              "kind": {
-                "kind": "pipeline",
-                "input": {
-                  "kind": {
-                    "kind": "unsupported",
-                    "reason": "raw syntax not yet lowered"
-                  },
-                  "span": {
-                    "line": 14,
-                    "column": 5
-                  },
-                  "raw": "store.sources.clock\ntext: ticks"
-                },
-                "stages": [
-                  {
-                    "kind": {
-                      "kind": "unsupported",
-                      "reason": "raw syntax not yet lowered"
-                    },
-                    "span": {
-                      "line": 14,
-                      "column": 5
-                    },
-                    "raw": "Text/from_number()\n)"
-                  }
-                ]
-              },
-              "span": {
-                "line": 14,
-                "column": 5
-              },
-              "raw": "store.sources.clock\ntext: ticks |> Text/from_number()\n)"
-            },
-            "span": {
-              "line": 14,
-              "column": 5
-            }
-          }
-        ]
-      },
-      "span": {
-        "line": 14,
-        "column": 5
-      },
-      "raw": "Document/new(\nroot:\nElement/label(\nelement: store.sources.clock\ntext: ticks |> Text/from_number()\n)\n)"
+      "children": []
     }
   ],
   "features": [
     "source",
     "hold",
     "then",
+    "host_element",
     "host_document",
     "function_call",
     "pipeline",
@@ -975,43 +867,37 @@
   ],
   "dependencies": [
     {
-      "from": "element",
-      "to": "store.sources.clock",
+      "from": "ticks",
+      "to": "store.sources.clock.event.tick",
       "span": {
-        "line": 17,
-        "column": 25
+        "line": 7,
+        "column": 7
       }
     },
     {
-      "from": "text",
+      "from": "ticks",
+      "to": "state",
+      "span": {
+        "line": 7,
+        "column": 7
+      }
+    },
+    {
+      "from": "document",
+      "to": "store.sources.clock",
+      "span": {
+        "line": 13,
+        "column": 10
+      }
+    },
+    {
+      "from": "document",
       "to": "ticks",
       "span": {
-        "line": 18,
-        "column": 22
+        "line": 13,
+        "column": 10
       }
     }
   ],
-  "diagnostics": [
-    {
-      "span": {
-        "line": 14,
-        "column": 5
-      },
-      "message": "expression kept as raw syntax: "
-    },
-    {
-      "span": {
-        "line": 14,
-        "column": 5
-      },
-      "message": "expression kept as raw syntax: store.sources.clock\ntext: ticks"
-    },
-    {
-      "span": {
-        "line": 14,
-        "column": 5
-      },
-      "message": "expression kept as raw syntax: Text/from_number()\n)"
-    }
-  ]
+  "diagnostics": []
 }

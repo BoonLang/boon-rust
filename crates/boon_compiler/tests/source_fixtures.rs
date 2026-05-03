@@ -13,6 +13,11 @@ fn maintained_examples_compile_and_match_source_snapshots() {
             .join("expected.source_inventory.json");
         let source = fs::read_to_string(&source_path).expect("example source readable");
         let compiled = compile_source(&name, &source).expect("example compiles");
+        assert!(
+            compiled.hir.diagnostics.is_empty(),
+            "compiled HIR for {name} must not contain ignored/raw syntax diagnostics: {:#?}",
+            compiled.hir.diagnostics
+        );
         let actual = serde_json::to_value(&compiled.sources).expect("inventory serializes");
         let expected: serde_json::Value = serde_json::from_str(
             &fs::read_to_string(&expected_path).expect("expected inventory readable"),
@@ -49,6 +54,42 @@ fn maintained_examples_compile_and_match_source_snapshots() {
         )
         .expect("expected app IR snapshot parses");
         assert_eq!(actual, expected, "compiled app IR changed for {name}");
+        assert_render_tree_bindings_are_inventory_backed(&name, &compiled);
+    }
+}
+
+fn assert_render_tree_bindings_are_inventory_backed(
+    name: &str,
+    compiled: &boon_compiler::CompiledModule,
+) {
+    let tree = compiled
+        .app_ir
+        .render_tree
+        .as_ref()
+        .unwrap_or_else(|| panic!("{name} must lower document into generic render tree"));
+    let mut bindings = Vec::new();
+    collect_render_bindings(tree, &mut bindings);
+    assert!(
+        !bindings.is_empty(),
+        "{name} render tree should expose at least one source binding"
+    );
+    for binding in bindings {
+        assert!(
+            compiled.sources.entries.iter().any(
+                |entry| entry.path == binding || entry.path.starts_with(&format!("{binding}."))
+            ),
+            "{name} render binding `{binding}` is not backed by source inventory {:#?}",
+            compiled.sources.entries
+        );
+    }
+}
+
+fn collect_render_bindings<'a>(node: &'a boon_compiler::IrRenderNode, out: &mut Vec<&'a str>) {
+    if let Some(path) = node.source_path.as_deref() {
+        out.push(path);
+    }
+    for child in &node.children {
+        collect_render_bindings(child, out);
     }
 }
 

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashSet};
 use thiserror::Error;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -208,6 +209,7 @@ pub enum AstBinaryOp {
 pub fn parse_module(name: impl Into<String>, src: &str) -> Result<ParsedModule, ParseError> {
     let name = name.into();
     let mut lines = Vec::new();
+    let mut syntax_lines = Vec::new();
     let mut record_lines = Vec::new();
     let mut source_leaves = Vec::new();
     let mut text_literals = Vec::new();
@@ -233,6 +235,14 @@ pub fn parse_module(name: impl Into<String>, src: &str) -> Result<ParsedModule, 
         });
 
         let indent = raw_line.chars().take_while(|c| *c == ' ').count();
+        syntax_lines.push(SyntaxLine {
+            indent,
+            text: trimmed.to_string(),
+            span: Span {
+                line: line_no,
+                column: raw_line.find(trimmed).unwrap_or(0) + 1,
+            },
+        });
         while key_stack
             .last()
             .is_some_and(|(last_indent, _)| *last_indent >= indent)
@@ -292,7 +302,7 @@ pub fn parse_module(name: impl Into<String>, src: &str) -> Result<ParsedModule, 
 
     let module_calls = collect_module_calls(&lines);
     let records = parse_record_tree(&record_lines);
-    let ast = build_ast(&name, &lines, &records);
+    let ast = build_ast(&name, &lines, &syntax_lines, &records);
     Ok(ParsedModule {
         name,
         ast,
@@ -314,25 +324,38 @@ struct RecordLine {
     span: Span,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct SyntaxLine {
+    indent: usize,
+    text: String,
+    span: Span,
+}
+
 fn parse_record_tree(lines: &[RecordLine]) -> Vec<ParsedRecordEntry> {
     let mut idx = 0;
     parse_record_level(lines, &mut idx, 0)
 }
 
-fn build_ast(name: &str, lines: &[ParsedLine], records: &[ParsedRecordEntry]) -> AstModule {
-    let functions = collect_ast_functions(lines);
+fn build_ast(
+    name: &str,
+    lines: &[ParsedLine],
+    syntax_lines: &[SyntaxLine],
+    records: &[ParsedRecordEntry],
+) -> AstModule {
+    let functions = collect_ast_functions(syntax_lines);
     let function_lines = functions
         .iter()
         .map(|function| function.span.line)
-        .collect::<std::collections::HashSet<_>>();
+        .collect::<HashSet<_>>();
+    let multiline_values = collect_multiline_record_values(syntax_lines);
     let mut items = records
         .iter()
         .cloned()
-        .map(|record| AstItem::Record(ast_record(record)))
+        .map(|record| AstItem::Record(ast_record(record, &multiline_values.values)))
         .collect::<Vec<_>>();
     items.extend(functions.into_iter().map(AstItem::Function));
     items.extend(
-        collect_ast_expression_blocks(lines, &function_lines)
+        collect_ast_expression_blocks(lines, &function_lines, &multiline_values.covered_lines)
             .into_iter()
             .map(AstItem::Expression),
     );
@@ -342,8 +365,9 @@ fn build_ast(name: &str, lines: &[ParsedLine], records: &[ParsedRecordEntry]) ->
     }
 }
 
-fn ast_record(record: ParsedRecordEntry) -> AstRecord {
-    let value = record.value.as_ref().map(|value| {
+fn ast_record(record: ParsedRecordEntry, multiline_values: &BTreeMap<usize, String>) -> AstRecord {
+    let multiline_value = multiline_values.get(&record.span.line);
+    let value = record.value.as_ref().or(multiline_value).map(|value| {
         parse_expr(
             value,
             Span {
@@ -352,15 +376,97 @@ fn ast_record(record: ParsedRecordEntry) -> AstRecord {
             },
         )
     });
+    let children = if multiline_value.is_some() {
+        Vec::new()
+    } else {
+        record
+            .children
+            .into_iter()
+            .map(|child| ast_record(child, multiline_values))
+            .collect()
+    };
     AstRecord {
         key: record.key,
         value,
         span: record.span,
-        children: record.children.into_iter().map(ast_record).collect(),
+        children,
     }
 }
 
-fn collect_ast_functions(lines: &[ParsedLine]) -> Vec<AstFunction> {
+#[derive(Default)]
+struct MultilineRecordValues {
+    values: BTreeMap<usize, String>,
+    covered_lines: HashSet<usize>,
+}
+
+fn collect_multiline_record_values(lines: &[SyntaxLine]) -> MultilineRecordValues {
+    let mut values = MultilineRecordValues::default();
+    for (idx, line) in lines.iter().enumerate() {
+        let Some((key, value)) = line.text.split_once(':') else {
+            continue;
+        };
+        if !is_plain_key(key.trim()) || !value.trim().is_empty() {
+            continue;
+        }
+        let Some(next) = lines.get(idx + 1) else {
+            continue;
+        };
+        if next.indent <= line.indent || !starts_multiline_record_value(lines, idx + 1) {
+            continue;
+        }
+        let end = lines[idx + 1..]
+            .iter()
+            .position(|candidate| candidate.indent <= line.indent)
+            .map(|offset| idx + 1 + offset)
+            .unwrap_or(lines.len());
+        let block = normalize_multiline_expression_block(&lines[idx + 1..end]);
+        if !block.is_empty() {
+            values.values.insert(line.span.line, block);
+            values
+                .covered_lines
+                .extend(lines[idx + 1..end].iter().map(|line| line.span.line));
+        }
+    }
+    values
+}
+
+fn starts_multiline_record_value(lines: &[SyntaxLine], start: usize) -> bool {
+    let Some(first) = lines.get(start) else {
+        return false;
+    };
+    let text = first.text.trim();
+    !is_plain_record_line(text)
+        || is_expression_start(text)
+        || lines.get(start + 1).is_some_and(|next| {
+            next.indent >= first.indent && next.text.trim_start().starts_with("|>")
+        })
+}
+
+fn normalize_multiline_expression_block(lines: &[SyntaxLine]) -> String {
+    let mut normalized = String::new();
+    let mut previous_wants_value = false;
+    for line in lines {
+        let text = line.text.trim();
+        if text.is_empty() {
+            continue;
+        }
+        if !normalized.is_empty() {
+            if previous_wants_value {
+                normalized.push(' ');
+            } else {
+                normalized.push('\n');
+            }
+        }
+        normalized.push_str(text);
+        previous_wants_value = text.ends_with(':')
+            || text
+                .split_once(':')
+                .is_some_and(|(key, value)| is_plain_key(key.trim()) && value.trim().is_empty());
+    }
+    normalized
+}
+
+fn collect_ast_functions(lines: &[SyntaxLine]) -> Vec<AstFunction> {
     let mut functions = Vec::new();
     let mut idx = 0;
     while idx < lines.len() {
@@ -393,10 +499,12 @@ fn collect_ast_functions(lines: &[ParsedLine]) -> Vec<AstFunction> {
         let mut block = String::new();
         let mut depth = brace_delta(text);
         let mut cursor = idx + 1;
+        let base_indent = lines.get(cursor).map(|line| line.indent).unwrap_or(0);
         while cursor < lines.len() {
-            let body_line = lines[cursor].text.as_str();
-            depth += brace_delta(body_line);
-            block.push_str(body_line);
+            let body_line = &lines[cursor];
+            depth += brace_delta(body_line.text.as_str());
+            block.push_str(&" ".repeat(body_line.indent.saturating_sub(base_indent)));
+            block.push_str(body_line.text.as_str());
             block.push('\n');
             cursor += 1;
             if depth <= 0 {
@@ -417,12 +525,15 @@ fn collect_ast_functions(lines: &[ParsedLine]) -> Vec<AstFunction> {
 
 fn collect_ast_expression_blocks(
     lines: &[ParsedLine],
-    function_lines: &std::collections::HashSet<usize>,
+    function_lines: &HashSet<usize>,
+    covered_record_value_lines: &HashSet<usize>,
 ) -> Vec<AstExpr> {
     let mut expressions = Vec::new();
     let mut idx = 0;
     while idx < lines.len() {
-        if function_lines.contains(&lines[idx].span.line) {
+        if function_lines.contains(&lines[idx].span.line)
+            || covered_record_value_lines.contains(&lines[idx].span.line)
+        {
             idx += 1;
             continue;
         }
@@ -630,7 +741,7 @@ fn parse_record_literal_body(raw: &str) -> Option<&str> {
         return None;
     }
     let close = matching_delimiter(raw, 0, '[', ']')?;
-    Some(raw[1..close].trim())
+    Some(raw[1..close].trim_matches(|ch| ch == '\n' || ch == '\r'))
 }
 
 fn matching_delimiter(raw: &str, open_idx: usize, open: char, close: char) -> Option<usize> {
@@ -649,11 +760,12 @@ fn matching_delimiter(raw: &str, open_idx: usize, open: char, close: char) -> Op
 }
 
 fn parse_expression_lines(body: &str, span: Span) -> Vec<AstExpr> {
-    body.lines()
+    split_top_level_items(body)
+        .into_iter()
         .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .filter(|line| *line != "{" && *line != "}")
-        .map(|line| parse_expr(line.trim_end_matches(',').trim(), span))
+        .filter(|item| !item.is_empty())
+        .filter(|item| *item != "{" && *item != "}")
+        .map(|item| parse_expr(item.trim_end_matches(',').trim(), span))
         .collect()
 }
 
@@ -673,14 +785,56 @@ fn parse_bindings(body: &str, span: Span) -> Vec<AstBinding> {
 }
 
 fn parse_record_literal_entries(body: &str, span: Span) -> Vec<AstRecord> {
-    parse_bindings(body, span)
+    parse_ast_records_from_block(body, span)
+}
+
+fn parse_ast_records_from_block(body: &str, span: Span) -> Vec<AstRecord> {
+    let min_indent = body
+        .lines()
+        .map(str::trim)
+        .zip(body.lines())
+        .filter(|(trimmed, _)| !trimmed.is_empty() && *trimmed != "[" && *trimmed != "]")
+        .map(|(_, raw_line)| raw_line.chars().take_while(|ch| *ch == ' ').count())
+        .min()
+        .unwrap_or(0);
+    let mut lines = Vec::new();
+    let mut record_lines = Vec::new();
+    for (idx, raw_line) in body.lines().enumerate() {
+        let trimmed = raw_line.trim();
+        if trimmed.is_empty() || trimmed == "[" || trimmed == "]" {
+            continue;
+        }
+        let indent = raw_line
+            .chars()
+            .take_while(|ch| *ch == ' ')
+            .count()
+            .saturating_sub(min_indent);
+        let line_span = Span {
+            line: span.line + idx,
+            column: span.column + indent,
+        };
+        lines.push(SyntaxLine {
+            indent,
+            text: trimmed.to_string(),
+            span: line_span,
+        });
+        if let Some((key, value)) = trimmed.split_once(':') {
+            let key = key.trim();
+            if is_plain_key(key) {
+                record_lines.push(RecordLine {
+                    indent,
+                    key: key.to_string(),
+                    value: (!value.trim().is_empty()).then(|| value.trim().to_string()),
+                    span: line_span,
+                });
+            }
+        }
+    }
+    let records = parse_record_tree(&record_lines);
+    let multiline_values = collect_multiline_record_values(&lines);
+    records
         .into_iter()
-        .map(|binding| AstRecord {
-            key: binding.name,
-            value: Some(binding.value),
-            span: binding.span,
-            children: Vec::new(),
-        })
+        .map(|record| ast_record(record, &multiline_values.values))
         .collect()
 }
 
@@ -731,7 +885,10 @@ fn parse_when_item_arms(item: &str, span: Span) -> Vec<AstWhenArm> {
         }
         idx += 2;
         let value_start = idx;
-        while idx + 1 < tokens.len() && tokens[idx + 1] != "=>" {
+        while idx < tokens.len() {
+            if idx + 1 < tokens.len() && tokens[idx + 1] == "=>" {
+                break;
+            }
             idx += 1;
         }
         let value = tokens[value_start..idx].join(" ");

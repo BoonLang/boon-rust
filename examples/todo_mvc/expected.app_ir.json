@@ -1,5 +1,20 @@
 {
   "state_cells": [],
+  "list_states": [
+    {
+      "path": "todos",
+      "initial_items": [
+        {
+          "text": "Buy groceries",
+          "mark": false
+        },
+        {
+          "text": "Clean room",
+          "mark": false
+        }
+      ]
+    }
+  ],
   "event_handlers": [
     {
       "source_path": "store.sources.new_todo_input.event.key_down.key",
@@ -23,11 +38,11 @@
       ]
     },
     {
-      "source_path": "store.sources.toggle_all_checkbox.event.click",
+      "source_path": "todos[*].sources.remove_button.event.press",
       "when": null,
       "effects": [
         {
-          "kind": "list_toggle_all_marks",
+          "kind": "list_remove_owner",
           "list_path": "todos"
         }
       ]
@@ -86,14 +101,84 @@
       ]
     },
     {
-      "source_path": "todos[*].sources.remove_button.event.press",
+      "source_path": "store.sources.toggle_all_checkbox.event.click",
       "when": null,
       "effects": [
         {
-          "kind": "list_remove_owner",
+          "kind": "list_toggle_all_marks",
           "list_path": "todos"
         }
       ]
     }
-  ]
+  ],
+  "render_tree": {
+    "id": "root_0",
+    "kind": "root",
+    "children": [
+      {
+        "id": "panel_12",
+        "kind": "panel",
+        "children": [
+          {
+            "id": "text_input_1",
+            "kind": "text_input",
+            "source_path": "store.sources.new_todo_input"
+          },
+          {
+            "id": "checkbox_2",
+            "kind": "checkbox",
+            "source_path": "store.sources.toggle_all_checkbox"
+          },
+          {
+            "id": "button_3",
+            "kind": "button",
+            "source_path": "store.sources.clear_completed_button"
+          },
+          {
+            "id": "button_4",
+            "kind": "button",
+            "source_path": "store.sources.filter_all"
+          },
+          {
+            "id": "button_5",
+            "kind": "button",
+            "source_path": "store.sources.filter_active"
+          },
+          {
+            "id": "button_6",
+            "kind": "button",
+            "source_path": "store.sources.filter_completed"
+          },
+          {
+            "id": "list_map_7",
+            "kind": "list_map",
+            "list_path": "todos",
+            "children": [
+              {
+                "id": "panel_11",
+                "kind": "panel",
+                "children": [
+                  {
+                    "id": "checkbox_8",
+                    "kind": "checkbox",
+                    "source_path": "todos[*].sources.checkbox"
+                  },
+                  {
+                    "id": "button_9",
+                    "kind": "button",
+                    "source_path": "todos[*].sources.remove_button"
+                  },
+                  {
+                    "id": "text_input_10",
+                    "kind": "text_input",
+                    "source_path": "todos[*].sources.edit_input"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
 }

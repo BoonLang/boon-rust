@@ -255,7 +255,55 @@
         {
           "kind": "record",
           "key": "rows",
-          "value": null,
+          "value": {
+            "kind": {
+              "kind": "call",
+              "path": "List/range",
+              "args": [
+                {
+                  "name": "from",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 1
+                    },
+                    "span": {
+                      "line": 22,
+                      "column": 6
+                    },
+                    "raw": "1"
+                  },
+                  "span": {
+                    "line": 22,
+                    "column": 6
+                  }
+                },
+                {
+                  "name": "to",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 100
+                    },
+                    "span": {
+                      "line": 22,
+                      "column": 6
+                    },
+                    "raw": "100"
+                  },
+                  "span": {
+                    "line": 22,
+                    "column": 6
+                  }
+                }
+              ]
+            },
+            "span": {
+              "line": 22,
+              "column": 6
+            },
+            "raw": "List/range(from: 1, to: 100)"
+          },
           "span": {
             "line": 22,
             "column": 1
@@ -265,7 +313,55 @@
         {
           "kind": "record",
           "key": "columns",
-          "value": null,
+          "value": {
+            "kind": {
+              "kind": "call",
+              "path": "List/range",
+              "args": [
+                {
+                  "name": "from",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 1
+                    },
+                    "span": {
+                      "line": 25,
+                      "column": 9
+                    },
+                    "raw": "1"
+                  },
+                  "span": {
+                    "line": 25,
+                    "column": 9
+                  }
+                },
+                {
+                  "name": "to",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 26
+                    },
+                    "span": {
+                      "line": 25,
+                      "column": 9
+                    },
+                    "raw": "26"
+                  },
+                  "span": {
+                    "line": 25,
+                    "column": 9
+                  }
+                }
+              ]
+            },
+            "span": {
+              "line": 25,
+              "column": 9
+            },
+            "raw": "List/range(from: 1, to: 26)"
+          },
           "span": {
             "line": 25,
             "column": 1
@@ -334,329 +430,413 @@
         {
           "kind": "record",
           "key": "grid",
-          "value": null,
-          "span": {
-            "line": 33,
-            "column": 1
-          },
-          "children": [
-            {
-              "key": "row",
-              "value": {
+          "value": {
+            "kind": {
+              "kind": "pipeline",
+              "input": {
                 "kind": {
                   "kind": "path",
-                  "value": "row"
+                  "value": "rows"
                 },
                 "span": {
-                  "line": 37,
-                  "column": 21
+                  "line": 33,
+                  "column": 6
                 },
-                "raw": "row"
+                "raw": "rows"
               },
-              "span": {
-                "line": 37,
-                "column": 17
-              },
-              "children": []
-            },
-            {
-              "key": "column",
-              "value": {
-                "kind": {
-                  "kind": "path",
-                  "value": "column"
-                },
-                "span": {
-                  "line": 38,
-                  "column": 24
-                },
-                "raw": "column"
-              },
-              "span": {
-                "line": 38,
-                "column": 17
-              },
-              "children": []
-            },
-            {
-              "key": "sources",
-              "value": {
-                "kind": {
-                  "kind": "path",
-                  "value": "cells.sources"
-                },
-                "span": {
-                  "line": 39,
-                  "column": 25
-                },
-                "raw": "cells.sources"
-              },
-              "span": {
-                "line": 39,
-                "column": 17
-              },
-              "children": []
-            }
-          ]
-        },
-        {
-          "kind": "record",
-          "key": "document",
-          "value": null,
-          "span": {
-            "line": 44,
-            "column": 1
-          },
-          "children": [
-            {
-              "key": "root",
-              "value": null,
-              "span": {
-                "line": 46,
-                "column": 9
-              },
-              "children": [
+              "stages": [
                 {
-                  "key": "element",
-                  "value": {
-                    "kind": {
-                      "kind": "path",
-                      "value": "store.sources.viewport"
-                    },
-                    "span": {
-                      "line": 48,
-                      "column": 25
-                    },
-                    "raw": "store.sources.viewport"
-                  },
-                  "span": {
-                    "line": 48,
-                    "column": 17
-                  },
-                  "children": []
-                },
-                {
-                  "key": "cells",
-                  "value": null,
-                  "span": {
-                    "line": 49,
-                    "column": 17
-                  },
-                  "children": [
-                    {
-                      "key": "children",
-                      "value": null,
-                      "span": {
-                        "line": 53,
-                        "column": 33
-                      },
-                      "children": []
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "kind": "expression",
-          "kind": {
-            "kind": "pipeline",
-            "input": {
-              "kind": {
-                "kind": "path",
-                "value": "rows"
-              },
-              "span": {
-                "line": 34,
-                "column": 5
-              },
-              "raw": "rows"
-            },
-            "stages": [
-              {
-                "kind": {
-                  "kind": "call",
-                  "path": "List/map",
-                  "args": [
-                    {
-                      "name": "new",
-                      "value": {
-                        "kind": {
-                          "kind": "raw"
-                        },
-                        "span": {
-                          "line": 34,
-                          "column": 5
-                        },
-                        "raw": ""
-                      },
-                      "span": {
-                        "line": 34,
-                        "column": 5
-                      }
-                    },
-                    {
-                      "name": "columns |> List/map(column, new",
-                      "value": {
-                        "kind": {
-                          "kind": "record",
-                          "entries": [
-                            {
-                              "key": "row",
-                              "value": {
-                                "kind": {
-                                  "kind": "path",
-                                  "value": "row"
-                                },
-                                "span": {
-                                  "line": 34,
-                                  "column": 5
-                                },
-                                "raw": "row"
-                              },
-                              "span": {
-                                "line": 34,
-                                "column": 5
-                              },
-                              "children": []
-                            },
-                            {
-                              "key": "column",
-                              "value": {
-                                "kind": {
-                                  "kind": "path",
-                                  "value": "column"
-                                },
-                                "span": {
-                                  "line": 34,
-                                  "column": 5
-                                },
-                                "raw": "column"
-                              },
-                              "span": {
-                                "line": 34,
-                                "column": 5
-                              },
-                              "children": []
-                            },
-                            {
-                              "key": "sources",
-                              "value": {
-                                "kind": {
-                                  "kind": "path",
-                                  "value": "cells.sources"
-                                },
-                                "span": {
-                                  "line": 34,
-                                  "column": 5
-                                },
-                                "raw": "cells.sources"
-                              },
-                              "span": {
-                                "line": 34,
-                                "column": 5
-                              },
-                              "children": []
-                            }
-                          ]
-                        },
-                        "span": {
-                          "line": 34,
-                          "column": 5
-                        },
-                        "raw": "[\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)"
-                      },
-                      "span": {
-                        "line": 34,
-                        "column": 5
-                      }
-                    }
-                  ]
-                },
-                "span": {
-                  "line": 34,
-                  "column": 5
-                },
-                "raw": "List/map(row, new:\ncolumns |> List/map(column, new:\n[\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)\n)"
-              }
-            ]
-          },
-          "span": {
-            "line": 34,
-            "column": 5
-          },
-          "raw": "rows |> List/map(row, new:\ncolumns |> List/map(column, new:\n[\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)\n)"
-        },
-        {
-          "kind": "expression",
-          "kind": {
-            "kind": "call",
-            "path": "Document/new",
-            "args": [
-              {
-                "name": "root",
-                "value": {
                   "kind": {
-                    "kind": "raw"
-                  },
-                  "span": {
-                    "line": 45,
-                    "column": 5
-                  },
-                  "raw": ""
-                },
-                "span": {
-                  "line": 45,
-                  "column": 5
-                }
-              },
-              {
-                "name": "Element/grid(\nelement",
-                "value": {
-                  "kind": {
-                    "kind": "pipeline",
-                    "input": {
-                      "kind": {
-                        "kind": "raw"
-                      },
-                      "span": {
-                        "line": 45,
-                        "column": 5
-                      },
-                      "raw": "store.sources.viewport\ncells:\ngrid"
-                    },
-                    "stages": [
+                    "kind": "call",
+                    "path": "List/map",
+                    "args": [
                       {
-                        "kind": {
-                          "kind": "raw"
+                        "name": "new",
+                        "value": {
+                          "kind": {
+                            "kind": "pipeline",
+                            "input": {
+                              "kind": {
+                                "kind": "path",
+                                "value": "columns"
+                              },
+                              "span": {
+                                "line": 33,
+                                "column": 6
+                              },
+                              "raw": "columns"
+                            },
+                            "stages": [
+                              {
+                                "kind": {
+                                  "kind": "call",
+                                  "path": "List/map",
+                                  "args": [
+                                    {
+                                      "name": "new",
+                                      "value": {
+                                        "kind": {
+                                          "kind": "record",
+                                          "entries": [
+                                            {
+                                              "key": "row",
+                                              "value": {
+                                                "kind": {
+                                                  "kind": "path",
+                                                  "value": "row"
+                                                },
+                                                "span": {
+                                                  "line": 33,
+                                                  "column": 10
+                                                },
+                                                "raw": "row"
+                                              },
+                                              "span": {
+                                                "line": 33,
+                                                "column": 6
+                                              },
+                                              "children": []
+                                            },
+                                            {
+                                              "key": "column",
+                                              "value": {
+                                                "kind": {
+                                                  "kind": "path",
+                                                  "value": "column"
+                                                },
+                                                "span": {
+                                                  "line": 34,
+                                                  "column": 13
+                                                },
+                                                "raw": "column"
+                                              },
+                                              "span": {
+                                                "line": 34,
+                                                "column": 6
+                                              },
+                                              "children": []
+                                            },
+                                            {
+                                              "key": "sources",
+                                              "value": {
+                                                "kind": {
+                                                  "kind": "path",
+                                                  "value": "cells.sources"
+                                                },
+                                                "span": {
+                                                  "line": 35,
+                                                  "column": 14
+                                                },
+                                                "raw": "cells.sources"
+                                              },
+                                              "span": {
+                                                "line": 35,
+                                                "column": 6
+                                              },
+                                              "children": []
+                                            }
+                                          ]
+                                        },
+                                        "span": {
+                                          "line": 33,
+                                          "column": 6
+                                        },
+                                        "raw": "[\nrow: row\ncolumn: column\nsources: cells.sources\n]"
+                                      },
+                                      "span": {
+                                        "line": 33,
+                                        "column": 6
+                                      }
+                                    }
+                                  ]
+                                },
+                                "span": {
+                                  "line": 33,
+                                  "column": 6
+                                },
+                                "raw": "List/map(column, new: [\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)"
+                              }
+                            ]
+                          },
+                          "span": {
+                            "line": 33,
+                            "column": 6
+                          },
+                          "raw": "columns |> List/map(column, new: [\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)"
                         },
                         "span": {
-                          "line": 45,
-                          "column": 5
-                        },
-                        "raw": "List/map(row, new:\nrow |> List/map(cell, new:\nElement/panel(\nchildren:\nLIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)"
+                          "line": 33,
+                          "column": 6
+                        }
                       }
                     ]
                   },
                   "span": {
-                    "line": 45,
-                    "column": 5
+                    "line": 33,
+                    "column": 6
                   },
-                  "raw": "store.sources.viewport\ncells:\ngrid |> List/map(row, new:\nrow |> List/map(cell, new:\nElement/panel(\nchildren:\nLIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)"
-                },
-                "span": {
-                  "line": 45,
-                  "column": 5
+                  "raw": "List/map(row, new: columns |> List/map(column, new: [\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)\n)"
                 }
-              }
-            ]
+              ]
+            },
+            "span": {
+              "line": 33,
+              "column": 6
+            },
+            "raw": "rows |> List/map(row, new: columns |> List/map(column, new: [\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)\n)"
           },
           "span": {
-            "line": 45,
-            "column": 5
+            "line": 33,
+            "column": 1
           },
-          "raw": "Document/new(\nroot:\nElement/grid(\nelement: store.sources.viewport\ncells:\ngrid |> List/map(row, new:\nrow |> List/map(cell, new:\nElement/panel(\nchildren:\nLIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)\n)"
+          "children": []
+        },
+        {
+          "kind": "record",
+          "key": "document",
+          "value": {
+            "kind": {
+              "kind": "call",
+              "path": "Document/new",
+              "args": [
+                {
+                  "name": "root",
+                  "value": {
+                    "kind": {
+                      "kind": "call",
+                      "path": "Element/grid",
+                      "args": [
+                        {
+                          "name": "element",
+                          "value": {
+                            "kind": {
+                              "kind": "path",
+                              "value": "store.sources.viewport"
+                            },
+                            "span": {
+                              "line": 44,
+                              "column": 10
+                            },
+                            "raw": "store.sources.viewport"
+                          },
+                          "span": {
+                            "line": 44,
+                            "column": 10
+                          }
+                        },
+                        {
+                          "name": "cells",
+                          "value": {
+                            "kind": {
+                              "kind": "pipeline",
+                              "input": {
+                                "kind": {
+                                  "kind": "path",
+                                  "value": "grid"
+                                },
+                                "span": {
+                                  "line": 44,
+                                  "column": 10
+                                },
+                                "raw": "grid"
+                              },
+                              "stages": [
+                                {
+                                  "kind": {
+                                    "kind": "call",
+                                    "path": "List/map",
+                                    "args": [
+                                      {
+                                        "name": "new",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "pipeline",
+                                            "input": {
+                                              "kind": {
+                                                "kind": "path",
+                                                "value": "row"
+                                              },
+                                              "span": {
+                                                "line": 44,
+                                                "column": 10
+                                              },
+                                              "raw": "row"
+                                            },
+                                            "stages": [
+                                              {
+                                                "kind": {
+                                                  "kind": "call",
+                                                  "path": "List/map",
+                                                  "args": [
+                                                    {
+                                                      "name": "new",
+                                                      "value": {
+                                                        "kind": {
+                                                          "kind": "call",
+                                                          "path": "Element/panel",
+                                                          "args": [
+                                                            {
+                                                              "name": "children",
+                                                              "value": {
+                                                                "kind": {
+                                                                  "kind": "list",
+                                                                  "items": [
+                                                                    {
+                                                                      "kind": {
+                                                                        "kind": "call",
+                                                                        "path": "Element/label",
+                                                                        "args": [
+                                                                          {
+                                                                            "name": "element",
+                                                                            "value": {
+                                                                              "kind": {
+                                                                                "kind": "path",
+                                                                                "value": "cell.sources.display"
+                                                                              },
+                                                                              "span": {
+                                                                                "line": 44,
+                                                                                "column": 10
+                                                                              },
+                                                                              "raw": "cell.sources.display"
+                                                                            },
+                                                                            "span": {
+                                                                              "line": 44,
+                                                                              "column": 10
+                                                                            }
+                                                                          }
+                                                                        ]
+                                                                      },
+                                                                      "span": {
+                                                                        "line": 44,
+                                                                        "column": 10
+                                                                      },
+                                                                      "raw": "Element/label(element: cell.sources.display)"
+                                                                    },
+                                                                    {
+                                                                      "kind": {
+                                                                        "kind": "call",
+                                                                        "path": "Element/text_input",
+                                                                        "args": [
+                                                                          {
+                                                                            "name": "element",
+                                                                            "value": {
+                                                                              "kind": {
+                                                                                "kind": "path",
+                                                                                "value": "cell.sources.editor"
+                                                                              },
+                                                                              "span": {
+                                                                                "line": 44,
+                                                                                "column": 10
+                                                                              },
+                                                                              "raw": "cell.sources.editor"
+                                                                            },
+                                                                            "span": {
+                                                                              "line": 44,
+                                                                              "column": 10
+                                                                            }
+                                                                          }
+                                                                        ]
+                                                                      },
+                                                                      "span": {
+                                                                        "line": 44,
+                                                                        "column": 10
+                                                                      },
+                                                                      "raw": "Element/text_input(element: cell.sources.editor)"
+                                                                    }
+                                                                  ]
+                                                                },
+                                                                "span": {
+                                                                  "line": 44,
+                                                                  "column": 10
+                                                                },
+                                                                "raw": "LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}"
+                                                              },
+                                                              "span": {
+                                                                "line": 44,
+                                                                "column": 10
+                                                              }
+                                                            }
+                                                          ]
+                                                        },
+                                                        "span": {
+                                                          "line": 44,
+                                                          "column": 10
+                                                        },
+                                                        "raw": "Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)"
+                                                      },
+                                                      "span": {
+                                                        "line": 44,
+                                                        "column": 10
+                                                      }
+                                                    }
+                                                  ]
+                                                },
+                                                "span": {
+                                                  "line": 44,
+                                                  "column": 10
+                                                },
+                                                "raw": "List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)"
+                                              }
+                                            ]
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "span": {
+                                    "line": 44,
+                                    "column": 10
+                                  },
+                                  "raw": "List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)"
+                                }
+                              ]
+                            },
+                            "span": {
+                              "line": 44,
+                              "column": 10
+                            },
+                            "raw": "grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)"
+                          },
+                          "span": {
+                            "line": 44,
+                            "column": 10
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "line": 44,
+                      "column": 10
+                    },
+                    "raw": "Element/grid(\nelement: store.sources.viewport\ncells: grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)"
+                  },
+                  "span": {
+                    "line": 44,
+                    "column": 10
+                  }
+                }
+              ]
+            },
+            "span": {
+              "line": 44,
+              "column": 10
+            },
+            "raw": "Document/new(\nroot: Element/grid(\nelement: store.sources.viewport\ncells: grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)\n)"
+          },
+          "span": {
+            "line": 44,
+            "column": 1
+          },
+          "children": []
         }
       ]
     },
@@ -1983,7 +2163,61 @@
     {
       "kind": "record",
       "key": "rows",
-      "value": null,
+      "value": {
+        "kind": {
+          "kind": "list_call",
+          "op": "range",
+          "args": [
+            {
+              "name": "from",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 1
+                  }
+                },
+                "span": {
+                  "line": 22,
+                  "column": 6
+                },
+                "raw": "1"
+              },
+              "span": {
+                "line": 22,
+                "column": 6
+              }
+            },
+            {
+              "name": "to",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 100
+                  }
+                },
+                "span": {
+                  "line": 22,
+                  "column": 6
+                },
+                "raw": "100"
+              },
+              "span": {
+                "line": 22,
+                "column": 6
+              }
+            }
+          ]
+        },
+        "span": {
+          "line": 22,
+          "column": 6
+        },
+        "raw": "List/range(from: 1, to: 100)"
+      },
       "span": {
         "line": 22,
         "column": 1
@@ -1993,7 +2227,61 @@
     {
       "kind": "record",
       "key": "columns",
-      "value": null,
+      "value": {
+        "kind": {
+          "kind": "list_call",
+          "op": "range",
+          "args": [
+            {
+              "name": "from",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 1
+                  }
+                },
+                "span": {
+                  "line": 25,
+                  "column": 9
+                },
+                "raw": "1"
+              },
+              "span": {
+                "line": 25,
+                "column": 9
+              }
+            },
+            {
+              "name": "to",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 26
+                  }
+                },
+                "span": {
+                  "line": 25,
+                  "column": 9
+                },
+                "raw": "26"
+              },
+              "span": {
+                "line": 25,
+                "column": 9
+              }
+            }
+          ]
+        },
+        "span": {
+          "line": 25,
+          "column": 9
+        },
+        "raw": "List/range(from: 1, to: 26)"
+      },
       "span": {
         "line": 25,
         "column": 1
@@ -2062,338 +2350,421 @@
     {
       "kind": "record",
       "key": "grid",
-      "value": null,
-      "span": {
-        "line": 33,
-        "column": 1
-      },
-      "children": [
-        {
-          "key": "row",
-          "value": {
+      "value": {
+        "kind": {
+          "kind": "pipeline",
+          "input": {
             "kind": {
               "kind": "path",
-              "value": "row"
+              "value": "rows"
             },
             "span": {
-              "line": 37,
-              "column": 21
+              "line": 33,
+              "column": 6
             },
-            "raw": "row"
+            "raw": "rows"
           },
-          "span": {
-            "line": 37,
-            "column": 17
-          },
-          "children": []
-        },
-        {
-          "key": "column",
-          "value": {
-            "kind": {
-              "kind": "path",
-              "value": "column"
-            },
-            "span": {
-              "line": 38,
-              "column": 24
-            },
-            "raw": "column"
-          },
-          "span": {
-            "line": 38,
-            "column": 17
-          },
-          "children": []
-        },
-        {
-          "key": "sources",
-          "value": {
-            "kind": {
-              "kind": "path",
-              "value": "cells.sources"
-            },
-            "span": {
-              "line": 39,
-              "column": 25
-            },
-            "raw": "cells.sources"
-          },
-          "span": {
-            "line": 39,
-            "column": 17
-          },
-          "children": []
-        }
-      ]
-    },
-    {
-      "kind": "record",
-      "key": "document",
-      "value": null,
-      "span": {
-        "line": 44,
-        "column": 1
-      },
-      "children": [
-        {
-          "key": "root",
-          "value": null,
-          "span": {
-            "line": 46,
-            "column": 9
-          },
-          "children": [
+          "stages": [
             {
-              "key": "element",
-              "value": {
-                "kind": {
-                  "kind": "path",
-                  "value": "store.sources.viewport"
-                },
-                "span": {
-                  "line": 48,
-                  "column": 25
-                },
-                "raw": "store.sources.viewport"
-              },
-              "span": {
-                "line": 48,
-                "column": 17
-              },
-              "children": []
-            },
-            {
-              "key": "cells",
-              "value": null,
-              "span": {
-                "line": 49,
-                "column": 17
-              },
-              "children": [
-                {
-                  "key": "children",
-                  "value": null,
-                  "span": {
-                    "line": 53,
-                    "column": 33
-                  },
-                  "children": []
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "kind": "expression",
-      "kind": {
-        "kind": "pipeline",
-        "input": {
-          "kind": {
-            "kind": "path",
-            "value": "rows"
-          },
-          "span": {
-            "line": 34,
-            "column": 5
-          },
-          "raw": "rows"
-        },
-        "stages": [
-          {
-            "kind": {
-              "kind": "list_call",
-              "op": "map",
-              "args": [
-                {
-                  "name": "new",
-                  "value": {
-                    "kind": {
-                      "kind": "unsupported",
-                      "reason": "raw syntax not yet lowered"
-                    },
-                    "span": {
-                      "line": 34,
-                      "column": 5
-                    },
-                    "raw": ""
-                  },
-                  "span": {
-                    "line": 34,
-                    "column": 5
-                  }
-                },
-                {
-                  "name": "columns |> List/map(column, new",
-                  "value": {
-                    "kind": {
-                      "kind": "record",
-                      "entries": [
-                        {
-                          "key": "row",
-                          "value": {
-                            "kind": {
-                              "kind": "path",
-                              "value": "row"
-                            },
-                            "span": {
-                              "line": 34,
-                              "column": 5
-                            },
-                            "raw": "row"
-                          },
-                          "span": {
-                            "line": 34,
-                            "column": 5
-                          },
-                          "children": []
-                        },
-                        {
-                          "key": "column",
-                          "value": {
-                            "kind": {
-                              "kind": "path",
-                              "value": "column"
-                            },
-                            "span": {
-                              "line": 34,
-                              "column": 5
-                            },
-                            "raw": "column"
-                          },
-                          "span": {
-                            "line": 34,
-                            "column": 5
-                          },
-                          "children": []
-                        },
-                        {
-                          "key": "sources",
-                          "value": {
-                            "kind": {
-                              "kind": "path",
-                              "value": "cells.sources"
-                            },
-                            "span": {
-                              "line": 34,
-                              "column": 5
-                            },
-                            "raw": "cells.sources"
-                          },
-                          "span": {
-                            "line": 34,
-                            "column": 5
-                          },
-                          "children": []
-                        }
-                      ]
-                    },
-                    "span": {
-                      "line": 34,
-                      "column": 5
-                    },
-                    "raw": "[\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)"
-                  },
-                  "span": {
-                    "line": 34,
-                    "column": 5
-                  }
-                }
-              ]
-            },
-            "span": {
-              "line": 34,
-              "column": 5
-            },
-            "raw": "List/map(row, new:\ncolumns |> List/map(column, new:\n[\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)\n)"
-          }
-        ]
-      },
-      "span": {
-        "line": 34,
-        "column": 5
-      },
-      "raw": "rows |> List/map(row, new:\ncolumns |> List/map(column, new:\n[\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)\n)"
-    },
-    {
-      "kind": "expression",
-      "kind": {
-        "kind": "host_call",
-        "path": "Document/new",
-        "args": [
-          {
-            "name": "root",
-            "value": {
               "kind": {
-                "kind": "unsupported",
-                "reason": "raw syntax not yet lowered"
-              },
-              "span": {
-                "line": 45,
-                "column": 5
-              },
-              "raw": ""
-            },
-            "span": {
-              "line": 45,
-              "column": 5
-            }
-          },
-          {
-            "name": "Element/grid(\nelement",
-            "value": {
-              "kind": {
-                "kind": "pipeline",
-                "input": {
-                  "kind": {
-                    "kind": "unsupported",
-                    "reason": "raw syntax not yet lowered"
-                  },
-                  "span": {
-                    "line": 45,
-                    "column": 5
-                  },
-                  "raw": "store.sources.viewport\ncells:\ngrid"
-                },
-                "stages": [
+                "kind": "list_call",
+                "op": "map",
+                "args": [
                   {
-                    "kind": {
-                      "kind": "unsupported",
-                      "reason": "raw syntax not yet lowered"
+                    "name": "new",
+                    "value": {
+                      "kind": {
+                        "kind": "pipeline",
+                        "input": {
+                          "kind": {
+                            "kind": "path",
+                            "value": "columns"
+                          },
+                          "span": {
+                            "line": 33,
+                            "column": 6
+                          },
+                          "raw": "columns"
+                        },
+                        "stages": [
+                          {
+                            "kind": {
+                              "kind": "list_call",
+                              "op": "map",
+                              "args": [
+                                {
+                                  "name": "new",
+                                  "value": {
+                                    "kind": {
+                                      "kind": "record",
+                                      "entries": [
+                                        {
+                                          "key": "row",
+                                          "value": {
+                                            "kind": {
+                                              "kind": "path",
+                                              "value": "row"
+                                            },
+                                            "span": {
+                                              "line": 33,
+                                              "column": 10
+                                            },
+                                            "raw": "row"
+                                          },
+                                          "span": {
+                                            "line": 33,
+                                            "column": 6
+                                          },
+                                          "children": []
+                                        },
+                                        {
+                                          "key": "column",
+                                          "value": {
+                                            "kind": {
+                                              "kind": "path",
+                                              "value": "column"
+                                            },
+                                            "span": {
+                                              "line": 34,
+                                              "column": 13
+                                            },
+                                            "raw": "column"
+                                          },
+                                          "span": {
+                                            "line": 34,
+                                            "column": 6
+                                          },
+                                          "children": []
+                                        },
+                                        {
+                                          "key": "sources",
+                                          "value": {
+                                            "kind": {
+                                              "kind": "path",
+                                              "value": "cells.sources"
+                                            },
+                                            "span": {
+                                              "line": 35,
+                                              "column": 14
+                                            },
+                                            "raw": "cells.sources"
+                                          },
+                                          "span": {
+                                            "line": 35,
+                                            "column": 6
+                                          },
+                                          "children": []
+                                        }
+                                      ]
+                                    },
+                                    "span": {
+                                      "line": 33,
+                                      "column": 6
+                                    },
+                                    "raw": "[\nrow: row\ncolumn: column\nsources: cells.sources\n]"
+                                  },
+                                  "span": {
+                                    "line": 33,
+                                    "column": 6
+                                  }
+                                }
+                              ]
+                            },
+                            "span": {
+                              "line": 33,
+                              "column": 6
+                            },
+                            "raw": "List/map(column, new: [\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)"
+                          }
+                        ]
+                      },
+                      "span": {
+                        "line": 33,
+                        "column": 6
+                      },
+                      "raw": "columns |> List/map(column, new: [\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)"
                     },
                     "span": {
-                      "line": 45,
-                      "column": 5
-                    },
-                    "raw": "List/map(row, new:\nrow |> List/map(cell, new:\nElement/panel(\nchildren:\nLIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)"
+                      "line": 33,
+                      "column": 6
+                    }
                   }
                 ]
               },
               "span": {
-                "line": 45,
-                "column": 5
+                "line": 33,
+                "column": 6
               },
-              "raw": "store.sources.viewport\ncells:\ngrid |> List/map(row, new:\nrow |> List/map(cell, new:\nElement/panel(\nchildren:\nLIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)"
-            },
-            "span": {
-              "line": 45,
-              "column": 5
+              "raw": "List/map(row, new: columns |> List/map(column, new: [\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)\n)"
             }
-          }
-        ]
+          ]
+        },
+        "span": {
+          "line": 33,
+          "column": 6
+        },
+        "raw": "rows |> List/map(row, new: columns |> List/map(column, new: [\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)\n)"
       },
       "span": {
-        "line": 45,
-        "column": 5
+        "line": 33,
+        "column": 1
       },
-      "raw": "Document/new(\nroot:\nElement/grid(\nelement: store.sources.viewport\ncells:\ngrid |> List/map(row, new:\nrow |> List/map(cell, new:\nElement/panel(\nchildren:\nLIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)\n)"
+      "children": []
+    },
+    {
+      "kind": "record",
+      "key": "document",
+      "value": {
+        "kind": {
+          "kind": "host_call",
+          "path": "Document/new",
+          "args": [
+            {
+              "name": "root",
+              "value": {
+                "kind": {
+                  "kind": "host_call",
+                  "path": "Element/grid",
+                  "args": [
+                    {
+                      "name": "element",
+                      "value": {
+                        "kind": {
+                          "kind": "path",
+                          "value": "store.sources.viewport"
+                        },
+                        "span": {
+                          "line": 44,
+                          "column": 10
+                        },
+                        "raw": "store.sources.viewport"
+                      },
+                      "span": {
+                        "line": 44,
+                        "column": 10
+                      }
+                    },
+                    {
+                      "name": "cells",
+                      "value": {
+                        "kind": {
+                          "kind": "pipeline",
+                          "input": {
+                            "kind": {
+                              "kind": "path",
+                              "value": "grid"
+                            },
+                            "span": {
+                              "line": 44,
+                              "column": 10
+                            },
+                            "raw": "grid"
+                          },
+                          "stages": [
+                            {
+                              "kind": {
+                                "kind": "list_call",
+                                "op": "map",
+                                "args": [
+                                  {
+                                    "name": "new",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "pipeline",
+                                        "input": {
+                                          "kind": {
+                                            "kind": "path",
+                                            "value": "row"
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "row"
+                                        },
+                                        "stages": [
+                                          {
+                                            "kind": {
+                                              "kind": "list_call",
+                                              "op": "map",
+                                              "args": [
+                                                {
+                                                  "name": "new",
+                                                  "value": {
+                                                    "kind": {
+                                                      "kind": "host_call",
+                                                      "path": "Element/panel",
+                                                      "args": [
+                                                        {
+                                                          "name": "children",
+                                                          "value": {
+                                                            "kind": {
+                                                              "kind": "list",
+                                                              "items": [
+                                                                {
+                                                                  "kind": {
+                                                                    "kind": "host_call",
+                                                                    "path": "Element/label",
+                                                                    "args": [
+                                                                      {
+                                                                        "name": "element",
+                                                                        "value": {
+                                                                          "kind": {
+                                                                            "kind": "path",
+                                                                            "value": "cell.sources.display"
+                                                                          },
+                                                                          "span": {
+                                                                            "line": 44,
+                                                                            "column": 10
+                                                                          },
+                                                                          "raw": "cell.sources.display"
+                                                                        },
+                                                                        "span": {
+                                                                          "line": 44,
+                                                                          "column": 10
+                                                                        }
+                                                                      }
+                                                                    ]
+                                                                  },
+                                                                  "span": {
+                                                                    "line": 44,
+                                                                    "column": 10
+                                                                  },
+                                                                  "raw": "Element/label(element: cell.sources.display)"
+                                                                },
+                                                                {
+                                                                  "kind": {
+                                                                    "kind": "host_call",
+                                                                    "path": "Element/text_input",
+                                                                    "args": [
+                                                                      {
+                                                                        "name": "element",
+                                                                        "value": {
+                                                                          "kind": {
+                                                                            "kind": "path",
+                                                                            "value": "cell.sources.editor"
+                                                                          },
+                                                                          "span": {
+                                                                            "line": 44,
+                                                                            "column": 10
+                                                                          },
+                                                                          "raw": "cell.sources.editor"
+                                                                        },
+                                                                        "span": {
+                                                                          "line": 44,
+                                                                          "column": 10
+                                                                        }
+                                                                      }
+                                                                    ]
+                                                                  },
+                                                                  "span": {
+                                                                    "line": 44,
+                                                                    "column": 10
+                                                                  },
+                                                                  "raw": "Element/text_input(element: cell.sources.editor)"
+                                                                }
+                                                              ]
+                                                            },
+                                                            "span": {
+                                                              "line": 44,
+                                                              "column": 10
+                                                            },
+                                                            "raw": "LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}"
+                                                          },
+                                                          "span": {
+                                                            "line": 44,
+                                                            "column": 10
+                                                          }
+                                                        }
+                                                      ]
+                                                    },
+                                                    "span": {
+                                                      "line": 44,
+                                                      "column": 10
+                                                    },
+                                                    "raw": "Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)"
+                                                  },
+                                                  "span": {
+                                                    "line": 44,
+                                                    "column": 10
+                                                  }
+                                                }
+                                              ]
+                                            },
+                                            "span": {
+                                              "line": 44,
+                                              "column": 10
+                                            },
+                                            "raw": "List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)"
+                                          }
+                                        ]
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  }
+                                ]
+                              },
+                              "span": {
+                                "line": 44,
+                                "column": 10
+                              },
+                              "raw": "List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)"
+                            }
+                          ]
+                        },
+                        "span": {
+                          "line": 44,
+                          "column": 10
+                        },
+                        "raw": "grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)"
+                      },
+                      "span": {
+                        "line": 44,
+                        "column": 10
+                      }
+                    }
+                  ]
+                },
+                "span": {
+                  "line": 44,
+                  "column": 10
+                },
+                "raw": "Element/grid(\nelement: store.sources.viewport\ncells: grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)"
+              },
+              "span": {
+                "line": 44,
+                "column": 10
+              }
+            }
+          ]
+        },
+        "span": {
+          "line": 44,
+          "column": 10
+        },
+        "raw": "Document/new(\nroot: Element/grid(\nelement: store.sources.viewport\ncells: grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)\n)"
+      },
+      "span": {
+        "line": 44,
+        "column": 1
+      },
+      "children": []
     }
   ],
   "features": [
     "source",
+    "list_literal",
     "list_map",
+    "list_range",
+    "host_element",
     "host_document",
     "pipeline",
     "render_expression"
@@ -2419,87 +2790,106 @@
       "from": "row",
       "to": "row",
       "span": {
-        "line": 37,
-        "column": 21
+        "line": 33,
+        "column": 10
       }
     },
     {
       "from": "column",
       "to": "column",
       "span": {
-        "line": 38,
-        "column": 24
+        "line": 34,
+        "column": 13
       }
     },
     {
       "from": "sources",
       "to": "cells.sources",
       "span": {
-        "line": 39,
-        "column": 25
+        "line": 35,
+        "column": 14
       }
     },
     {
-      "from": "element",
-      "to": "store.sources.viewport",
+      "from": "grid",
+      "to": "rows",
       "span": {
-        "line": 48,
-        "column": 25
+        "line": 33,
+        "column": 6
       }
     },
     {
-      "from": "row",
+      "from": "grid",
+      "to": "columns",
+      "span": {
+        "line": 33,
+        "column": 6
+      }
+    },
+    {
+      "from": "grid",
       "to": "row",
       "span": {
-        "line": 34,
-        "column": 5
+        "line": 33,
+        "column": 6
       }
     },
     {
-      "from": "column",
+      "from": "grid",
       "to": "column",
       "span": {
-        "line": 34,
-        "column": 5
+        "line": 33,
+        "column": 6
       }
     },
     {
-      "from": "sources",
+      "from": "grid",
       "to": "cells.sources",
       "span": {
-        "line": 34,
-        "column": 5
+        "line": 33,
+        "column": 6
+      }
+    },
+    {
+      "from": "document",
+      "to": "store.sources.viewport",
+      "span": {
+        "line": 44,
+        "column": 10
+      }
+    },
+    {
+      "from": "document",
+      "to": "grid",
+      "span": {
+        "line": 44,
+        "column": 10
+      }
+    },
+    {
+      "from": "document",
+      "to": "row",
+      "span": {
+        "line": 44,
+        "column": 10
+      }
+    },
+    {
+      "from": "document",
+      "to": "cell.sources.display",
+      "span": {
+        "line": 44,
+        "column": 10
+      }
+    },
+    {
+      "from": "document",
+      "to": "cell.sources.editor",
+      "span": {
+        "line": 44,
+        "column": 10
       }
     }
   ],
-  "diagnostics": [
-    {
-      "span": {
-        "line": 34,
-        "column": 5
-      },
-      "message": "expression kept as raw syntax: "
-    },
-    {
-      "span": {
-        "line": 45,
-        "column": 5
-      },
-      "message": "expression kept as raw syntax: "
-    },
-    {
-      "span": {
-        "line": 45,
-        "column": 5
-      },
-      "message": "expression kept as raw syntax: store.sources.viewport\ncells:\ngrid"
-    },
-    {
-      "span": {
-        "line": 45,
-        "column": 5
-      },
-      "message": "expression kept as raw syntax: List/map(row, new:\nrow |> List/map(cell, new:\nElement/panel(\nchildren:\nLIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)"
-    }
-  ]
+  "diagnostics": []
 }

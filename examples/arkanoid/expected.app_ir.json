@@ -1,4 +1,26 @@
 {
   "state_cells": [],
-  "event_handlers": []
+  "event_handlers": [],
+  "render_tree": {
+    "id": "root_0",
+    "kind": "root",
+    "children": [
+      {
+        "id": "panel_3",
+        "kind": "panel",
+        "children": [
+          {
+            "id": "label_1",
+            "kind": "label",
+            "source_path": "store.sources.tick"
+          },
+          {
+            "id": "label_2",
+            "kind": "label",
+            "source_path": "store.sources.paddle"
+          }
+        ]
+      }
+    ]
+  }
 }

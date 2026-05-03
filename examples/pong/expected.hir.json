@@ -632,7 +632,106 @@
         {
           "kind": "record",
           "key": "world",
-          "value": null,
+          "value": {
+            "kind": {
+              "kind": "pipeline",
+              "input": {
+                "kind": {
+                  "kind": "number",
+                  "value": 0
+                },
+                "span": {
+                  "line": 43,
+                  "column": 7
+                },
+                "raw": "0"
+              },
+              "stages": [
+                {
+                  "kind": {
+                    "kind": "hold",
+                    "state": "frame",
+                    "body": {
+                      "kind": {
+                        "kind": "pipeline",
+                        "input": {
+                          "kind": {
+                            "kind": "path",
+                            "value": "store.sources.tick.event.frame"
+                          },
+                          "span": {
+                            "line": 43,
+                            "column": 7
+                          },
+                          "raw": "store.sources.tick.event.frame"
+                        },
+                        "stages": [
+                          {
+                            "kind": {
+                              "kind": "then",
+                              "body": {
+                                "kind": {
+                                  "kind": "binary",
+                                  "op": "add",
+                                  "left": {
+                                    "kind": {
+                                      "kind": "path",
+                                      "value": "frame"
+                                    },
+                                    "span": {
+                                      "line": 43,
+                                      "column": 7
+                                    },
+                                    "raw": "frame"
+                                  },
+                                  "right": {
+                                    "kind": {
+                                      "kind": "number",
+                                      "value": 1
+                                    },
+                                    "span": {
+                                      "line": 43,
+                                      "column": 7
+                                    },
+                                    "raw": "1"
+                                  }
+                                },
+                                "span": {
+                                  "line": 43,
+                                  "column": 7
+                                },
+                                "raw": "frame + 1"
+                              }
+                            },
+                            "span": {
+                              "line": 43,
+                              "column": 7
+                            },
+                            "raw": "THEN { frame + 1 }"
+                          }
+                        ]
+                      },
+                      "span": {
+                        "line": 43,
+                        "column": 7
+                      },
+                      "raw": "store.sources.tick.event.frame |> THEN { frame + 1 }"
+                    }
+                  },
+                  "span": {
+                    "line": 43,
+                    "column": 7
+                  },
+                  "raw": "HOLD frame {\nstore.sources.tick.event.frame |> THEN { frame + 1 }\n}"
+                }
+              ]
+            },
+            "span": {
+              "line": 43,
+              "column": 7
+            },
+            "raw": "0 |> HOLD frame {\nstore.sources.tick.event.frame |> THEN { frame + 1 }\n}"
+          },
           "span": {
             "line": 43,
             "column": 1
@@ -642,245 +741,125 @@
         {
           "kind": "record",
           "key": "document",
-          "value": null,
-          "span": {
-            "line": 48,
-            "column": 1
-          },
-          "children": [
-            {
-              "key": "root",
-              "value": null,
-              "span": {
-                "line": 50,
-                "column": 9
-              },
-              "children": [
+          "value": {
+            "kind": {
+              "kind": "call",
+              "path": "Document/new",
+              "args": [
                 {
-                  "key": "children",
-                  "value": null,
-                  "span": {
-                    "line": 52,
-                    "column": 17
-                  },
-                  "children": []
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "kind": "expression",
-          "kind": {
-            "kind": "pipeline",
-            "input": {
-              "kind": {
-                "kind": "number",
-                "value": 0
-              },
-              "span": {
-                "line": 44,
-                "column": 5
-              },
-              "raw": "0"
-            },
-            "stages": [
-              {
-                "kind": {
-                  "kind": "hold",
-                  "state": "frame",
-                  "body": {
+                  "name": "root",
+                  "value": {
                     "kind": {
-                      "kind": "pipeline",
-                      "input": {
-                        "kind": {
-                          "kind": "path",
-                          "value": "store.sources.tick.event.frame"
-                        },
-                        "span": {
-                          "line": 44,
-                          "column": 5
-                        },
-                        "raw": "store.sources.tick.event.frame"
-                      },
-                      "stages": [
+                      "kind": "call",
+                      "path": "Element/panel",
+                      "args": [
                         {
-                          "kind": {
-                            "kind": "then",
-                            "body": {
-                              "kind": {
-                                "kind": "binary",
-                                "op": "add",
-                                "left": {
+                          "name": "children",
+                          "value": {
+                            "kind": {
+                              "kind": "list",
+                              "items": [
+                                {
                                   "kind": {
-                                    "kind": "path",
-                                    "value": "frame"
+                                    "kind": "call",
+                                    "path": "Element/label",
+                                    "args": [
+                                      {
+                                        "name": "element",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "path",
+                                            "value": "store.sources.tick"
+                                          },
+                                          "span": {
+                                            "line": 48,
+                                            "column": 10
+                                          },
+                                          "raw": "store.sources.tick"
+                                        },
+                                        "span": {
+                                          "line": 48,
+                                          "column": 10
+                                        }
+                                      }
+                                    ]
                                   },
                                   "span": {
-                                    "line": 44,
-                                    "column": 5
+                                    "line": 48,
+                                    "column": 10
                                   },
-                                  "raw": "frame"
+                                  "raw": "Element/label(element: store.sources.tick)"
                                 },
-                                "right": {
+                                {
                                   "kind": {
-                                    "kind": "number",
-                                    "value": 1
+                                    "kind": "call",
+                                    "path": "Element/label",
+                                    "args": [
+                                      {
+                                        "name": "element",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "path",
+                                            "value": "store.sources.paddle"
+                                          },
+                                          "span": {
+                                            "line": 48,
+                                            "column": 10
+                                          },
+                                          "raw": "store.sources.paddle"
+                                        },
+                                        "span": {
+                                          "line": 48,
+                                          "column": 10
+                                        }
+                                      }
+                                    ]
                                   },
                                   "span": {
-                                    "line": 44,
-                                    "column": 5
+                                    "line": 48,
+                                    "column": 10
                                   },
-                                  "raw": "1"
+                                  "raw": "Element/label(element: store.sources.paddle)"
                                 }
-                              },
-                              "span": {
-                                "line": 44,
-                                "column": 5
-                              },
-                              "raw": "frame + 1"
-                            }
+                              ]
+                            },
+                            "span": {
+                              "line": 48,
+                              "column": 10
+                            },
+                            "raw": "LIST {\nElement/label(element: store.sources.tick)\nElement/label(element: store.sources.paddle)\n}"
                           },
                           "span": {
-                            "line": 44,
-                            "column": 5
-                          },
-                          "raw": "THEN { frame + 1 }"
+                            "line": 48,
+                            "column": 10
+                          }
                         }
                       ]
                     },
                     "span": {
-                      "line": 44,
-                      "column": 5
+                      "line": 48,
+                      "column": 10
                     },
-                    "raw": "store.sources.tick.event.frame |> THEN { frame + 1 }"
+                    "raw": "Element/panel(\nchildren: LIST {\nElement/label(element: store.sources.tick)\nElement/label(element: store.sources.paddle)\n}\n)"
+                  },
+                  "span": {
+                    "line": 48,
+                    "column": 10
                   }
-                },
-                "span": {
-                  "line": 44,
-                  "column": 5
-                },
-                "raw": "HOLD frame {\nstore.sources.tick.event.frame |> THEN { frame + 1 }\n}"
-              }
-            ]
+                }
+              ]
+            },
+            "span": {
+              "line": 48,
+              "column": 10
+            },
+            "raw": "Document/new(\nroot: Element/panel(\nchildren: LIST {\nElement/label(element: store.sources.tick)\nElement/label(element: store.sources.paddle)\n}\n)\n)"
           },
           "span": {
-            "line": 44,
-            "column": 5
+            "line": 48,
+            "column": 1
           },
-          "raw": "0 |> HOLD frame {\nstore.sources.tick.event.frame |> THEN { frame + 1 }\n}"
-        },
-        {
-          "kind": "expression",
-          "kind": {
-            "kind": "call",
-            "path": "Document/new",
-            "args": [
-              {
-                "name": "root",
-                "value": {
-                  "kind": {
-                    "kind": "raw"
-                  },
-                  "span": {
-                    "line": 49,
-                    "column": 5
-                  },
-                  "raw": ""
-                },
-                "span": {
-                  "line": 49,
-                  "column": 5
-                }
-              },
-              {
-                "name": "Element/panel(\nchildren",
-                "value": {
-                  "kind": {
-                    "kind": "list",
-                    "items": [
-                      {
-                        "kind": {
-                          "kind": "call",
-                          "path": "Element/label",
-                          "args": [
-                            {
-                              "name": "element",
-                              "value": {
-                                "kind": {
-                                  "kind": "path",
-                                  "value": "store.sources.tick"
-                                },
-                                "span": {
-                                  "line": 49,
-                                  "column": 5
-                                },
-                                "raw": "store.sources.tick"
-                              },
-                              "span": {
-                                "line": 49,
-                                "column": 5
-                              }
-                            }
-                          ]
-                        },
-                        "span": {
-                          "line": 49,
-                          "column": 5
-                        },
-                        "raw": "Element/label(element: store.sources.tick)"
-                      },
-                      {
-                        "kind": {
-                          "kind": "call",
-                          "path": "Element/label",
-                          "args": [
-                            {
-                              "name": "element",
-                              "value": {
-                                "kind": {
-                                  "kind": "path",
-                                  "value": "store.sources.paddle"
-                                },
-                                "span": {
-                                  "line": 49,
-                                  "column": 5
-                                },
-                                "raw": "store.sources.paddle"
-                              },
-                              "span": {
-                                "line": 49,
-                                "column": 5
-                              }
-                            }
-                          ]
-                        },
-                        "span": {
-                          "line": 49,
-                          "column": 5
-                        },
-                        "raw": "Element/label(element: store.sources.paddle)"
-                      }
-                    ]
-                  },
-                  "span": {
-                    "line": 49,
-                    "column": 5
-                  },
-                  "raw": "LIST {\nElement/label(element: store.sources.tick)\nElement/label(element: store.sources.paddle)\n}\n)"
-                },
-                "span": {
-                  "line": 49,
-                  "column": 5
-                }
-              }
-            ]
-          },
-          "span": {
-            "line": 49,
-            "column": 5
-          },
-          "raw": "Document/new(\nroot:\nElement/panel(\nchildren:\nLIST {\nElement/label(element: store.sources.tick)\nElement/label(element: store.sources.paddle)\n}\n)\n)"
+          "children": []
         }
       ]
     },
@@ -2470,7 +2449,112 @@
     {
       "kind": "record",
       "key": "world",
-      "value": null,
+      "value": {
+        "kind": {
+          "kind": "pipeline",
+          "input": {
+            "kind": {
+              "kind": "literal",
+              "literal": {
+                "kind": "number",
+                "value": 0
+              }
+            },
+            "span": {
+              "line": 43,
+              "column": 7
+            },
+            "raw": "0"
+          },
+          "stages": [
+            {
+              "kind": {
+                "kind": "hold",
+                "state": "frame",
+                "body": {
+                  "kind": {
+                    "kind": "pipeline",
+                    "input": {
+                      "kind": {
+                        "kind": "path",
+                        "value": "store.sources.tick.event.frame"
+                      },
+                      "span": {
+                        "line": 43,
+                        "column": 7
+                      },
+                      "raw": "store.sources.tick.event.frame"
+                    },
+                    "stages": [
+                      {
+                        "kind": {
+                          "kind": "then",
+                          "body": {
+                            "kind": {
+                              "kind": "binary",
+                              "op": "add",
+                              "left": {
+                                "kind": {
+                                  "kind": "path",
+                                  "value": "frame"
+                                },
+                                "span": {
+                                  "line": 43,
+                                  "column": 7
+                                },
+                                "raw": "frame"
+                              },
+                              "right": {
+                                "kind": {
+                                  "kind": "literal",
+                                  "literal": {
+                                    "kind": "number",
+                                    "value": 1
+                                  }
+                                },
+                                "span": {
+                                  "line": 43,
+                                  "column": 7
+                                },
+                                "raw": "1"
+                              }
+                            },
+                            "span": {
+                              "line": 43,
+                              "column": 7
+                            },
+                            "raw": "frame + 1"
+                          }
+                        },
+                        "span": {
+                          "line": 43,
+                          "column": 7
+                        },
+                        "raw": "THEN { frame + 1 }"
+                      }
+                    ]
+                  },
+                  "span": {
+                    "line": 43,
+                    "column": 7
+                  },
+                  "raw": "store.sources.tick.event.frame |> THEN { frame + 1 }"
+                }
+              },
+              "span": {
+                "line": 43,
+                "column": 7
+              },
+              "raw": "HOLD frame {\nstore.sources.tick.event.frame |> THEN { frame + 1 }\n}"
+            }
+          ]
+        },
+        "span": {
+          "line": 43,
+          "column": 7
+        },
+        "raw": "0 |> HOLD frame {\nstore.sources.tick.event.frame |> THEN { frame + 1 }\n}"
+      },
       "span": {
         "line": 43,
         "column": 1
@@ -2480,252 +2564,125 @@
     {
       "kind": "record",
       "key": "document",
-      "value": null,
-      "span": {
-        "line": 48,
-        "column": 1
-      },
-      "children": [
-        {
-          "key": "root",
-          "value": null,
-          "span": {
-            "line": 50,
-            "column": 9
-          },
-          "children": [
+      "value": {
+        "kind": {
+          "kind": "host_call",
+          "path": "Document/new",
+          "args": [
             {
-              "key": "children",
-              "value": null,
-              "span": {
-                "line": 52,
-                "column": 17
-              },
-              "children": []
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "kind": "expression",
-      "kind": {
-        "kind": "pipeline",
-        "input": {
-          "kind": {
-            "kind": "literal",
-            "literal": {
-              "kind": "number",
-              "value": 0
-            }
-          },
-          "span": {
-            "line": 44,
-            "column": 5
-          },
-          "raw": "0"
-        },
-        "stages": [
-          {
-            "kind": {
-              "kind": "hold",
-              "state": "frame",
-              "body": {
+              "name": "root",
+              "value": {
                 "kind": {
-                  "kind": "pipeline",
-                  "input": {
-                    "kind": {
-                      "kind": "path",
-                      "value": "store.sources.tick.event.frame"
-                    },
-                    "span": {
-                      "line": 44,
-                      "column": 5
-                    },
-                    "raw": "store.sources.tick.event.frame"
-                  },
-                  "stages": [
+                  "kind": "host_call",
+                  "path": "Element/panel",
+                  "args": [
                     {
-                      "kind": {
-                        "kind": "then",
-                        "body": {
-                          "kind": {
-                            "kind": "binary",
-                            "op": "add",
-                            "left": {
+                      "name": "children",
+                      "value": {
+                        "kind": {
+                          "kind": "list",
+                          "items": [
+                            {
                               "kind": {
-                                "kind": "path",
-                                "value": "frame"
+                                "kind": "host_call",
+                                "path": "Element/label",
+                                "args": [
+                                  {
+                                    "name": "element",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "path",
+                                        "value": "store.sources.tick"
+                                      },
+                                      "span": {
+                                        "line": 48,
+                                        "column": 10
+                                      },
+                                      "raw": "store.sources.tick"
+                                    },
+                                    "span": {
+                                      "line": 48,
+                                      "column": 10
+                                    }
+                                  }
+                                ]
                               },
                               "span": {
-                                "line": 44,
-                                "column": 5
+                                "line": 48,
+                                "column": 10
                               },
-                              "raw": "frame"
+                              "raw": "Element/label(element: store.sources.tick)"
                             },
-                            "right": {
+                            {
                               "kind": {
-                                "kind": "literal",
-                                "literal": {
-                                  "kind": "number",
-                                  "value": 1
-                                }
+                                "kind": "host_call",
+                                "path": "Element/label",
+                                "args": [
+                                  {
+                                    "name": "element",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "path",
+                                        "value": "store.sources.paddle"
+                                      },
+                                      "span": {
+                                        "line": 48,
+                                        "column": 10
+                                      },
+                                      "raw": "store.sources.paddle"
+                                    },
+                                    "span": {
+                                      "line": 48,
+                                      "column": 10
+                                    }
+                                  }
+                                ]
                               },
                               "span": {
-                                "line": 44,
-                                "column": 5
+                                "line": 48,
+                                "column": 10
                               },
-                              "raw": "1"
+                              "raw": "Element/label(element: store.sources.paddle)"
                             }
-                          },
-                          "span": {
-                            "line": 44,
-                            "column": 5
-                          },
-                          "raw": "frame + 1"
-                        }
+                          ]
+                        },
+                        "span": {
+                          "line": 48,
+                          "column": 10
+                        },
+                        "raw": "LIST {\nElement/label(element: store.sources.tick)\nElement/label(element: store.sources.paddle)\n}"
                       },
                       "span": {
-                        "line": 44,
-                        "column": 5
-                      },
-                      "raw": "THEN { frame + 1 }"
+                        "line": 48,
+                        "column": 10
+                      }
                     }
                   ]
                 },
                 "span": {
-                  "line": 44,
-                  "column": 5
+                  "line": 48,
+                  "column": 10
                 },
-                "raw": "store.sources.tick.event.frame |> THEN { frame + 1 }"
+                "raw": "Element/panel(\nchildren: LIST {\nElement/label(element: store.sources.tick)\nElement/label(element: store.sources.paddle)\n}\n)"
+              },
+              "span": {
+                "line": 48,
+                "column": 10
               }
-            },
-            "span": {
-              "line": 44,
-              "column": 5
-            },
-            "raw": "HOLD frame {\nstore.sources.tick.event.frame |> THEN { frame + 1 }\n}"
-          }
-        ]
+            }
+          ]
+        },
+        "span": {
+          "line": 48,
+          "column": 10
+        },
+        "raw": "Document/new(\nroot: Element/panel(\nchildren: LIST {\nElement/label(element: store.sources.tick)\nElement/label(element: store.sources.paddle)\n}\n)\n)"
       },
       "span": {
-        "line": 44,
-        "column": 5
+        "line": 48,
+        "column": 1
       },
-      "raw": "0 |> HOLD frame {\nstore.sources.tick.event.frame |> THEN { frame + 1 }\n}"
-    },
-    {
-      "kind": "expression",
-      "kind": {
-        "kind": "host_call",
-        "path": "Document/new",
-        "args": [
-          {
-            "name": "root",
-            "value": {
-              "kind": {
-                "kind": "unsupported",
-                "reason": "raw syntax not yet lowered"
-              },
-              "span": {
-                "line": 49,
-                "column": 5
-              },
-              "raw": ""
-            },
-            "span": {
-              "line": 49,
-              "column": 5
-            }
-          },
-          {
-            "name": "Element/panel(\nchildren",
-            "value": {
-              "kind": {
-                "kind": "list",
-                "items": [
-                  {
-                    "kind": {
-                      "kind": "host_call",
-                      "path": "Element/label",
-                      "args": [
-                        {
-                          "name": "element",
-                          "value": {
-                            "kind": {
-                              "kind": "path",
-                              "value": "store.sources.tick"
-                            },
-                            "span": {
-                              "line": 49,
-                              "column": 5
-                            },
-                            "raw": "store.sources.tick"
-                          },
-                          "span": {
-                            "line": 49,
-                            "column": 5
-                          }
-                        }
-                      ]
-                    },
-                    "span": {
-                      "line": 49,
-                      "column": 5
-                    },
-                    "raw": "Element/label(element: store.sources.tick)"
-                  },
-                  {
-                    "kind": {
-                      "kind": "host_call",
-                      "path": "Element/label",
-                      "args": [
-                        {
-                          "name": "element",
-                          "value": {
-                            "kind": {
-                              "kind": "path",
-                              "value": "store.sources.paddle"
-                            },
-                            "span": {
-                              "line": 49,
-                              "column": 5
-                            },
-                            "raw": "store.sources.paddle"
-                          },
-                          "span": {
-                            "line": 49,
-                            "column": 5
-                          }
-                        }
-                      ]
-                    },
-                    "span": {
-                      "line": 49,
-                      "column": 5
-                    },
-                    "raw": "Element/label(element: store.sources.paddle)"
-                  }
-                ]
-              },
-              "span": {
-                "line": 49,
-                "column": 5
-              },
-              "raw": "LIST {\nElement/label(element: store.sources.tick)\nElement/label(element: store.sources.paddle)\n}\n)"
-            },
-            "span": {
-              "line": 49,
-              "column": 5
-            }
-          }
-        ]
-      },
-      "span": {
-        "line": 49,
-        "column": 5
-      },
-      "raw": "Document/new(\nroot:\nElement/panel(\nchildren:\nLIST {\nElement/label(element: store.sources.tick)\nElement/label(element: store.sources.paddle)\n}\n)\n)"
+      "children": []
     }
   ],
   "features": [
@@ -2739,14 +2696,39 @@
     "binary",
     "render_expression"
   ],
-  "dependencies": [],
-  "diagnostics": [
+  "dependencies": [
     {
+      "from": "world",
+      "to": "store.sources.tick.event.frame",
       "span": {
-        "line": 49,
-        "column": 5
-      },
-      "message": "expression kept as raw syntax: "
+        "line": 43,
+        "column": 7
+      }
+    },
+    {
+      "from": "world",
+      "to": "frame",
+      "span": {
+        "line": 43,
+        "column": 7
+      }
+    },
+    {
+      "from": "document",
+      "to": "store.sources.tick",
+      "span": {
+        "line": 48,
+        "column": 10
+      }
+    },
+    {
+      "from": "document",
+      "to": "store.sources.paddle",
+      "span": {
+        "line": 48,
+        "column": 10
+      }
     }
-  ]
+  ],
+  "diagnostics": []
 }

@@ -78,15 +78,12 @@ struct DenseBinding {
 }
 
 impl RuntimeWiring {
-    fn from_program(program: &ProgramSpec, inventory: &SourceInventory) -> Self {
+    fn from_compiled(program: &ProgramSpec, app_ir: &AppIr, inventory: &SourceInventory) -> Self {
         let scalar_event = program
             .scalar_accumulator
             .as_ref()
             .map(|scalar_value| scalar_value.event_path.clone());
-        let sequence = program
-            .sequence
-            .as_ref()
-            .and_then(|sequence| SequenceBinding::from_inventory(inventory, sequence));
+        let sequence = SequenceBinding::from_app_ir(inventory, app_ir);
         let grid = program
             .dense_grid
             .as_ref()
@@ -110,25 +107,70 @@ impl RuntimeWiring {
 }
 
 impl SequenceBinding {
-    fn from_inventory(
-        inventory: &SourceInventory,
-        spec: &boon_compiler::SequenceSpec,
-    ) -> Option<Self> {
+    fn from_app_ir(inventory: &SourceInventory, app_ir: &AppIr) -> Option<Self> {
+        if !app_ir.event_handlers.iter().any(|handler| {
+            handler.effects.iter().any(|effect| {
+                matches!(
+                    effect,
+                    IrEffect::ListAppendText { .. }
+                        | IrEffect::ListToggleAllMarks { .. }
+                        | IrEffect::ListToggleOwnerMark { .. }
+                        | IrEffect::ListRemoveOwner { .. }
+                        | IrEffect::ListRemoveMarked { .. }
+                )
+            })
+        }) {
+            return None;
+        }
         let family = first_dynamic_family(inventory, "Element/checkbox(element.event.click)")
             .or_else(|| first_dynamic_family(inventory, "Element/text_input(element.text)"))?;
         let root = dynamic_family_root(&family);
-        let input_base = static_base_for_producer(inventory, "Element/text_input(element.text)");
+        let entry_text = app_ir.event_handlers.iter().find_map(|handler| {
+            handler.effects.iter().find_map(|effect| match effect {
+                IrEffect::ListAppendText {
+                    text_state_path, ..
+                } => Some(text_state_path.clone()),
+                _ => None,
+            })
+        });
+        let input_base = entry_text
+            .as_deref()
+            .and_then(source_base_from_path)
+            .or_else(|| static_base_for_producer(inventory, "Element/text_input(element.text)"));
         let dynamic_text_base =
             dynamic_base_for_producer(inventory, &family, "Element/text_input(element.text)");
-        let view_selector_events = spec
-            .view_selectors
-            .iter()
-            .map(|selector| (selector.id.clone(), selector.event_path.clone()))
-            .collect();
+        let mut view_selector_events = BTreeMap::new();
+        let mut static_mass_mark_event = None;
+        let mut static_remove_marked_event = None;
+        let mut dynamic_mark_event = None;
+        let mut dynamic_remove_event = None;
+        for handler in &app_ir.event_handlers {
+            for effect in &handler.effects {
+                match effect {
+                    IrEffect::SetTagState { value, .. } => {
+                        view_selector_events.insert(value.clone(), handler.source_path.clone());
+                    }
+                    IrEffect::ListToggleAllMarks { .. } => {
+                        static_mass_mark_event = Some(handler.source_path.clone());
+                    }
+                    IrEffect::ListRemoveMarked { .. } => {
+                        static_remove_marked_event = Some(handler.source_path.clone());
+                    }
+                    IrEffect::ListToggleOwnerMark { .. } => {
+                        dynamic_mark_event = Some(handler.source_path.clone());
+                    }
+                    IrEffect::ListRemoveOwner { .. } => {
+                        dynamic_remove_event = Some(handler.source_path.clone());
+                    }
+                    _ => {}
+                }
+            }
+        }
         Some(Self {
             family: family.clone(),
             root,
-            entry_text: input_base.as_ref().map(|base| format!("{base}.text")),
+            entry_text: entry_text
+                .or_else(|| input_base.as_ref().map(|base| format!("{base}.text"))),
             input_key: input_base
                 .as_ref()
                 .and_then(|base| existing_path(inventory, &format!("{base}.event.key_down.key"))),
@@ -141,19 +183,19 @@ impl SequenceBinding {
             input_change: input_base
                 .as_ref()
                 .and_then(|base| existing_path(inventory, &format!("{base}.event.change"))),
-            static_mass_mark_event: spec.actions.mass_mark_event_path.clone(),
-            static_remove_marked_event: spec.actions.remove_marked_event_path.clone(),
+            static_mass_mark_event,
+            static_remove_marked_event,
             view_selector_events,
-            dynamic_mark_event: dynamic_path_for_producer(
-                inventory,
-                &family,
-                "Element/checkbox(element.event.click)",
-            ),
-            dynamic_remove_event: dynamic_path_for_producer(
-                inventory,
-                &family,
-                "Element/button(element.event.press)",
-            ),
+            dynamic_mark_event: dynamic_mark_event.or_else(|| {
+                dynamic_path_for_producer(
+                    inventory,
+                    &family,
+                    "Element/checkbox(element.event.click)",
+                )
+            }),
+            dynamic_remove_event: dynamic_remove_event.or_else(|| {
+                dynamic_path_for_producer(inventory, &family, "Element/button(element.event.press)")
+            }),
             dynamic_text_value: dynamic_text_base
                 .as_ref()
                 .map(|base| format!("{base}.text")),
@@ -436,11 +478,11 @@ impl CompiledApp {
         let inventory = compiled.sources;
         let program = compiled.program;
         let app_ir = compiled.app_ir;
-        let wiring = RuntimeWiring::from_program(&program, &inventory);
-        let initial_texts = program
-            .sequence
-            .as_ref()
-            .map(|record| record.initial_texts.clone())
+        let wiring = RuntimeWiring::from_compiled(&program, &app_ir, &inventory);
+        let initial_records = app_ir
+            .list_states
+            .first()
+            .map(|list| list.initial_items.clone())
             .unwrap_or_default();
         let grid = program
             .dense_grid
@@ -474,14 +516,14 @@ impl CompiledApp {
             scalar_value: *generic_state.get("scalar_value").unwrap_or(&0),
             clock_value: *generic_state.get("clock_value").unwrap_or(&0),
             clock: RuntimeClock::default(),
-            records: initial_texts
+            records: initial_records
                 .into_iter()
                 .enumerate()
-                .map(|(idx, content_text)| DynamicRecord {
+                .map(|(idx, item)| DynamicRecord {
                     id: idx as u64 + 1,
                     generation: 0,
-                    content_text,
-                    mark: false,
+                    content_text: item.text.unwrap_or_default(),
+                    mark: item.mark,
                     edit_focus: false,
                 })
                 .collect(),
@@ -608,17 +650,6 @@ impl CompiledApp {
                 .into_iter()
                 .flatten()
                 .any(|candidate| candidate == path)
-        })
-    }
-
-    fn view_selector_for_event_path(&self, path: &str) -> Option<String> {
-        self.wiring.sequence.as_ref().and_then(|sequence| {
-            sequence
-                .view_selector_events
-                .iter()
-                .find_map(|(view_selector, event_path)| {
-                    (event_path == path).then(|| view_selector.clone())
-                })
         })
     }
 
@@ -2148,133 +2179,14 @@ impl BoonApp for CompiledApp {
 
         let mut results = Vec::new();
         for event in batch.events {
-            let mut metrics = TurnMetrics {
+            let metrics = TurnMetrics {
                 events_processed: 1,
                 ..TurnMetrics::default()
             };
             if let Some(changed) = self.apply_generic_event(&event)? {
                 results.push(self.emit_frame_owned(changed, metrics));
-            } else if self
-                .wiring
-                .scalar_event
-                .as_ref()
-                .is_some_and(|path| event.path == *path)
-            {
-                self.scalar_value += self
-                    .program
-                    .scalar_accumulator
-                    .as_ref()
-                    .map(|scalar_value| scalar_value.step)
-                    .unwrap_or(0);
-                results.push(self.emit_frame(&["scalar_value"], metrics));
-            } else if self
-                .wiring
-                .sequence
-                .as_ref()
-                .and_then(|sequence| sequence.input_key.as_ref())
-                .is_some_and(|path| event.path == *path)
-            {
-                if matches!(event.value, SourceValue::Tag(ref key) if key == "Enter") {
-                    let trimmed = self.entry_text.trim().to_string();
-                    if self
-                        .program
-                        .sequence
-                        .as_ref()
-                        .is_some_and(|sequence| sequence.append_on_submit)
-                        && !trimmed.is_empty()
-                    {
-                        self.records.push(DynamicRecord {
-                            id: self.next_record_id,
-                            generation: 0,
-                            content_text: trimmed,
-                            mark: false,
-                            edit_focus: false,
-                        });
-                        self.next_record_id += 1;
-                    }
-                    self.entry_text.clear();
-                }
-                results.push(self.emit_frame_owned(self.record_change_paths(), metrics));
             } else if self.static_text_event_matches(&event.path) {
                 results.push(self.emit_frame_owned(self.record_input_change_paths(), metrics));
-            } else if self
-                .wiring
-                .sequence
-                .as_ref()
-                .and_then(|sequence| sequence.static_mass_mark_event.as_ref())
-                .is_some_and(|path| event.path == *path)
-            {
-                let all_marked = self.records.iter().all(|record| record.mark);
-                for record in &mut self.records {
-                    record.mark = !all_marked;
-                }
-                metrics.dynamic_rows_touched = self.records.len();
-                results.push(self.emit_frame_owned(self.record_count_change_paths(), metrics));
-            } else if self
-                .wiring
-                .sequence
-                .as_ref()
-                .and_then(|sequence| sequence.dynamic_mark_event.as_ref())
-                .is_some_and(|path| event.path == *path)
-            {
-                let owner_id = event
-                    .owner_id
-                    .as_deref()
-                    .expect("dynamic event owner_id was validated");
-                let record_id = owner_id
-                    .parse::<u64>()
-                    .map_err(|_| anyhow::anyhow!("record owner_id `{owner_id}` is not numeric"))?;
-                let record = self
-                    .records
-                    .iter_mut()
-                    .find(|record| record.id == record_id)
-                    .ok_or_else(|| anyhow::anyhow!("record owner `{owner_id}` is not live"))?;
-                if self
-                    .program
-                    .sequence
-                    .as_ref()
-                    .is_some_and(|sequence| sequence.dynamic_mark_toggle)
-                {
-                    record.mark = !record.mark;
-                }
-                metrics.dynamic_rows_touched = 1;
-                results.push(self.emit_frame_owned(self.record_count_change_paths(), metrics));
-            } else if self
-                .wiring
-                .sequence
-                .as_ref()
-                .and_then(|sequence| sequence.dynamic_remove_event.as_ref())
-                .is_some_and(|path| event.path == *path)
-            {
-                let owner_id = event
-                    .owner_id
-                    .as_deref()
-                    .expect("dynamic event owner_id was validated");
-                let record_id = owner_id
-                    .parse::<u64>()
-                    .map_err(|_| anyhow::anyhow!("record owner_id `{owner_id}` is not numeric"))?;
-                if self
-                    .program
-                    .sequence
-                    .as_ref()
-                    .is_some_and(|sequence| sequence.dynamic_remove)
-                {
-                    self.records.retain(|record| record.id != record_id);
-                }
-                results.push(self.emit_frame_owned(self.record_change_paths(), metrics));
-            } else if self
-                .wiring
-                .sequence
-                .as_ref()
-                .and_then(|sequence| sequence.static_remove_marked_event.as_ref())
-                .is_some_and(|path| event.path == *path)
-            {
-                self.records.retain(|record| !record.mark);
-                results.push(self.emit_frame_owned(self.record_change_paths(), metrics));
-            } else if let Some(view_selector) = self.view_selector_for_event_path(&event.path) {
-                self.view_selector = view_selector;
-                let changed = view_selector_state_key();
-                results.push(self.emit_frame(&[changed.as_str()], metrics));
             } else if self
                 .wiring
                 .sequence

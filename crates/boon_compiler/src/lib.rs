@@ -1,5 +1,7 @@
 use anyhow::{Result, bail};
-use boon_hir::{HirModule, lower};
+use boon_hir::{
+    HirCallArg, HirExpr, HirExprKind, HirItem, HirListOp, HirLiteral, HirModule, HirRecord, lower,
+};
 use boon_host_schema::{HostContract, element_contracts};
 use boon_shape::Shape;
 use boon_source::{SourceEntry, SourceInventory, SourceOwner};
@@ -36,7 +38,11 @@ pub struct CompiledSourceSpan {
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AppIr {
     pub state_cells: Vec<IrStateCell>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub list_states: Vec<IrListState>,
     pub event_handlers: Vec<IrEventHandler>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub render_tree: Option<IrRenderNode>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -46,10 +52,61 @@ pub struct IrStateCell {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct IrListState {
+    pub path: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub initial_items: Vec<IrListItem>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct IrListItem {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default)]
+    pub mark: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct IrEventHandler {
     pub source_path: String,
     pub when: Option<IrPredicate>,
     pub effects: Vec<IrEffect>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct IrRenderNode {
+    pub id: String,
+    pub kind: IrRenderKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub list_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<IrRenderText>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub children: Vec<IrRenderNode>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IrRenderKind {
+    Root,
+    Panel,
+    Text,
+    Button,
+    TextInput,
+    Checkbox,
+    Label,
+    Grid,
+    ListMap,
+    Unknown,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum IrRenderText {
+    Literal { value: String },
+    Binding { path: String },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -306,7 +363,7 @@ pub fn compile_source(name: &str, source: &str) -> Result<CompiledModule> {
 
     let sources = SourceInventory { entries };
     let program = program_spec(name, &parsed, &sources);
-    let app_ir = app_ir_from_program(&program, &sources);
+    let app_ir = app_ir_from_hir(&hir, &sources);
     Ok(CompiledModule {
         name: name.to_string(),
         hir,
@@ -317,121 +374,828 @@ pub fn compile_source(name: &str, source: &str) -> Result<CompiledModule> {
     })
 }
 
-fn app_ir_from_program(program: &ProgramSpec, sources: &SourceInventory) -> AppIr {
+fn app_ir_from_hir(hir: &HirModule, sources: &SourceInventory) -> AppIr {
     let mut ir = AppIr::default();
-    if let Some(accumulator) = &program.scalar_accumulator {
-        push_accumulator_ir(
-            &mut ir,
-            &accumulator.event_path,
-            &accumulator.state_path,
-            accumulator.initial,
-            accumulator.step,
-        );
+    let list_paths = hir
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            HirItem::Record(record) if record_value_is_list(record) => Some(record.key.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let primary_list_path = list_paths.first().cloned().unwrap_or_else(|| {
+        dynamic_source_families(sources).first().map_or_else(
+            || "records".to_string(),
+            |family| dynamic_family_root(family),
+        )
+    });
+
+    for item in &hir.items {
+        let HirItem::Record(record) = item else {
+            continue;
+        };
+        if let Some((event_path, initial, step)) = accumulator_from_hir_record(record, sources) {
+            let state_path = if source_shape_is_tick(sources, &event_path) {
+                "clock_value"
+            } else {
+                "scalar_value"
+            };
+            push_accumulator_ir(&mut ir, &event_path, state_path, initial, step);
+        }
+        push_list_state_from_hir_record(&mut ir, record);
+        push_list_handlers_from_hir_record(&mut ir, hir, sources, record);
+        push_selector_handlers_from_hir_record(&mut ir, sources, record);
     }
-    if let Some(accumulator) = &program.clock_accumulator {
-        push_accumulator_ir(
-            &mut ir,
-            &accumulator.event_path,
-            &accumulator.state_path,
-            0,
-            1,
-        );
+    push_item_state_handlers_from_hir(&mut ir, sources, &primary_list_path, hir);
+    ir.render_tree = render_tree_from_hir(hir, sources);
+    dedupe_app_ir(&mut ir);
+    ir
+}
+
+fn render_tree_from_hir(hir: &HirModule, sources: &SourceInventory) -> Option<IrRenderNode> {
+    let document = hir_record(hir, "document")?.value.as_ref()?;
+    let mut ids = RenderIdAllocator::default();
+    let root = document_root_expr(document)?;
+    Some(IrRenderNode {
+        id: ids.next("root"),
+        kind: IrRenderKind::Root,
+        source_path: None,
+        list_path: None,
+        text: None,
+        children: vec![render_node_from_expr(root, sources, &mut ids)],
+    })
+}
+
+fn document_root_expr(expr: &HirExpr) -> Option<&HirExpr> {
+    match &expr.kind {
+        HirExprKind::HostCall { path, args } if path == "Document/new" => named_arg(args, "root"),
+        _ => None,
     }
-    if let Some(sequence) = &program.sequence {
-        let dynamic_family = dynamic_source_families(sources).first().cloned();
-        let list_path = dynamic_family
-            .as_deref()
-            .map(dynamic_family_root)
-            .unwrap_or_else(|| "records".to_string());
-        if sequence.append_on_submit
-            && let Some(static_text_path) =
-                static_source_with_producer(sources, "Element/text_input(element.text)")
-            && let Some(static_key_path) =
-                source_base_from_path(&static_text_path).and_then(|base| {
-                    existing_source_path(sources, &format!("{base}.event.key_down.key"))
+}
+
+#[derive(Default)]
+struct RenderIdAllocator {
+    next: u64,
+}
+
+impl RenderIdAllocator {
+    fn next(&mut self, prefix: &str) -> String {
+        let id = self.next;
+        self.next += 1;
+        format!("{prefix}_{id}")
+    }
+}
+
+fn render_node_from_expr(
+    expr: &HirExpr,
+    sources: &SourceInventory,
+    ids: &mut RenderIdAllocator,
+) -> IrRenderNode {
+    match &expr.kind {
+        HirExprKind::HostCall { path, args } => render_host_node(path, args, sources, ids),
+        HirExprKind::Pipeline { input, stages } => {
+            render_pipeline_node(input, stages, sources, ids)
+        }
+        HirExprKind::List { items } => IrRenderNode {
+            id: ids.next("list"),
+            kind: IrRenderKind::Panel,
+            source_path: None,
+            list_path: None,
+            text: None,
+            children: items
+                .iter()
+                .map(|item| render_node_from_expr(item, sources, ids))
+                .collect(),
+        },
+        _ => IrRenderNode {
+            id: ids.next("unknown"),
+            kind: IrRenderKind::Unknown,
+            source_path: None,
+            list_path: None,
+            text: render_text_from_expr(expr),
+            children: Vec::new(),
+        },
+    }
+}
+
+fn render_host_node(
+    path: &str,
+    args: &[HirCallArg],
+    sources: &SourceInventory,
+    ids: &mut RenderIdAllocator,
+) -> IrRenderNode {
+    let kind = match path {
+        "Element/panel" => IrRenderKind::Panel,
+        "Element/text" => IrRenderKind::Text,
+        "Element/button" => IrRenderKind::Button,
+        "Element/text_input" => IrRenderKind::TextInput,
+        "Element/checkbox" => IrRenderKind::Checkbox,
+        "Element/label" => IrRenderKind::Label,
+        "Element/grid" => IrRenderKind::Grid,
+        _ => IrRenderKind::Unknown,
+    };
+    let source_path = named_arg(args, "element")
+        .and_then(path_expr)
+        .and_then(|path| resolve_source_base(sources, path));
+    let text = named_arg(args, "label")
+        .or_else(|| named_arg(args, "text"))
+        .and_then(render_text_from_expr);
+    let children = named_arg(args, "children")
+        .map(|children| render_children_from_expr(children, sources, ids))
+        .unwrap_or_default();
+    IrRenderNode {
+        id: ids.next(path.rsplit('/').next().unwrap_or("node")),
+        kind,
+        source_path,
+        list_path: None,
+        text,
+        children,
+    }
+}
+
+fn render_pipeline_node(
+    input: &HirExpr,
+    stages: &[HirExpr],
+    sources: &SourceInventory,
+    ids: &mut RenderIdAllocator,
+) -> IrRenderNode {
+    if let Some(stage) = stages.iter().find(|stage| {
+        matches!(
+            stage.kind,
+            HirExprKind::ListCall {
+                op: HirListOp::Map,
+                ..
+            }
+        )
+    }) && let HirExprKind::ListCall { args, .. } = &stage.kind
+    {
+        return IrRenderNode {
+            id: ids.next("list_map"),
+            kind: IrRenderKind::ListMap,
+            source_path: None,
+            list_path: first_path_in_expr(input).map(str::to_string),
+            text: None,
+            children: named_arg(args, "new")
+                .map(|item| vec![render_node_from_expr(item, sources, ids)])
+                .unwrap_or_default(),
+        };
+    }
+    IrRenderNode {
+        id: ids.next("binding"),
+        kind: IrRenderKind::Text,
+        source_path: None,
+        list_path: None,
+        text: first_path_in_expr(input).map(|path| IrRenderText::Binding {
+            path: path.to_string(),
+        }),
+        children: Vec::new(),
+    }
+}
+
+fn render_children_from_expr(
+    expr: &HirExpr,
+    sources: &SourceInventory,
+    ids: &mut RenderIdAllocator,
+) -> Vec<IrRenderNode> {
+    match &expr.kind {
+        HirExprKind::List { items } => items
+            .iter()
+            .map(|item| render_node_from_expr(item, sources, ids))
+            .collect(),
+        _ => vec![render_node_from_expr(expr, sources, ids)],
+    }
+}
+
+fn render_text_from_expr(expr: &HirExpr) -> Option<IrRenderText> {
+    match &expr.kind {
+        HirExprKind::Literal {
+            literal: HirLiteral::Text { value },
+        } => Some(IrRenderText::Literal {
+            value: value.clone(),
+        }),
+        HirExprKind::Path { value } => Some(IrRenderText::Binding {
+            path: value.clone(),
+        }),
+        HirExprKind::Pipeline { input, .. } => {
+            first_path_in_expr(input).map(|path| IrRenderText::Binding {
+                path: path.to_string(),
+            })
+        }
+        _ => None,
+    }
+}
+
+fn resolve_source_base(sources: &SourceInventory, path: &str) -> Option<String> {
+    if sources.entries.iter().any(|entry| entry.path == path) {
+        return Some(path.to_string());
+    }
+    if sources
+        .entries
+        .iter()
+        .any(|entry| entry.path.starts_with(&format!("{path}.")))
+    {
+        return Some(path.to_string());
+    }
+    path.strip_prefix("item.")
+        .or_else(|| path.strip_prefix("sources."))
+        .and_then(|suffix| {
+            let suffix = format!(".{suffix}.");
+            sources
+                .entries
+                .iter()
+                .filter(|entry| entry.path.contains("[*]"))
+                .find_map(|entry| {
+                    entry
+                        .path
+                        .find(&suffix)
+                        .map(|idx| entry.path[..idx + suffix.len() - 1].to_string())
                 })
-        {
-            ir.event_handlers.push(IrEventHandler {
-                source_path: static_key_path.clone(),
-                when: Some(IrPredicate::SourceTagEquals {
-                    path: static_key_path,
-                    tag: "Enter".to_string(),
-                }),
-                effects: vec![
-                    IrEffect::ListAppendText {
-                        list_path: list_path.clone(),
-                        text_state_path: static_text_path.clone(),
-                        trim: true,
-                        skip_empty: true,
-                    },
-                    IrEffect::ClearText {
-                        text_state_path: static_text_path,
-                    },
-                ],
-            });
+        })
+}
+
+fn record_value_is_list(record: &HirRecord) -> bool {
+    record.value.as_ref().is_some_and(matches_list_pipeline)
+}
+
+fn push_list_state_from_hir_record(ir: &mut AppIr, record: &HirRecord) {
+    let Some(expr) = record.value.as_ref() else {
+        return;
+    };
+    let Some(items) = initial_list_items(expr) else {
+        return;
+    };
+    ir.list_states.push(IrListState {
+        path: record.key.clone(),
+        initial_items: items,
+    });
+}
+
+fn initial_list_items(expr: &HirExpr) -> Option<Vec<IrListItem>> {
+    let list_expr = match &expr.kind {
+        HirExprKind::List { items } => items,
+        HirExprKind::Pipeline { input, .. } => match &input.kind {
+            HirExprKind::List { items } => items,
+            _ => return None,
+        },
+        _ => return None,
+    };
+    Some(
+        list_expr
+            .iter()
+            .map(|item| IrListItem {
+                text: item_text_literal(item),
+                mark: false,
+            })
+            .collect(),
+    )
+}
+
+fn item_text_literal(expr: &HirExpr) -> Option<String> {
+    match &expr.kind {
+        HirExprKind::FunctionCall { args, .. } => named_arg(args, "title").and_then(|arg| {
+            if let HirExprKind::Literal {
+                literal: HirLiteral::Text { value },
+            } = &arg.kind
+            {
+                Some(value.clone())
+            } else {
+                None
+            }
+        }),
+        HirExprKind::Record { entries } => entries.iter().find_map(|entry| {
+            (entry.key == "title")
+                .then_some(entry.value.as_ref())
+                .flatten()
+                .and_then(|value| {
+                    if let HirExprKind::Literal {
+                        literal: HirLiteral::Text { value },
+                    } = &value.kind
+                    {
+                        Some(value.clone())
+                    } else {
+                        None
+                    }
+                })
+        }),
+        _ => None,
+    }
+}
+
+fn matches_list_pipeline(expr: &HirExpr) -> bool {
+    match &expr.kind {
+        HirExprKind::List { .. } => true,
+        HirExprKind::Pipeline { input, stages } => {
+            matches_list_pipeline(input)
+                || stages.iter().any(|stage| {
+                    matches!(
+                        stage.kind,
+                        HirExprKind::ListCall {
+                            op: HirListOp::Append
+                                | HirListOp::Remove
+                                | HirListOp::Retain
+                                | HirListOp::Map
+                                | HirListOp::Count
+                                | HirListOp::Range,
+                            ..
+                        }
+                    )
+                })
         }
-        if let Some(event_path) = &sequence.actions.mass_mark_event_path {
-            ir.event_handlers.push(IrEventHandler {
-                source_path: event_path.clone(),
-                when: None,
-                effects: vec![IrEffect::ListToggleAllMarks {
-                    list_path: list_path.clone(),
-                }],
-            });
+        _ => false,
+    }
+}
+
+fn accumulator_from_hir_record(
+    record: &HirRecord,
+    sources: &SourceInventory,
+) -> Option<(String, i64, i64)> {
+    let expr = record.value.as_ref()?;
+    let (input, stages) = pipeline_parts(expr)?;
+    let initial = number_literal(input)?;
+    let (state_name, hold_body) = stages.iter().find_map(hold_stage)?;
+    let (event_path, step) = source_then_add_step(hold_body, state_name, sources)?;
+    if event_path.ends_with(".event.frame") {
+        return None;
+    }
+    Some((event_path, initial, step))
+}
+
+fn source_then_add_step(
+    expr: &HirExpr,
+    state_name: &str,
+    sources: &SourceInventory,
+) -> Option<(String, i64)> {
+    match &expr.kind {
+        HirExprKind::Pipeline { input, stages } => {
+            let event_path = resolve_source_path(sources, path_expr(input)?)?;
+            let then = stages.iter().find_map(then_body)?;
+            let step = add_step_expr(then, state_name)?;
+            Some((event_path, step))
         }
-        if let Some(event_path) = &sequence.actions.remove_marked_event_path {
-            ir.event_handlers.push(IrEventHandler {
-                source_path: event_path.clone(),
-                when: None,
-                effects: vec![IrEffect::ListRemoveMarked {
-                    list_path: list_path.clone(),
-                }],
-            });
+        HirExprKind::Latest { branches } => branches
+            .iter()
+            .find_map(|branch| source_then_add_step(branch, state_name, sources)),
+        _ => None,
+    }
+}
+
+fn push_list_handlers_from_hir_record(
+    ir: &mut AppIr,
+    hir: &HirModule,
+    sources: &SourceInventory,
+    record: &HirRecord,
+) {
+    let Some(expr) = record.value.as_ref() else {
+        return;
+    };
+    let Some((_, stages)) = pipeline_parts(expr) else {
+        return;
+    };
+    for stage in stages {
+        let HirExprKind::ListCall { op, args } = &stage.kind else {
+            continue;
+        };
+        match op {
+            HirListOp::Append => {
+                if let Some((key_path, text_path)) = append_text_sources(hir, sources, args) {
+                    ir.event_handlers.push(IrEventHandler {
+                        source_path: key_path.clone(),
+                        when: Some(IrPredicate::SourceTagEquals {
+                            path: key_path,
+                            tag: "Enter".to_string(),
+                        }),
+                        effects: vec![
+                            IrEffect::ListAppendText {
+                                list_path: record.key.clone(),
+                                text_state_path: text_path.clone(),
+                                trim: true,
+                                skip_empty: true,
+                            },
+                            IrEffect::ClearText {
+                                text_state_path: text_path,
+                            },
+                        ],
+                    });
+                }
+            }
+            HirListOp::Remove => {
+                if let Some(on_expr) = named_arg(args, "on") {
+                    if let Some(dynamic_path) =
+                        item_source_path(sources, on_expr).filter(|path| path.contains("[*]"))
+                    {
+                        ir.event_handlers.push(IrEventHandler {
+                            source_path: dynamic_path,
+                            when: None,
+                            effects: vec![IrEffect::ListRemoveOwner {
+                                list_path: record.key.clone(),
+                            }],
+                        });
+                    } else if let Some(static_path) = static_source_path_in_expr(sources, on_expr)
+                        && expr_mentions_path(on_expr, "item.completed")
+                    {
+                        ir.event_handlers.push(IrEventHandler {
+                            source_path: static_path,
+                            when: None,
+                            effects: vec![IrEffect::ListRemoveMarked {
+                                list_path: record.key.clone(),
+                            }],
+                        });
+                    }
+                }
+            }
+            _ => {}
         }
-        for selector in &sequence.view_selectors {
+    }
+}
+
+fn append_text_sources(
+    hir: &HirModule,
+    sources: &SourceInventory,
+    args: &[HirCallArg],
+) -> Option<(String, String)> {
+    let item_expr = named_arg(args, "item")?;
+    let producer_record_name = first_path_in_expr(item_expr)?;
+    let producer = hir_record(hir, producer_record_name)?;
+    submit_text_sources(producer.value.as_ref()?, sources)
+}
+
+fn submit_text_sources(expr: &HirExpr, sources: &SourceInventory) -> Option<(String, String)> {
+    let (input, stages) = pipeline_parts(expr)?;
+    let key_path = resolve_source_path(sources, path_expr(input)?)?;
+    if !matches!(
+        stages.first().map(|stage| &stage.kind),
+        Some(HirExprKind::When { .. })
+    ) {
+        return None;
+    }
+    let text_path = first_text_source_in_expr(stages.first()?, sources)?;
+    Some((key_path, text_path))
+}
+
+fn push_selector_handlers_from_hir_record(
+    ir: &mut AppIr,
+    sources: &SourceInventory,
+    record: &HirRecord,
+) {
+    if record.key != "view" {
+        return;
+    }
+    let Some(selectors) = hir_child_record(record, "selectors") else {
+        return;
+    };
+    for selector in &selectors.children {
+        let source_path = format!("store.sources.{}.event.press", selector.key);
+        if existing_source_path(sources, &source_path).is_some() {
             ir.event_handlers.push(IrEventHandler {
-                source_path: selector.event_path.clone(),
+                source_path,
                 when: None,
                 effects: vec![IrEffect::SetTagState {
                     state_path: "view_selector".to_string(),
-                    value: selector.id.clone(),
+                    value: selector.key.clone(),
                 }],
             });
         }
-        if let Some(dynamic_family) = dynamic_family.as_deref() {
-            if sequence.dynamic_mark_toggle
-                && let Some(event_path) = source_family_with_producer(
-                    sources,
-                    dynamic_family,
-                    "Element/checkbox(element.event.click)",
-                )
-            {
-                ir.event_handlers.push(IrEventHandler {
-                    source_path: event_path,
-                    when: None,
-                    effects: vec![IrEffect::ListToggleOwnerMark {
-                        list_path: list_path.clone(),
-                    }],
-                });
+    }
+}
+
+fn push_item_state_handlers_from_hir(
+    ir: &mut AppIr,
+    sources: &SourceInventory,
+    list_path: &str,
+    hir: &HirModule,
+) {
+    for function in hir.items.iter().filter_map(|item| match item {
+        HirItem::Function(function) => Some(function),
+        _ => None,
+    }) {
+        for record in records_in_expr(&function.body) {
+            if record.key != "completed" {
+                continue;
             }
-            if sequence.dynamic_remove
-                && let Some(event_path) = source_family_with_producer(
-                    sources,
-                    dynamic_family,
-                    "Element/button(element.event.press)",
-                )
-            {
+            for event_path in latest_then_sources(record.value.as_ref(), sources) {
+                let effects = if event_path.contains("[*]") {
+                    vec![IrEffect::ListToggleOwnerMark {
+                        list_path: list_path.to_string(),
+                    }]
+                } else {
+                    vec![IrEffect::ListToggleAllMarks {
+                        list_path: list_path.to_string(),
+                    }]
+                };
                 ir.event_handlers.push(IrEventHandler {
                     source_path: event_path,
                     when: None,
-                    effects: vec![IrEffect::ListRemoveOwner {
-                        list_path: list_path.clone(),
-                    }],
+                    effects,
                 });
             }
         }
     }
-    ir
+}
+
+fn latest_then_sources(expr: Option<&HirExpr>, sources: &SourceInventory) -> Vec<String> {
+    let mut paths = Vec::new();
+    let Some(expr) = expr else {
+        return paths;
+    };
+    collect_latest_then_sources(expr, sources, &mut paths);
+    paths
+}
+
+fn collect_latest_then_sources(expr: &HirExpr, sources: &SourceInventory, paths: &mut Vec<String>) {
+    match &expr.kind {
+        HirExprKind::Pipeline { input, stages } => {
+            if stages
+                .iter()
+                .any(|stage| matches!(stage.kind, HirExprKind::Then { .. }))
+                && let Some(path) =
+                    path_expr(input).and_then(|path| resolve_source_path(sources, path))
+            {
+                paths.push(path);
+            }
+            collect_latest_then_sources(input, sources, paths);
+            for stage in stages {
+                collect_latest_then_sources(stage, sources, paths);
+            }
+        }
+        HirExprKind::Latest { branches } => {
+            for branch in branches {
+                collect_latest_then_sources(branch, sources, paths);
+            }
+        }
+        HirExprKind::Then { body } | HirExprKind::Hold { body, .. } => {
+            collect_latest_then_sources(body, sources, paths);
+        }
+        _ => {}
+    }
+}
+
+fn dedupe_app_ir(ir: &mut AppIr) {
+    let mut seen_state = HashSet::new();
+    ir.state_cells
+        .retain(|cell| seen_state.insert(cell.path.clone()));
+    let mut seen_list = HashSet::new();
+    ir.list_states
+        .retain(|list| seen_list.insert(list.path.clone()));
+    let mut seen_handlers = HashSet::new();
+    ir.event_handlers.retain(|handler| {
+        seen_handlers.insert(serde_json::to_string(handler).expect("app IR handler serializes"))
+    });
+}
+
+fn source_shape_is_tick(sources: &SourceInventory, path: &str) -> bool {
+    sources
+        .entries
+        .iter()
+        .any(|entry| entry.path == path && entry.path.ends_with(".event.tick"))
+}
+
+fn pipeline_parts(expr: &HirExpr) -> Option<(&HirExpr, &[HirExpr])> {
+    match &expr.kind {
+        HirExprKind::Pipeline { input, stages } => Some((input, stages.as_slice())),
+        _ => None,
+    }
+}
+
+fn hold_stage(expr: &HirExpr) -> Option<(&str, &HirExpr)> {
+    match &expr.kind {
+        HirExprKind::Hold { state, body } => Some((state.as_str(), body)),
+        _ => None,
+    }
+}
+
+fn then_body(expr: &HirExpr) -> Option<&HirExpr> {
+    match &expr.kind {
+        HirExprKind::Then { body } => Some(body),
+        _ => None,
+    }
+}
+
+fn number_literal(expr: &HirExpr) -> Option<i64> {
+    match &expr.kind {
+        HirExprKind::Literal {
+            literal: HirLiteral::Number { value },
+        } => Some(*value),
+        _ => None,
+    }
+}
+
+fn add_step_expr(expr: &HirExpr, state_name: &str) -> Option<i64> {
+    match &expr.kind {
+        HirExprKind::Binary {
+            op: boon_syntax::AstBinaryOp::Add,
+            left,
+            right,
+        } if path_expr(left).is_some_and(|path| path == state_name) => number_literal(right),
+        _ => None,
+    }
+}
+
+fn named_arg<'a>(args: &'a [HirCallArg], name: &str) -> Option<&'a HirExpr> {
+    args.iter()
+        .find(|arg| arg.name == name)
+        .map(|arg| &arg.value)
+}
+
+fn path_expr(expr: &HirExpr) -> Option<&str> {
+    match &expr.kind {
+        HirExprKind::Path { value } => Some(value.as_str()),
+        _ => None,
+    }
+}
+
+fn first_path_in_expr(expr: &HirExpr) -> Option<&str> {
+    match &expr.kind {
+        HirExprKind::Path { value } => Some(value.as_str()),
+        HirExprKind::Pipeline { input, .. } => first_path_in_expr(input),
+        _ => None,
+    }
+}
+
+fn first_text_source_in_expr(expr: &HirExpr, sources: &SourceInventory) -> Option<String> {
+    let mut paths = Vec::new();
+    collect_expr_paths(expr, &mut paths);
+    paths.into_iter().find_map(|path| {
+        let resolved = resolve_source_path(sources, &path)?;
+        sources
+            .entries
+            .iter()
+            .any(|entry| entry.path == resolved && entry.shape == Shape::Text)
+            .then_some(resolved)
+    })
+}
+
+fn static_source_path_in_expr(sources: &SourceInventory, expr: &HirExpr) -> Option<String> {
+    let mut paths = Vec::new();
+    collect_expr_paths(expr, &mut paths);
+    paths.into_iter().find_map(|path| {
+        resolve_source_path(sources, &path).filter(|resolved| !resolved.contains("[*]"))
+    })
+}
+
+fn item_source_path(sources: &SourceInventory, expr: &HirExpr) -> Option<String> {
+    let path = path_expr(expr)?;
+    resolve_source_path(sources, path)
+}
+
+fn resolve_source_path(sources: &SourceInventory, path: &str) -> Option<String> {
+    existing_source_path(sources, path).or_else(|| {
+        path.strip_prefix("item.")
+            .or_else(|| path.strip_prefix("sources."))
+            .and_then(|suffix| source_family_with_suffix(sources, suffix))
+    })
+}
+
+fn source_family_with_suffix(sources: &SourceInventory, suffix: &str) -> Option<String> {
+    let suffix = format!(".{suffix}");
+    sources
+        .entries
+        .iter()
+        .find(|entry| entry.path.contains("[*]") && entry.path.ends_with(&suffix))
+        .map(|entry| entry.path.clone())
+}
+
+fn hir_record<'a>(hir: &'a HirModule, key: &str) -> Option<&'a HirRecord> {
+    hir.items.iter().find_map(|item| match item {
+        HirItem::Record(record) if record.key == key => Some(record),
+        _ => None,
+    })
+}
+
+fn hir_child_record<'a>(record: &'a HirRecord, key: &str) -> Option<&'a HirRecord> {
+    record.children.iter().find(|child| child.key == key)
+}
+
+fn records_in_expr(expr: &HirExpr) -> Vec<&HirRecord> {
+    let mut records = Vec::new();
+    collect_records_in_expr(expr, &mut records);
+    records
+}
+
+fn collect_records_in_expr<'a>(expr: &'a HirExpr, records: &mut Vec<&'a HirRecord>) {
+    match &expr.kind {
+        HirExprKind::Record { entries } => {
+            for entry in entries {
+                collect_record_and_children(entry, records);
+            }
+        }
+        HirExprKind::Pipeline { input, stages } => {
+            collect_records_in_expr(input, records);
+            for stage in stages {
+                collect_records_in_expr(stage, records);
+            }
+        }
+        HirExprKind::Then { body } | HirExprKind::Hold { body, .. } => {
+            collect_records_in_expr(body, records);
+        }
+        HirExprKind::Latest { branches } => {
+            for branch in branches {
+                collect_records_in_expr(branch, records);
+            }
+        }
+        HirExprKind::List { items } => {
+            for item in items {
+                collect_records_in_expr(item, records);
+            }
+        }
+        HirExprKind::HostCall { args, .. }
+        | HirExprKind::ListCall { args, .. }
+        | HirExprKind::FunctionCall { args, .. } => {
+            for arg in args {
+                collect_records_in_expr(&arg.value, records);
+            }
+        }
+        HirExprKind::Binary { left, right, .. } => {
+            collect_records_in_expr(left, records);
+            collect_records_in_expr(right, records);
+        }
+        HirExprKind::Block { bindings } => {
+            for binding in bindings {
+                collect_records_in_expr(&binding.value, records);
+            }
+        }
+        HirExprKind::When { arms } => {
+            for arm in arms {
+                collect_records_in_expr(&arm.value, records);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn collect_record_and_children<'a>(record: &'a HirRecord, records: &mut Vec<&'a HirRecord>) {
+    records.push(record);
+    if let Some(value) = &record.value {
+        collect_records_in_expr(value, records);
+    }
+    for child in &record.children {
+        collect_record_and_children(child, records);
+    }
+}
+
+fn expr_mentions_path(expr: &HirExpr, needle: &str) -> bool {
+    let mut paths = Vec::new();
+    collect_expr_paths(expr, &mut paths);
+    paths.iter().any(|path| path == needle)
+}
+
+fn collect_expr_paths(expr: &HirExpr, paths: &mut Vec<String>) {
+    match &expr.kind {
+        HirExprKind::Path { value } => paths.push(value.clone()),
+        HirExprKind::Record { entries } => {
+            for entry in entries {
+                if let Some(value) = &entry.value {
+                    collect_expr_paths(value, paths);
+                }
+                for child in &entry.children {
+                    if let Some(value) = &child.value {
+                        collect_expr_paths(value, paths);
+                    }
+                }
+            }
+        }
+        HirExprKind::List { items } => {
+            for item in items {
+                collect_expr_paths(item, paths);
+            }
+        }
+        HirExprKind::Block { bindings } => {
+            for binding in bindings {
+                collect_expr_paths(&binding.value, paths);
+            }
+        }
+        HirExprKind::When { arms } => {
+            for arm in arms {
+                collect_expr_paths(&arm.value, paths);
+            }
+        }
+        HirExprKind::Then { body } | HirExprKind::Hold { body, .. } => {
+            collect_expr_paths(body, paths);
+        }
+        HirExprKind::Latest { branches } => {
+            for branch in branches {
+                collect_expr_paths(branch, paths);
+            }
+        }
+        HirExprKind::HostCall { args, .. }
+        | HirExprKind::ListCall { args, .. }
+        | HirExprKind::FunctionCall { args, .. } => {
+            for arg in args {
+                collect_expr_paths(&arg.value, paths);
+            }
+        }
+        HirExprKind::Pipeline { input, stages } => {
+            collect_expr_paths(input, paths);
+            for stage in stages {
+                collect_expr_paths(stage, paths);
+            }
+        }
+        HirExprKind::Binary { left, right, .. } => {
+            collect_expr_paths(left, paths);
+            collect_expr_paths(right, paths);
+        }
+        _ => {}
+    }
 }
 
 fn push_accumulator_ir(
@@ -466,28 +1230,6 @@ fn existing_source_path(sources: &SourceInventory, path: &str) -> Option<String>
         .iter()
         .any(|entry| entry.path == path)
         .then(|| path.to_string())
-}
-
-fn source_base_from_path(path: &str) -> Option<String> {
-    for suffix in [
-        ".text",
-        ".checked",
-        ".hovered",
-        ".event.press",
-        ".event.click",
-        ".event.change",
-        ".event.blur",
-        ".event.focus",
-        ".event.double_click",
-        ".event.key_down.key",
-        ".event.tick",
-        ".event.frame",
-    ] {
-        if let Some(base) = path.strip_suffix(suffix) {
-            return Some(base.to_string());
-        }
-    }
-    None
 }
 
 fn dynamic_family_root(family: &str) -> String {

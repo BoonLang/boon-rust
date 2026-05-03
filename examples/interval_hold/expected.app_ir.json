@@ -30,5 +30,20 @@
         }
       ]
     }
-  ]
+  ],
+  "render_tree": {
+    "id": "root_0",
+    "kind": "root",
+    "children": [
+      {
+        "id": "label_1",
+        "kind": "label",
+        "source_path": "store.sources.clock",
+        "text": {
+          "kind": "binding",
+          "path": "ticks"
+        }
+      }
+    ]
+  }
 }
