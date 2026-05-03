@@ -1,0 +1,34 @@
+{
+  "state_cells": [
+    {
+      "path": "clock_value",
+      "initial": {
+        "kind": "number",
+        "value": 0
+      }
+    }
+  ],
+  "event_handlers": [
+    {
+      "source_path": "store.sources.clock.event.tick",
+      "when": null,
+      "effects": [
+        {
+          "kind": "assign",
+          "state_path": "clock_value",
+          "expr": {
+            "kind": "add",
+            "left": {
+              "kind": "hold",
+              "state_path": "clock_value"
+            },
+            "right": {
+              "kind": "number",
+              "value": 1
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

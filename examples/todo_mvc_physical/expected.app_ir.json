@@ -1,0 +1,66 @@
+{
+  "state_cells": [],
+  "event_handlers": [
+    {
+      "source_path": "store.sources.new_todo_input.event.key_down.key",
+      "when": {
+        "kind": "source_tag_equals",
+        "path": "store.sources.new_todo_input.event.key_down.key",
+        "tag": "Enter"
+      },
+      "effects": [
+        {
+          "kind": "list_append_text",
+          "list_path": "todos",
+          "text_state_path": "store.sources.new_todo_input.text",
+          "trim": true,
+          "skip_empty": true
+        },
+        {
+          "kind": "clear_text",
+          "text_state_path": "store.sources.new_todo_input.text"
+        }
+      ]
+    },
+    {
+      "source_path": "store.sources.toggle_all_checkbox.event.click",
+      "when": null,
+      "effects": [
+        {
+          "kind": "list_toggle_all_marks",
+          "list_path": "todos"
+        }
+      ]
+    },
+    {
+      "source_path": "store.sources.clear_completed_button.event.press",
+      "when": null,
+      "effects": [
+        {
+          "kind": "list_remove_marked",
+          "list_path": "todos"
+        }
+      ]
+    },
+    {
+      "source_path": "todos[*].sources.checkbox.event.click",
+      "when": null,
+      "effects": [
+        {
+          "kind": "list_toggle_owner_mark",
+          "list_path": "todos"
+        }
+      ]
+    },
+    {
+      "source_path": "todos[*].sources.remove_button.event.press",
+      "when": null,
+      "effects": [
+        {
+          "kind": "list_remove_owner",
+          "list_path": "todos"
+        }
+      ]
+    }
+  ]
+}

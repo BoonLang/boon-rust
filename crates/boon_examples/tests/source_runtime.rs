@@ -230,6 +230,98 @@ fn behavior_changes_when_source_reducer_expression_is_removed() {
 }
 
 #[test]
+fn interval_tick_event_runs_through_generic_event_ir() {
+    let mut app = app("interval").expect("interval app");
+    app.dispatch_batch(SourceBatch {
+        state_updates: Vec::new(),
+        events: vec![emission(
+            "store.sources.clock.event.tick",
+            SourceValue::EmptyRecord,
+        )],
+    })
+    .expect("tick event dispatch succeeds");
+
+    assert_eq!(
+        app.snapshot().values.get("clock_value"),
+        Some(&serde_json::json!(1))
+    );
+}
+
+#[test]
+fn todo_list_controls_run_through_generic_list_ir() {
+    let mut app = app("todo_mvc").expect("todo app");
+
+    app.dispatch_batch(SourceBatch {
+        state_updates: Vec::new(),
+        events: vec![dynamic_emission(
+            "todos[*].sources.checkbox.event.click",
+            "1",
+            0,
+            SourceValue::EmptyRecord,
+        )],
+    })
+    .expect("dynamic checkbox event succeeds");
+    assert_eq!(
+        app.snapshot().values.get("store.marked_todos_count"),
+        Some(&serde_json::json!(1))
+    );
+
+    app.dispatch_batch(SourceBatch {
+        state_updates: Vec::new(),
+        events: vec![emission(
+            "store.sources.filter_completed.event.press",
+            SourceValue::EmptyRecord,
+        )],
+    })
+    .expect("filter event succeeds");
+    assert_eq!(
+        app.snapshot().values.get("store.view_selector"),
+        Some(&serde_json::json!("filter_completed"))
+    );
+
+    app.dispatch_batch(SourceBatch {
+        state_updates: Vec::new(),
+        events: vec![dynamic_emission(
+            "todos[*].sources.remove_button.event.press",
+            "1",
+            0,
+            SourceValue::EmptyRecord,
+        )],
+    })
+    .expect("dynamic remove event succeeds");
+    assert_eq!(
+        app.snapshot().values.get("store.todos_count"),
+        Some(&serde_json::json!(1))
+    );
+
+    app.dispatch_batch(SourceBatch {
+        state_updates: Vec::new(),
+        events: vec![emission(
+            "store.sources.toggle_all_checkbox.event.click",
+            SourceValue::EmptyRecord,
+        )],
+    })
+    .expect("toggle-all event succeeds");
+    assert_eq!(
+        app.snapshot().values.get("store.marked_todos_count"),
+        Some(&serde_json::json!(1))
+    );
+
+    app.dispatch_batch(SourceBatch {
+        state_updates: Vec::new(),
+        events: vec![emission(
+            "store.sources.clear_completed_button.event.press",
+            SourceValue::EmptyRecord,
+        )],
+    })
+    .expect("clear completed event succeeds");
+    assert_eq!(
+        app.snapshot().values.get("store.todos_count"),
+        Some(&serde_json::json!(0))
+    );
+}
+
+#[test]
 fn behavior_changes_when_source_list_append_pipeline_is_removed() {
     let source = definition("todo_mvc")
         .expect("todo_mvc definition")

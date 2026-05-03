@@ -1,0 +1,2505 @@
+{
+  "parsed": {
+    "name": "cells",
+    "ast": {
+      "name": "cells",
+      "items": [
+        {
+          "kind": "record",
+          "key": "store",
+          "value": null,
+          "span": {
+            "line": 1,
+            "column": 1
+          },
+          "children": [
+            {
+              "key": "sources",
+              "value": null,
+              "span": {
+                "line": 2,
+                "column": 5
+              },
+              "children": [
+                {
+                  "key": "viewport",
+                  "value": null,
+                  "span": {
+                    "line": 3,
+                    "column": 9
+                  },
+                  "children": [
+                    {
+                      "key": "event",
+                      "value": null,
+                      "span": {
+                        "line": 4,
+                        "column": 13
+                      },
+                      "children": [
+                        {
+                          "key": "key_down",
+                          "value": null,
+                          "span": {
+                            "line": 5,
+                            "column": 17
+                          },
+                          "children": [
+                            {
+                              "key": "key",
+                              "value": {
+                                "kind": {
+                                  "kind": "source"
+                                },
+                                "span": {
+                                  "line": 6,
+                                  "column": 25
+                                },
+                                "raw": "SOURCE"
+                              },
+                              "span": {
+                                "line": 6,
+                                "column": 21
+                              },
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "record",
+          "key": "cells",
+          "value": null,
+          "span": {
+            "line": 8,
+            "column": 1
+          },
+          "children": [
+            {
+              "key": "sources",
+              "value": null,
+              "span": {
+                "line": 9,
+                "column": 5
+              },
+              "children": [
+                {
+                  "key": "display",
+                  "value": null,
+                  "span": {
+                    "line": 10,
+                    "column": 9
+                  },
+                  "children": [
+                    {
+                      "key": "event",
+                      "value": null,
+                      "span": {
+                        "line": 11,
+                        "column": 13
+                      },
+                      "children": [
+                        {
+                          "key": "double_click",
+                          "value": {
+                            "kind": {
+                              "kind": "source"
+                            },
+                            "span": {
+                              "line": 12,
+                              "column": 30
+                            },
+                            "raw": "SOURCE"
+                          },
+                          "span": {
+                            "line": 12,
+                            "column": 17
+                          },
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "key": "hovered",
+                      "value": {
+                        "kind": {
+                          "kind": "source"
+                        },
+                        "span": {
+                          "line": 13,
+                          "column": 21
+                        },
+                        "raw": "SOURCE"
+                      },
+                      "span": {
+                        "line": 13,
+                        "column": 13
+                      },
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "key": "editor",
+                  "value": null,
+                  "span": {
+                    "line": 14,
+                    "column": 9
+                  },
+                  "children": [
+                    {
+                      "key": "text",
+                      "value": {
+                        "kind": {
+                          "kind": "source"
+                        },
+                        "span": {
+                          "line": 15,
+                          "column": 18
+                        },
+                        "raw": "SOURCE"
+                      },
+                      "span": {
+                        "line": 15,
+                        "column": 13
+                      },
+                      "children": []
+                    },
+                    {
+                      "key": "event",
+                      "value": null,
+                      "span": {
+                        "line": 16,
+                        "column": 13
+                      },
+                      "children": [
+                        {
+                          "key": "change",
+                          "value": {
+                            "kind": {
+                              "kind": "source"
+                            },
+                            "span": {
+                              "line": 17,
+                              "column": 24
+                            },
+                            "raw": "SOURCE"
+                          },
+                          "span": {
+                            "line": 17,
+                            "column": 17
+                          },
+                          "children": []
+                        },
+                        {
+                          "key": "key_down",
+                          "value": null,
+                          "span": {
+                            "line": 18,
+                            "column": 17
+                          },
+                          "children": [
+                            {
+                              "key": "key",
+                              "value": {
+                                "kind": {
+                                  "kind": "source"
+                                },
+                                "span": {
+                                  "line": 19,
+                                  "column": 25
+                                },
+                                "raw": "SOURCE"
+                              },
+                              "span": {
+                                "line": 19,
+                                "column": 21
+                              },
+                              "children": []
+                            }
+                          ]
+                        },
+                        {
+                          "key": "blur",
+                          "value": {
+                            "kind": {
+                              "kind": "source"
+                            },
+                            "span": {
+                              "line": 20,
+                              "column": 22
+                            },
+                            "raw": "SOURCE"
+                          },
+                          "span": {
+                            "line": 20,
+                            "column": 17
+                          },
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "record",
+          "key": "rows",
+          "value": null,
+          "span": {
+            "line": 22,
+            "column": 1
+          },
+          "children": []
+        },
+        {
+          "kind": "record",
+          "key": "columns",
+          "value": null,
+          "span": {
+            "line": 25,
+            "column": 1
+          },
+          "children": []
+        },
+        {
+          "kind": "record",
+          "key": "formulas",
+          "value": null,
+          "span": {
+            "line": 28,
+            "column": 1
+          },
+          "children": [
+            {
+              "key": "functions",
+              "value": null,
+              "span": {
+                "line": 29,
+                "column": 5
+              },
+              "children": [
+                {
+                  "key": "add",
+                  "value": {
+                    "kind": {
+                      "kind": "path",
+                      "value": "Math/add"
+                    },
+                    "span": {
+                      "line": 30,
+                      "column": 13
+                    },
+                    "raw": "Math/add"
+                  },
+                  "span": {
+                    "line": 30,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "sum",
+                  "value": {
+                    "kind": {
+                      "kind": "path",
+                      "value": "Math/sum"
+                    },
+                    "span": {
+                      "line": 31,
+                      "column": 13
+                    },
+                    "raw": "Math/sum"
+                  },
+                  "span": {
+                    "line": 31,
+                    "column": 9
+                  },
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "record",
+          "key": "grid",
+          "value": null,
+          "span": {
+            "line": 33,
+            "column": 1
+          },
+          "children": [
+            {
+              "key": "row",
+              "value": {
+                "kind": {
+                  "kind": "path",
+                  "value": "row"
+                },
+                "span": {
+                  "line": 37,
+                  "column": 21
+                },
+                "raw": "row"
+              },
+              "span": {
+                "line": 37,
+                "column": 17
+              },
+              "children": []
+            },
+            {
+              "key": "column",
+              "value": {
+                "kind": {
+                  "kind": "path",
+                  "value": "column"
+                },
+                "span": {
+                  "line": 38,
+                  "column": 24
+                },
+                "raw": "column"
+              },
+              "span": {
+                "line": 38,
+                "column": 17
+              },
+              "children": []
+            },
+            {
+              "key": "sources",
+              "value": {
+                "kind": {
+                  "kind": "path",
+                  "value": "cells.sources"
+                },
+                "span": {
+                  "line": 39,
+                  "column": 25
+                },
+                "raw": "cells.sources"
+              },
+              "span": {
+                "line": 39,
+                "column": 17
+              },
+              "children": []
+            }
+          ]
+        },
+        {
+          "kind": "record",
+          "key": "document",
+          "value": null,
+          "span": {
+            "line": 44,
+            "column": 1
+          },
+          "children": [
+            {
+              "key": "root",
+              "value": null,
+              "span": {
+                "line": 46,
+                "column": 9
+              },
+              "children": [
+                {
+                  "key": "element",
+                  "value": {
+                    "kind": {
+                      "kind": "path",
+                      "value": "store.sources.viewport"
+                    },
+                    "span": {
+                      "line": 48,
+                      "column": 25
+                    },
+                    "raw": "store.sources.viewport"
+                  },
+                  "span": {
+                    "line": 48,
+                    "column": 17
+                  },
+                  "children": []
+                },
+                {
+                  "key": "cells",
+                  "value": null,
+                  "span": {
+                    "line": 49,
+                    "column": 17
+                  },
+                  "children": [
+                    {
+                      "key": "children",
+                      "value": null,
+                      "span": {
+                        "line": 53,
+                        "column": 33
+                      },
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "expression",
+          "kind": {
+            "kind": "pipeline",
+            "input": {
+              "kind": {
+                "kind": "path",
+                "value": "rows"
+              },
+              "span": {
+                "line": 34,
+                "column": 5
+              },
+              "raw": "rows"
+            },
+            "stages": [
+              {
+                "kind": {
+                  "kind": "call",
+                  "path": "List/map",
+                  "args": [
+                    {
+                      "name": "new",
+                      "value": {
+                        "kind": {
+                          "kind": "raw"
+                        },
+                        "span": {
+                          "line": 34,
+                          "column": 5
+                        },
+                        "raw": ""
+                      },
+                      "span": {
+                        "line": 34,
+                        "column": 5
+                      }
+                    },
+                    {
+                      "name": "columns |> List/map(column, new",
+                      "value": {
+                        "kind": {
+                          "kind": "record",
+                          "entries": [
+                            {
+                              "key": "row",
+                              "value": {
+                                "kind": {
+                                  "kind": "path",
+                                  "value": "row"
+                                },
+                                "span": {
+                                  "line": 34,
+                                  "column": 5
+                                },
+                                "raw": "row"
+                              },
+                              "span": {
+                                "line": 34,
+                                "column": 5
+                              },
+                              "children": []
+                            },
+                            {
+                              "key": "column",
+                              "value": {
+                                "kind": {
+                                  "kind": "path",
+                                  "value": "column"
+                                },
+                                "span": {
+                                  "line": 34,
+                                  "column": 5
+                                },
+                                "raw": "column"
+                              },
+                              "span": {
+                                "line": 34,
+                                "column": 5
+                              },
+                              "children": []
+                            },
+                            {
+                              "key": "sources",
+                              "value": {
+                                "kind": {
+                                  "kind": "path",
+                                  "value": "cells.sources"
+                                },
+                                "span": {
+                                  "line": 34,
+                                  "column": 5
+                                },
+                                "raw": "cells.sources"
+                              },
+                              "span": {
+                                "line": 34,
+                                "column": 5
+                              },
+                              "children": []
+                            }
+                          ]
+                        },
+                        "span": {
+                          "line": 34,
+                          "column": 5
+                        },
+                        "raw": "[\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)"
+                      },
+                      "span": {
+                        "line": 34,
+                        "column": 5
+                      }
+                    }
+                  ]
+                },
+                "span": {
+                  "line": 34,
+                  "column": 5
+                },
+                "raw": "List/map(row, new:\ncolumns |> List/map(column, new:\n[\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)\n)"
+              }
+            ]
+          },
+          "span": {
+            "line": 34,
+            "column": 5
+          },
+          "raw": "rows |> List/map(row, new:\ncolumns |> List/map(column, new:\n[\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)\n)"
+        },
+        {
+          "kind": "expression",
+          "kind": {
+            "kind": "call",
+            "path": "Document/new",
+            "args": [
+              {
+                "name": "root",
+                "value": {
+                  "kind": {
+                    "kind": "raw"
+                  },
+                  "span": {
+                    "line": 45,
+                    "column": 5
+                  },
+                  "raw": ""
+                },
+                "span": {
+                  "line": 45,
+                  "column": 5
+                }
+              },
+              {
+                "name": "Element/grid(\nelement",
+                "value": {
+                  "kind": {
+                    "kind": "pipeline",
+                    "input": {
+                      "kind": {
+                        "kind": "raw"
+                      },
+                      "span": {
+                        "line": 45,
+                        "column": 5
+                      },
+                      "raw": "store.sources.viewport\ncells:\ngrid"
+                    },
+                    "stages": [
+                      {
+                        "kind": {
+                          "kind": "raw"
+                        },
+                        "span": {
+                          "line": 45,
+                          "column": 5
+                        },
+                        "raw": "List/map(row, new:\nrow |> List/map(cell, new:\nElement/panel(\nchildren:\nLIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)"
+                      }
+                    ]
+                  },
+                  "span": {
+                    "line": 45,
+                    "column": 5
+                  },
+                  "raw": "store.sources.viewport\ncells:\ngrid |> List/map(row, new:\nrow |> List/map(cell, new:\nElement/panel(\nchildren:\nLIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)"
+                },
+                "span": {
+                  "line": 45,
+                  "column": 5
+                }
+              }
+            ]
+          },
+          "span": {
+            "line": 45,
+            "column": 5
+          },
+          "raw": "Document/new(\nroot:\nElement/grid(\nelement: store.sources.viewport\ncells:\ngrid |> List/map(row, new:\nrow |> List/map(cell, new:\nElement/panel(\nchildren:\nLIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)\n)"
+        }
+      ]
+    },
+    "lines": [
+      {
+        "text": "store:",
+        "span": {
+          "line": 1,
+          "column": 1
+        }
+      },
+      {
+        "text": "sources:",
+        "span": {
+          "line": 2,
+          "column": 5
+        }
+      },
+      {
+        "text": "viewport:",
+        "span": {
+          "line": 3,
+          "column": 9
+        }
+      },
+      {
+        "text": "event:",
+        "span": {
+          "line": 4,
+          "column": 13
+        }
+      },
+      {
+        "text": "key_down:",
+        "span": {
+          "line": 5,
+          "column": 17
+        }
+      },
+      {
+        "text": "key: SOURCE",
+        "span": {
+          "line": 6,
+          "column": 21
+        }
+      },
+      {
+        "text": "cells:",
+        "span": {
+          "line": 8,
+          "column": 1
+        }
+      },
+      {
+        "text": "sources:",
+        "span": {
+          "line": 9,
+          "column": 5
+        }
+      },
+      {
+        "text": "display:",
+        "span": {
+          "line": 10,
+          "column": 9
+        }
+      },
+      {
+        "text": "event:",
+        "span": {
+          "line": 11,
+          "column": 13
+        }
+      },
+      {
+        "text": "double_click: SOURCE",
+        "span": {
+          "line": 12,
+          "column": 17
+        }
+      },
+      {
+        "text": "hovered: SOURCE",
+        "span": {
+          "line": 13,
+          "column": 13
+        }
+      },
+      {
+        "text": "editor:",
+        "span": {
+          "line": 14,
+          "column": 9
+        }
+      },
+      {
+        "text": "text: SOURCE",
+        "span": {
+          "line": 15,
+          "column": 13
+        }
+      },
+      {
+        "text": "event:",
+        "span": {
+          "line": 16,
+          "column": 13
+        }
+      },
+      {
+        "text": "change: SOURCE",
+        "span": {
+          "line": 17,
+          "column": 17
+        }
+      },
+      {
+        "text": "key_down:",
+        "span": {
+          "line": 18,
+          "column": 17
+        }
+      },
+      {
+        "text": "key: SOURCE",
+        "span": {
+          "line": 19,
+          "column": 21
+        }
+      },
+      {
+        "text": "blur: SOURCE",
+        "span": {
+          "line": 20,
+          "column": 17
+        }
+      },
+      {
+        "text": "rows:",
+        "span": {
+          "line": 22,
+          "column": 1
+        }
+      },
+      {
+        "text": "List/range(from: 1, to: 100)",
+        "span": {
+          "line": 23,
+          "column": 5
+        }
+      },
+      {
+        "text": "columns:",
+        "span": {
+          "line": 25,
+          "column": 1
+        }
+      },
+      {
+        "text": "List/range(from: 1, to: 26)",
+        "span": {
+          "line": 26,
+          "column": 5
+        }
+      },
+      {
+        "text": "formulas:",
+        "span": {
+          "line": 28,
+          "column": 1
+        }
+      },
+      {
+        "text": "functions:",
+        "span": {
+          "line": 29,
+          "column": 5
+        }
+      },
+      {
+        "text": "add: Math/add",
+        "span": {
+          "line": 30,
+          "column": 9
+        }
+      },
+      {
+        "text": "sum: Math/sum",
+        "span": {
+          "line": 31,
+          "column": 9
+        }
+      },
+      {
+        "text": "grid:",
+        "span": {
+          "line": 33,
+          "column": 1
+        }
+      },
+      {
+        "text": "rows |> List/map(row, new:",
+        "span": {
+          "line": 34,
+          "column": 5
+        }
+      },
+      {
+        "text": "columns |> List/map(column, new:",
+        "span": {
+          "line": 35,
+          "column": 9
+        }
+      },
+      {
+        "text": "[",
+        "span": {
+          "line": 36,
+          "column": 13
+        }
+      },
+      {
+        "text": "row: row",
+        "span": {
+          "line": 37,
+          "column": 17
+        }
+      },
+      {
+        "text": "column: column",
+        "span": {
+          "line": 38,
+          "column": 17
+        }
+      },
+      {
+        "text": "sources: cells.sources",
+        "span": {
+          "line": 39,
+          "column": 17
+        }
+      },
+      {
+        "text": "]",
+        "span": {
+          "line": 40,
+          "column": 13
+        }
+      },
+      {
+        "text": ")",
+        "span": {
+          "line": 41,
+          "column": 9
+        }
+      },
+      {
+        "text": ")",
+        "span": {
+          "line": 42,
+          "column": 5
+        }
+      },
+      {
+        "text": "document:",
+        "span": {
+          "line": 44,
+          "column": 1
+        }
+      },
+      {
+        "text": "Document/new(",
+        "span": {
+          "line": 45,
+          "column": 5
+        }
+      },
+      {
+        "text": "root:",
+        "span": {
+          "line": 46,
+          "column": 9
+        }
+      },
+      {
+        "text": "Element/grid(",
+        "span": {
+          "line": 47,
+          "column": 13
+        }
+      },
+      {
+        "text": "element: store.sources.viewport",
+        "span": {
+          "line": 48,
+          "column": 17
+        }
+      },
+      {
+        "text": "cells:",
+        "span": {
+          "line": 49,
+          "column": 17
+        }
+      },
+      {
+        "text": "grid |> List/map(row, new:",
+        "span": {
+          "line": 50,
+          "column": 21
+        }
+      },
+      {
+        "text": "row |> List/map(cell, new:",
+        "span": {
+          "line": 51,
+          "column": 25
+        }
+      },
+      {
+        "text": "Element/panel(",
+        "span": {
+          "line": 52,
+          "column": 29
+        }
+      },
+      {
+        "text": "children:",
+        "span": {
+          "line": 53,
+          "column": 33
+        }
+      },
+      {
+        "text": "LIST {",
+        "span": {
+          "line": 54,
+          "column": 37
+        }
+      },
+      {
+        "text": "Element/label(element: cell.sources.display)",
+        "span": {
+          "line": 55,
+          "column": 41
+        }
+      },
+      {
+        "text": "Element/text_input(element: cell.sources.editor)",
+        "span": {
+          "line": 56,
+          "column": 41
+        }
+      },
+      {
+        "text": "}",
+        "span": {
+          "line": 57,
+          "column": 37
+        }
+      },
+      {
+        "text": ")",
+        "span": {
+          "line": 58,
+          "column": 29
+        }
+      },
+      {
+        "text": ")",
+        "span": {
+          "line": 59,
+          "column": 25
+        }
+      },
+      {
+        "text": ")",
+        "span": {
+          "line": 60,
+          "column": 21
+        }
+      },
+      {
+        "text": ")",
+        "span": {
+          "line": 61,
+          "column": 13
+        }
+      },
+      {
+        "text": ")",
+        "span": {
+          "line": 62,
+          "column": 5
+        }
+      }
+    ],
+    "records": [
+      {
+        "key": "store",
+        "value": null,
+        "span": {
+          "line": 1,
+          "column": 1
+        },
+        "children": [
+          {
+            "key": "sources",
+            "value": null,
+            "span": {
+              "line": 2,
+              "column": 5
+            },
+            "children": [
+              {
+                "key": "viewport",
+                "value": null,
+                "span": {
+                  "line": 3,
+                  "column": 9
+                },
+                "children": [
+                  {
+                    "key": "event",
+                    "value": null,
+                    "span": {
+                      "line": 4,
+                      "column": 13
+                    },
+                    "children": [
+                      {
+                        "key": "key_down",
+                        "value": null,
+                        "span": {
+                          "line": 5,
+                          "column": 17
+                        },
+                        "children": [
+                          {
+                            "key": "key",
+                            "value": "SOURCE",
+                            "span": {
+                              "line": 6,
+                              "column": 21
+                            },
+                            "children": []
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "cells",
+        "value": null,
+        "span": {
+          "line": 8,
+          "column": 1
+        },
+        "children": [
+          {
+            "key": "sources",
+            "value": null,
+            "span": {
+              "line": 9,
+              "column": 5
+            },
+            "children": [
+              {
+                "key": "display",
+                "value": null,
+                "span": {
+                  "line": 10,
+                  "column": 9
+                },
+                "children": [
+                  {
+                    "key": "event",
+                    "value": null,
+                    "span": {
+                      "line": 11,
+                      "column": 13
+                    },
+                    "children": [
+                      {
+                        "key": "double_click",
+                        "value": "SOURCE",
+                        "span": {
+                          "line": 12,
+                          "column": 17
+                        },
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "key": "hovered",
+                    "value": "SOURCE",
+                    "span": {
+                      "line": 13,
+                      "column": 13
+                    },
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "key": "editor",
+                "value": null,
+                "span": {
+                  "line": 14,
+                  "column": 9
+                },
+                "children": [
+                  {
+                    "key": "text",
+                    "value": "SOURCE",
+                    "span": {
+                      "line": 15,
+                      "column": 13
+                    },
+                    "children": []
+                  },
+                  {
+                    "key": "event",
+                    "value": null,
+                    "span": {
+                      "line": 16,
+                      "column": 13
+                    },
+                    "children": [
+                      {
+                        "key": "change",
+                        "value": "SOURCE",
+                        "span": {
+                          "line": 17,
+                          "column": 17
+                        },
+                        "children": []
+                      },
+                      {
+                        "key": "key_down",
+                        "value": null,
+                        "span": {
+                          "line": 18,
+                          "column": 17
+                        },
+                        "children": [
+                          {
+                            "key": "key",
+                            "value": "SOURCE",
+                            "span": {
+                              "line": 19,
+                              "column": 21
+                            },
+                            "children": []
+                          }
+                        ]
+                      },
+                      {
+                        "key": "blur",
+                        "value": "SOURCE",
+                        "span": {
+                          "line": 20,
+                          "column": 17
+                        },
+                        "children": []
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "rows",
+        "value": null,
+        "span": {
+          "line": 22,
+          "column": 1
+        },
+        "children": []
+      },
+      {
+        "key": "columns",
+        "value": null,
+        "span": {
+          "line": 25,
+          "column": 1
+        },
+        "children": []
+      },
+      {
+        "key": "formulas",
+        "value": null,
+        "span": {
+          "line": 28,
+          "column": 1
+        },
+        "children": [
+          {
+            "key": "functions",
+            "value": null,
+            "span": {
+              "line": 29,
+              "column": 5
+            },
+            "children": [
+              {
+                "key": "add",
+                "value": "Math/add",
+                "span": {
+                  "line": 30,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "sum",
+                "value": "Math/sum",
+                "span": {
+                  "line": 31,
+                  "column": 9
+                },
+                "children": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "grid",
+        "value": null,
+        "span": {
+          "line": 33,
+          "column": 1
+        },
+        "children": [
+          {
+            "key": "row",
+            "value": "row",
+            "span": {
+              "line": 37,
+              "column": 17
+            },
+            "children": []
+          },
+          {
+            "key": "column",
+            "value": "column",
+            "span": {
+              "line": 38,
+              "column": 17
+            },
+            "children": []
+          },
+          {
+            "key": "sources",
+            "value": "cells.sources",
+            "span": {
+              "line": 39,
+              "column": 17
+            },
+            "children": []
+          }
+        ]
+      },
+      {
+        "key": "document",
+        "value": null,
+        "span": {
+          "line": 44,
+          "column": 1
+        },
+        "children": [
+          {
+            "key": "root",
+            "value": null,
+            "span": {
+              "line": 46,
+              "column": 9
+            },
+            "children": [
+              {
+                "key": "element",
+                "value": "store.sources.viewport",
+                "span": {
+                  "line": 48,
+                  "column": 17
+                },
+                "children": []
+              },
+              {
+                "key": "cells",
+                "value": null,
+                "span": {
+                  "line": 49,
+                  "column": 17
+                },
+                "children": [
+                  {
+                    "key": "children",
+                    "value": null,
+                    "span": {
+                      "line": 53,
+                      "column": 33
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "source_leaves": [
+      {
+        "path": "store.sources.viewport.event.key_down.key",
+        "span": {
+          "line": 6,
+          "column": 26
+        }
+      },
+      {
+        "path": "cells.sources.display.event.double_click",
+        "span": {
+          "line": 12,
+          "column": 31
+        }
+      },
+      {
+        "path": "cells.sources.display.hovered",
+        "span": {
+          "line": 13,
+          "column": 22
+        }
+      },
+      {
+        "path": "cells.sources.editor.text",
+        "span": {
+          "line": 15,
+          "column": 19
+        }
+      },
+      {
+        "path": "cells.sources.editor.event.change",
+        "span": {
+          "line": 17,
+          "column": 25
+        }
+      },
+      {
+        "path": "cells.sources.editor.event.key_down.key",
+        "span": {
+          "line": 19,
+          "column": 26
+        }
+      },
+      {
+        "path": "cells.sources.editor.event.blur",
+        "span": {
+          "line": 20,
+          "column": 23
+        }
+      }
+    ],
+    "module_calls": [
+      {
+        "path": "List/range",
+        "span": {
+          "line": 23,
+          "column": 5
+        },
+        "args": [
+          {
+            "name": "from",
+            "value": "1",
+            "span": {
+              "line": 23,
+              "column": 2
+            }
+          },
+          {
+            "name": "to",
+            "value": "100",
+            "span": {
+              "line": 23,
+              "column": 11
+            }
+          }
+        ]
+      },
+      {
+        "path": "List/range",
+        "span": {
+          "line": 26,
+          "column": 5
+        },
+        "args": [
+          {
+            "name": "from",
+            "value": "1",
+            "span": {
+              "line": 26,
+              "column": 2
+            }
+          },
+          {
+            "name": "to",
+            "value": "26",
+            "span": {
+              "line": 26,
+              "column": 11
+            }
+          }
+        ]
+      },
+      {
+        "path": "Math/add",
+        "span": {
+          "line": 30,
+          "column": 14
+        },
+        "args": [
+          {
+            "name": "new",
+            "value": "columns",
+            "span": {
+              "line": 30,
+              "column": 44
+            }
+          }
+        ]
+      },
+      {
+        "path": "Math/sum",
+        "span": {
+          "line": 31,
+          "column": 14
+        },
+        "args": [
+          {
+            "name": "new",
+            "value": "columns",
+            "span": {
+              "line": 31,
+              "column": 30
+            }
+          }
+        ]
+      },
+      {
+        "path": "List/map",
+        "span": {
+          "line": 34,
+          "column": 13
+        },
+        "args": [
+          {
+            "name": "new",
+            "value": "columns",
+            "span": {
+              "line": 34,
+              "column": 7
+            }
+          }
+        ]
+      },
+      {
+        "path": "List/map",
+        "span": {
+          "line": 35,
+          "column": 20
+        },
+        "args": [
+          {
+            "name": "row",
+            "value": "row",
+            "span": {
+              "line": 35,
+              "column": 17
+            }
+          },
+          {
+            "name": "column",
+            "value": "column",
+            "span": {
+              "line": 35,
+              "column": 26
+            }
+          },
+          {
+            "name": "sources",
+            "value": "cells.sources",
+            "span": {
+              "line": 35,
+              "column": 41
+            }
+          }
+        ]
+      },
+      {
+        "path": "Document/new",
+        "span": {
+          "line": 45,
+          "column": 5
+        },
+        "args": [
+          {
+            "name": "root",
+            "value": "Element",
+            "span": {
+              "line": 45,
+              "column": 3
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/grid",
+        "span": {
+          "line": 47,
+          "column": 13
+        },
+        "args": [
+          {
+            "name": "element",
+            "value": "store.sources.viewport",
+            "span": {
+              "line": 47,
+              "column": 3
+            }
+          },
+          {
+            "name": "cells",
+            "value": "grid",
+            "span": {
+              "line": 47,
+              "column": 35
+            }
+          }
+        ]
+      },
+      {
+        "path": "List/map",
+        "span": {
+          "line": 50,
+          "column": 29
+        },
+        "args": [
+          {
+            "name": "new",
+            "value": "row",
+            "span": {
+              "line": 50,
+              "column": 7
+            }
+          }
+        ]
+      },
+      {
+        "path": "List/map",
+        "span": {
+          "line": 51,
+          "column": 32
+        },
+        "args": [
+          {
+            "name": "new",
+            "value": "Element",
+            "span": {
+              "line": 51,
+              "column": 8
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/panel",
+        "span": {
+          "line": 52,
+          "column": 29
+        },
+        "args": [
+          {
+            "name": "children",
+            "value": "LIST",
+            "span": {
+              "line": 52,
+              "column": 3
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/label",
+        "span": {
+          "line": 55,
+          "column": 41
+        },
+        "args": [
+          {
+            "name": "element",
+            "value": "cell.sources.display",
+            "span": {
+              "line": 55,
+              "column": 2
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/text_input",
+        "span": {
+          "line": 56,
+          "column": 41
+        },
+        "args": [
+          {
+            "name": "element",
+            "value": "cell.sources.editor",
+            "span": {
+              "line": 56,
+              "column": 2
+            }
+          }
+        ]
+      }
+    ],
+    "text_literals": [],
+    "state_steps": [],
+    "map_bindings": [
+      {
+        "variable": "row",
+        "collection": "rows",
+        "span": {
+          "line": 34,
+          "column": 18
+        }
+      },
+      {
+        "variable": "column",
+        "collection": "columns",
+        "span": {
+          "line": 35,
+          "column": 21
+        }
+      },
+      {
+        "variable": "row",
+        "collection": "grid",
+        "span": {
+          "line": 50,
+          "column": 18
+        }
+      },
+      {
+        "variable": "cell",
+        "collection": "row",
+        "span": {
+          "line": 51,
+          "column": 17
+        }
+      }
+    ]
+  },
+  "items": [
+    {
+      "kind": "record",
+      "key": "store",
+      "value": null,
+      "span": {
+        "line": 1,
+        "column": 1
+      },
+      "children": [
+        {
+          "key": "sources",
+          "value": null,
+          "span": {
+            "line": 2,
+            "column": 5
+          },
+          "children": [
+            {
+              "key": "viewport",
+              "value": null,
+              "span": {
+                "line": 3,
+                "column": 9
+              },
+              "children": [
+                {
+                  "key": "event",
+                  "value": null,
+                  "span": {
+                    "line": 4,
+                    "column": 13
+                  },
+                  "children": [
+                    {
+                      "key": "key_down",
+                      "value": null,
+                      "span": {
+                        "line": 5,
+                        "column": 17
+                      },
+                      "children": [
+                        {
+                          "key": "key",
+                          "value": {
+                            "kind": {
+                              "kind": "source"
+                            },
+                            "span": {
+                              "line": 6,
+                              "column": 25
+                            },
+                            "raw": "SOURCE"
+                          },
+                          "span": {
+                            "line": 6,
+                            "column": 21
+                          },
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "record",
+      "key": "cells",
+      "value": null,
+      "span": {
+        "line": 8,
+        "column": 1
+      },
+      "children": [
+        {
+          "key": "sources",
+          "value": null,
+          "span": {
+            "line": 9,
+            "column": 5
+          },
+          "children": [
+            {
+              "key": "display",
+              "value": null,
+              "span": {
+                "line": 10,
+                "column": 9
+              },
+              "children": [
+                {
+                  "key": "event",
+                  "value": null,
+                  "span": {
+                    "line": 11,
+                    "column": 13
+                  },
+                  "children": [
+                    {
+                      "key": "double_click",
+                      "value": {
+                        "kind": {
+                          "kind": "source"
+                        },
+                        "span": {
+                          "line": 12,
+                          "column": 30
+                        },
+                        "raw": "SOURCE"
+                      },
+                      "span": {
+                        "line": 12,
+                        "column": 17
+                      },
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "key": "hovered",
+                  "value": {
+                    "kind": {
+                      "kind": "source"
+                    },
+                    "span": {
+                      "line": 13,
+                      "column": 21
+                    },
+                    "raw": "SOURCE"
+                  },
+                  "span": {
+                    "line": 13,
+                    "column": 13
+                  },
+                  "children": []
+                }
+              ]
+            },
+            {
+              "key": "editor",
+              "value": null,
+              "span": {
+                "line": 14,
+                "column": 9
+              },
+              "children": [
+                {
+                  "key": "text",
+                  "value": {
+                    "kind": {
+                      "kind": "source"
+                    },
+                    "span": {
+                      "line": 15,
+                      "column": 18
+                    },
+                    "raw": "SOURCE"
+                  },
+                  "span": {
+                    "line": 15,
+                    "column": 13
+                  },
+                  "children": []
+                },
+                {
+                  "key": "event",
+                  "value": null,
+                  "span": {
+                    "line": 16,
+                    "column": 13
+                  },
+                  "children": [
+                    {
+                      "key": "change",
+                      "value": {
+                        "kind": {
+                          "kind": "source"
+                        },
+                        "span": {
+                          "line": 17,
+                          "column": 24
+                        },
+                        "raw": "SOURCE"
+                      },
+                      "span": {
+                        "line": 17,
+                        "column": 17
+                      },
+                      "children": []
+                    },
+                    {
+                      "key": "key_down",
+                      "value": null,
+                      "span": {
+                        "line": 18,
+                        "column": 17
+                      },
+                      "children": [
+                        {
+                          "key": "key",
+                          "value": {
+                            "kind": {
+                              "kind": "source"
+                            },
+                            "span": {
+                              "line": 19,
+                              "column": 25
+                            },
+                            "raw": "SOURCE"
+                          },
+                          "span": {
+                            "line": 19,
+                            "column": 21
+                          },
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "key": "blur",
+                      "value": {
+                        "kind": {
+                          "kind": "source"
+                        },
+                        "span": {
+                          "line": 20,
+                          "column": 22
+                        },
+                        "raw": "SOURCE"
+                      },
+                      "span": {
+                        "line": 20,
+                        "column": 17
+                      },
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "record",
+      "key": "rows",
+      "value": null,
+      "span": {
+        "line": 22,
+        "column": 1
+      },
+      "children": []
+    },
+    {
+      "kind": "record",
+      "key": "columns",
+      "value": null,
+      "span": {
+        "line": 25,
+        "column": 1
+      },
+      "children": []
+    },
+    {
+      "kind": "record",
+      "key": "formulas",
+      "value": null,
+      "span": {
+        "line": 28,
+        "column": 1
+      },
+      "children": [
+        {
+          "key": "functions",
+          "value": null,
+          "span": {
+            "line": 29,
+            "column": 5
+          },
+          "children": [
+            {
+              "key": "add",
+              "value": {
+                "kind": {
+                  "kind": "path",
+                  "value": "Math/add"
+                },
+                "span": {
+                  "line": 30,
+                  "column": 13
+                },
+                "raw": "Math/add"
+              },
+              "span": {
+                "line": 30,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "sum",
+              "value": {
+                "kind": {
+                  "kind": "path",
+                  "value": "Math/sum"
+                },
+                "span": {
+                  "line": 31,
+                  "column": 13
+                },
+                "raw": "Math/sum"
+              },
+              "span": {
+                "line": 31,
+                "column": 9
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "record",
+      "key": "grid",
+      "value": null,
+      "span": {
+        "line": 33,
+        "column": 1
+      },
+      "children": [
+        {
+          "key": "row",
+          "value": {
+            "kind": {
+              "kind": "path",
+              "value": "row"
+            },
+            "span": {
+              "line": 37,
+              "column": 21
+            },
+            "raw": "row"
+          },
+          "span": {
+            "line": 37,
+            "column": 17
+          },
+          "children": []
+        },
+        {
+          "key": "column",
+          "value": {
+            "kind": {
+              "kind": "path",
+              "value": "column"
+            },
+            "span": {
+              "line": 38,
+              "column": 24
+            },
+            "raw": "column"
+          },
+          "span": {
+            "line": 38,
+            "column": 17
+          },
+          "children": []
+        },
+        {
+          "key": "sources",
+          "value": {
+            "kind": {
+              "kind": "path",
+              "value": "cells.sources"
+            },
+            "span": {
+              "line": 39,
+              "column": 25
+            },
+            "raw": "cells.sources"
+          },
+          "span": {
+            "line": 39,
+            "column": 17
+          },
+          "children": []
+        }
+      ]
+    },
+    {
+      "kind": "record",
+      "key": "document",
+      "value": null,
+      "span": {
+        "line": 44,
+        "column": 1
+      },
+      "children": [
+        {
+          "key": "root",
+          "value": null,
+          "span": {
+            "line": 46,
+            "column": 9
+          },
+          "children": [
+            {
+              "key": "element",
+              "value": {
+                "kind": {
+                  "kind": "path",
+                  "value": "store.sources.viewport"
+                },
+                "span": {
+                  "line": 48,
+                  "column": 25
+                },
+                "raw": "store.sources.viewport"
+              },
+              "span": {
+                "line": 48,
+                "column": 17
+              },
+              "children": []
+            },
+            {
+              "key": "cells",
+              "value": null,
+              "span": {
+                "line": 49,
+                "column": 17
+              },
+              "children": [
+                {
+                  "key": "children",
+                  "value": null,
+                  "span": {
+                    "line": 53,
+                    "column": 33
+                  },
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "expression",
+      "kind": {
+        "kind": "pipeline",
+        "input": {
+          "kind": {
+            "kind": "path",
+            "value": "rows"
+          },
+          "span": {
+            "line": 34,
+            "column": 5
+          },
+          "raw": "rows"
+        },
+        "stages": [
+          {
+            "kind": {
+              "kind": "list_call",
+              "op": "map",
+              "args": [
+                {
+                  "name": "new",
+                  "value": {
+                    "kind": {
+                      "kind": "unsupported",
+                      "reason": "raw syntax not yet lowered"
+                    },
+                    "span": {
+                      "line": 34,
+                      "column": 5
+                    },
+                    "raw": ""
+                  },
+                  "span": {
+                    "line": 34,
+                    "column": 5
+                  }
+                },
+                {
+                  "name": "columns |> List/map(column, new",
+                  "value": {
+                    "kind": {
+                      "kind": "record",
+                      "entries": [
+                        {
+                          "key": "row",
+                          "value": {
+                            "kind": {
+                              "kind": "path",
+                              "value": "row"
+                            },
+                            "span": {
+                              "line": 34,
+                              "column": 5
+                            },
+                            "raw": "row"
+                          },
+                          "span": {
+                            "line": 34,
+                            "column": 5
+                          },
+                          "children": []
+                        },
+                        {
+                          "key": "column",
+                          "value": {
+                            "kind": {
+                              "kind": "path",
+                              "value": "column"
+                            },
+                            "span": {
+                              "line": 34,
+                              "column": 5
+                            },
+                            "raw": "column"
+                          },
+                          "span": {
+                            "line": 34,
+                            "column": 5
+                          },
+                          "children": []
+                        },
+                        {
+                          "key": "sources",
+                          "value": {
+                            "kind": {
+                              "kind": "path",
+                              "value": "cells.sources"
+                            },
+                            "span": {
+                              "line": 34,
+                              "column": 5
+                            },
+                            "raw": "cells.sources"
+                          },
+                          "span": {
+                            "line": 34,
+                            "column": 5
+                          },
+                          "children": []
+                        }
+                      ]
+                    },
+                    "span": {
+                      "line": 34,
+                      "column": 5
+                    },
+                    "raw": "[\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)"
+                  },
+                  "span": {
+                    "line": 34,
+                    "column": 5
+                  }
+                }
+              ]
+            },
+            "span": {
+              "line": 34,
+              "column": 5
+            },
+            "raw": "List/map(row, new:\ncolumns |> List/map(column, new:\n[\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)\n)"
+          }
+        ]
+      },
+      "span": {
+        "line": 34,
+        "column": 5
+      },
+      "raw": "rows |> List/map(row, new:\ncolumns |> List/map(column, new:\n[\nrow: row\ncolumn: column\nsources: cells.sources\n]\n)\n)"
+    },
+    {
+      "kind": "expression",
+      "kind": {
+        "kind": "host_call",
+        "path": "Document/new",
+        "args": [
+          {
+            "name": "root",
+            "value": {
+              "kind": {
+                "kind": "unsupported",
+                "reason": "raw syntax not yet lowered"
+              },
+              "span": {
+                "line": 45,
+                "column": 5
+              },
+              "raw": ""
+            },
+            "span": {
+              "line": 45,
+              "column": 5
+            }
+          },
+          {
+            "name": "Element/grid(\nelement",
+            "value": {
+              "kind": {
+                "kind": "pipeline",
+                "input": {
+                  "kind": {
+                    "kind": "unsupported",
+                    "reason": "raw syntax not yet lowered"
+                  },
+                  "span": {
+                    "line": 45,
+                    "column": 5
+                  },
+                  "raw": "store.sources.viewport\ncells:\ngrid"
+                },
+                "stages": [
+                  {
+                    "kind": {
+                      "kind": "unsupported",
+                      "reason": "raw syntax not yet lowered"
+                    },
+                    "span": {
+                      "line": 45,
+                      "column": 5
+                    },
+                    "raw": "List/map(row, new:\nrow |> List/map(cell, new:\nElement/panel(\nchildren:\nLIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)"
+                  }
+                ]
+              },
+              "span": {
+                "line": 45,
+                "column": 5
+              },
+              "raw": "store.sources.viewport\ncells:\ngrid |> List/map(row, new:\nrow |> List/map(cell, new:\nElement/panel(\nchildren:\nLIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)"
+            },
+            "span": {
+              "line": 45,
+              "column": 5
+            }
+          }
+        ]
+      },
+      "span": {
+        "line": 45,
+        "column": 5
+      },
+      "raw": "Document/new(\nroot:\nElement/grid(\nelement: store.sources.viewport\ncells:\ngrid |> List/map(row, new:\nrow |> List/map(cell, new:\nElement/panel(\nchildren:\nLIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)\n)"
+    }
+  ],
+  "features": [
+    "source",
+    "list_map",
+    "host_document",
+    "pipeline",
+    "render_expression"
+  ],
+  "dependencies": [
+    {
+      "from": "add",
+      "to": "Math/add",
+      "span": {
+        "line": 30,
+        "column": 13
+      }
+    },
+    {
+      "from": "sum",
+      "to": "Math/sum",
+      "span": {
+        "line": 31,
+        "column": 13
+      }
+    },
+    {
+      "from": "row",
+      "to": "row",
+      "span": {
+        "line": 37,
+        "column": 21
+      }
+    },
+    {
+      "from": "column",
+      "to": "column",
+      "span": {
+        "line": 38,
+        "column": 24
+      }
+    },
+    {
+      "from": "sources",
+      "to": "cells.sources",
+      "span": {
+        "line": 39,
+        "column": 25
+      }
+    },
+    {
+      "from": "element",
+      "to": "store.sources.viewport",
+      "span": {
+        "line": 48,
+        "column": 25
+      }
+    },
+    {
+      "from": "row",
+      "to": "row",
+      "span": {
+        "line": 34,
+        "column": 5
+      }
+    },
+    {
+      "from": "column",
+      "to": "column",
+      "span": {
+        "line": 34,
+        "column": 5
+      }
+    },
+    {
+      "from": "sources",
+      "to": "cells.sources",
+      "span": {
+        "line": 34,
+        "column": 5
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "span": {
+        "line": 34,
+        "column": 5
+      },
+      "message": "expression kept as raw syntax: "
+    },
+    {
+      "span": {
+        "line": 45,
+        "column": 5
+      },
+      "message": "expression kept as raw syntax: "
+    },
+    {
+      "span": {
+        "line": 45,
+        "column": 5
+      },
+      "message": "expression kept as raw syntax: store.sources.viewport\ncells:\ngrid"
+    },
+    {
+      "span": {
+        "line": 45,
+        "column": 5
+      },
+      "message": "expression kept as raw syntax: List/map(row, new:\nrow |> List/map(cell, new:\nElement/panel(\nchildren:\nLIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)"
+    }
+  ]
+}

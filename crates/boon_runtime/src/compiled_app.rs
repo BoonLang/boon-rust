@@ -3,7 +3,10 @@ use crate::{
     StateDelta, TurnId, TurnMetrics, TurnResult,
 };
 use anyhow::{Result, bail};
-use boon_compiler::{ControlAxis, ProgramSpec, RecordVisibility, SequenceViewSpec, SurfaceKind};
+use boon_compiler::{
+    AppIr, ControlAxis, IrEffect, IrPredicate, IrValueExpr, ProgramSpec, RecordVisibility,
+    SequenceViewSpec, SurfaceKind,
+};
 use boon_render_ir::{
     DrawCommand, FrameScene, HitTarget, HitTargetAction, HostPatch, NodeId, NodeKind,
 };
@@ -16,6 +19,7 @@ use std::time::Duration;
 #[derive(Clone, Debug)]
 pub struct CompiledApp {
     program: ProgramSpec,
+    app_ir: AppIr,
     inventory: SourceInventory,
     wiring: RuntimeWiring,
     turn: u64,
@@ -27,6 +31,7 @@ pub struct CompiledApp {
     next_record_id: u64,
     entry_text: String,
     source_state: BTreeMap<String, SourceValue>,
+    generic_state: BTreeMap<String, i64>,
     view_selector: String,
     grid: DenseGridState,
     frame_index: u64,
@@ -223,6 +228,21 @@ fn static_base_for_producer(inventory: &SourceInventory, producer: &str) -> Opti
         .and_then(|path| source_base_from_path(&path))
 }
 
+fn eval_initial_number(expr: &IrValueExpr) -> Result<i64> {
+    match expr {
+        IrValueExpr::Number { value } => Ok(*value),
+        _ => bail!("generic state cell initial value must be a number"),
+    }
+}
+
+fn unique_paths(paths: Vec<String>) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    paths
+        .into_iter()
+        .filter(|path| seen.insert(path.clone()))
+        .collect()
+}
+
 fn first_dynamic_family(inventory: &SourceInventory, producer: &str) -> Option<String> {
     inventory
         .entries
@@ -415,6 +435,7 @@ impl CompiledApp {
     pub fn new(compiled: boon_compiler::CompiledModule) -> Self {
         let inventory = compiled.sources;
         let program = compiled.program;
+        let app_ir = compiled.app_ir;
         let wiring = RuntimeWiring::from_program(&program, &inventory);
         let initial_texts = program
             .sequence
@@ -437,14 +458,21 @@ impl CompiledApp {
                     .map(|selector| selector.id.clone())
             })
             .unwrap_or_else(|| "all".to_string());
+        let mut generic_state = BTreeMap::new();
+        for cell in &app_ir.state_cells {
+            if let Ok(value) = eval_initial_number(&cell.initial) {
+                generic_state.insert(cell.path.clone(), value);
+            }
+        }
         let mut app = Self {
             program,
+            app_ir,
             inventory,
             wiring,
             turn: 0,
             frame_text: String::new(),
-            scalar_value: 0,
-            clock_value: 0,
+            scalar_value: *generic_state.get("scalar_value").unwrap_or(&0),
+            clock_value: *generic_state.get("clock_value").unwrap_or(&0),
             clock: RuntimeClock::default(),
             records: initial_texts
                 .into_iter()
@@ -460,6 +488,7 @@ impl CompiledApp {
             next_record_id: 1,
             entry_text: String::new(),
             source_state: BTreeMap::new(),
+            generic_state,
             view_selector: initial_view_selector,
             grid,
             frame_index: 0,
@@ -591,6 +620,246 @@ impl CompiledApp {
                     (event_path == path).then(|| view_selector.clone())
                 })
         })
+    }
+
+    fn apply_generic_event(&mut self, event: &SourceEmission) -> Result<Option<Vec<String>>> {
+        let handlers = self
+            .app_ir
+            .event_handlers
+            .iter()
+            .filter(|handler| handler.source_path == event.path)
+            .cloned()
+            .collect::<Vec<_>>();
+        if handlers.is_empty() {
+            return Ok(None);
+        }
+
+        let mut changed = Vec::new();
+        for handler in handlers {
+            if !self.generic_predicate_matches(handler.when.as_ref(), event)? {
+                continue;
+            }
+            for effect in handler.effects {
+                match effect {
+                    IrEffect::Assign { state_path, expr } => {
+                        let value = self.eval_generic_number(&expr, event)?;
+                        self.set_generic_number(&state_path, value);
+                        changed.push(state_path);
+                    }
+                    IrEffect::ListAppendText {
+                        list_path,
+                        text_state_path,
+                        trim,
+                        skip_empty,
+                    } => {
+                        if self.apply_generic_list_append_text(
+                            &list_path,
+                            &text_state_path,
+                            trim,
+                            skip_empty,
+                        )? {
+                            changed.extend(self.record_change_paths());
+                            changed.extend(self.record_count_change_paths());
+                        }
+                    }
+                    IrEffect::ListToggleAllMarks { list_path } => {
+                        if self.apply_generic_list_mark_all(&list_path) {
+                            changed.extend(self.record_count_change_paths());
+                        }
+                    }
+                    IrEffect::ListToggleOwnerMark { list_path } => {
+                        if self.apply_generic_list_toggle_owner_mark(&list_path, event)? {
+                            changed.extend(self.record_count_change_paths());
+                        }
+                    }
+                    IrEffect::ListRemoveOwner { list_path } => {
+                        if self.apply_generic_list_remove_owner(&list_path, event)? {
+                            changed.extend(self.record_change_paths());
+                        }
+                    }
+                    IrEffect::ListRemoveMarked { list_path } => {
+                        if self.apply_generic_list_remove_marked(&list_path) {
+                            changed.extend(self.record_change_paths());
+                        }
+                    }
+                    IrEffect::SetTagState { state_path, value } => {
+                        if state_path == "view_selector" {
+                            self.view_selector = value.clone();
+                        }
+                        changed.push(state_path);
+                    }
+                    IrEffect::ClearText { text_state_path } => {
+                        self.clear_generic_text_state(&text_state_path);
+                        changed.push(text_state_path);
+                    }
+                }
+            }
+        }
+        Ok(Some(unique_paths(changed)))
+    }
+
+    fn generic_predicate_matches(
+        &self,
+        predicate: Option<&IrPredicate>,
+        event: &SourceEmission,
+    ) -> Result<bool> {
+        let Some(predicate) = predicate else {
+            return Ok(true);
+        };
+        match predicate {
+            IrPredicate::SourceTagEquals { path, tag } => Ok(path == &event.path
+                && matches!(&event.value, SourceValue::Tag(value) if value == tag)),
+        }
+    }
+
+    fn eval_generic_number(&self, expr: &IrValueExpr, event: &SourceEmission) -> Result<i64> {
+        match expr {
+            IrValueExpr::Number { value } => Ok(*value),
+            IrValueExpr::Hold { state_path } => {
+                Ok(*self.generic_state.get(state_path).unwrap_or(&0))
+            }
+            IrValueExpr::Add { left, right } => {
+                Ok(self.eval_generic_number(left, event)?
+                    + self.eval_generic_number(right, event)?)
+            }
+            IrValueExpr::Source { path } => match &event.value {
+                SourceValue::Number(value) if path == &event.path => Ok(*value),
+                _ => bail!("generic numeric source `{path}` did not emit a number"),
+            },
+            IrValueExpr::Skip => bail!("generic SKIP is not assignable to numeric state"),
+        }
+    }
+
+    fn set_generic_number(&mut self, state_path: &str, value: i64) {
+        self.generic_state.insert(state_path.to_string(), value);
+        match state_path {
+            "scalar_value" => self.scalar_value = value,
+            "clock_value" => self.clock_value = value,
+            _ => {}
+        }
+    }
+
+    fn apply_generic_list_append_text(
+        &mut self,
+        list_path: &str,
+        text_state_path: &str,
+        trim: bool,
+        skip_empty: bool,
+    ) -> Result<bool> {
+        if self.record_root() != Some(list_path) {
+            return Ok(false);
+        }
+        let mut text = if self
+            .wiring
+            .sequence
+            .as_ref()
+            .and_then(|sequence| sequence.entry_text.as_ref())
+            .is_some_and(|path| path == text_state_path)
+        {
+            self.entry_text.clone()
+        } else {
+            match self.source_state.get(text_state_path) {
+                Some(SourceValue::Text(value)) => value.clone(),
+                _ => String::new(),
+            }
+        };
+        if trim {
+            text = text.trim().to_string();
+        }
+        if skip_empty && text.is_empty() {
+            return Ok(false);
+        }
+        self.records.push(DynamicRecord {
+            id: self.next_record_id,
+            generation: 0,
+            content_text: text,
+            mark: false,
+            edit_focus: false,
+        });
+        self.next_record_id += 1;
+        Ok(true)
+    }
+
+    fn apply_generic_list_mark_all(&mut self, list_path: &str) -> bool {
+        if self.record_root() != Some(list_path) {
+            return false;
+        }
+        let all_marked = self.records.iter().all(|record| record.mark);
+        for record in &mut self.records {
+            record.mark = !all_marked;
+        }
+        true
+    }
+
+    fn apply_generic_list_toggle_owner_mark(
+        &mut self,
+        list_path: &str,
+        event: &SourceEmission,
+    ) -> Result<bool> {
+        if self.record_root() != Some(list_path) {
+            return Ok(false);
+        }
+        let owner_id = event
+            .owner_id
+            .as_deref()
+            .expect("dynamic event owner_id was validated");
+        let record_id = owner_id
+            .parse::<u64>()
+            .map_err(|_| anyhow::anyhow!("record owner_id `{owner_id}` is not numeric"))?;
+        let Some(record) = self
+            .records
+            .iter_mut()
+            .find(|record| record.id == record_id)
+        else {
+            return Ok(false);
+        };
+        record.mark = !record.mark;
+        Ok(true)
+    }
+
+    fn apply_generic_list_remove_owner(
+        &mut self,
+        list_path: &str,
+        event: &SourceEmission,
+    ) -> Result<bool> {
+        if self.record_root() != Some(list_path) {
+            return Ok(false);
+        }
+        let owner_id = event
+            .owner_id
+            .as_deref()
+            .expect("dynamic event owner_id was validated");
+        let record_id = owner_id
+            .parse::<u64>()
+            .map_err(|_| anyhow::anyhow!("record owner_id `{owner_id}` is not numeric"))?;
+        let before = self.records.len();
+        self.records.retain(|record| record.id != record_id);
+        Ok(self.records.len() != before)
+    }
+
+    fn apply_generic_list_remove_marked(&mut self, list_path: &str) -> bool {
+        if self.record_root() != Some(list_path) {
+            return false;
+        }
+        let before = self.records.len();
+        self.records.retain(|record| !record.mark);
+        self.records.len() != before
+    }
+
+    fn clear_generic_text_state(&mut self, text_state_path: &str) {
+        if self
+            .wiring
+            .sequence
+            .as_ref()
+            .and_then(|sequence| sequence.entry_text.as_ref())
+            .is_some_and(|path| path == text_state_path)
+        {
+            self.entry_text.clear();
+        }
+        self.source_state.insert(
+            text_state_path.to_string(),
+            SourceValue::Text(String::new()),
+        );
     }
 
     fn sequence_view(&self) -> Option<&SequenceViewSpec> {
@@ -1883,7 +2152,9 @@ impl BoonApp for CompiledApp {
                 events_processed: 1,
                 ..TurnMetrics::default()
             };
-            if self
+            if let Some(changed) = self.apply_generic_event(&event)? {
+                results.push(self.emit_frame_owned(changed, metrics));
+            } else if self
                 .wiring
                 .scalar_event
                 .as_ref()
@@ -2164,6 +2435,9 @@ impl BoonApp for CompiledApp {
         let mark = self.records.iter().filter(|record| record.mark).count() as i64;
         let mut values = BTreeMap::new();
         values.insert("scalar_value".to_string(), json!(self.scalar_value));
+        for (path, value) in &self.generic_state {
+            values.insert(path.clone(), json!(value));
+        }
         if let Some(root) = self.record_root() {
             values.insert(
                 format!("store.{root}_count"),

@@ -1,0 +1,1217 @@
+{
+  "parsed": {
+    "name": "counter",
+    "ast": {
+      "name": "counter",
+      "items": [
+        {
+          "kind": "record",
+          "key": "store",
+          "value": null,
+          "span": {
+            "line": 1,
+            "column": 1
+          },
+          "children": [
+            {
+              "key": "sources",
+              "value": null,
+              "span": {
+                "line": 2,
+                "column": 5
+              },
+              "children": [
+                {
+                  "key": "increment_button",
+                  "value": null,
+                  "span": {
+                    "line": 3,
+                    "column": 9
+                  },
+                  "children": [
+                    {
+                      "key": "event",
+                      "value": null,
+                      "span": {
+                        "line": 4,
+                        "column": 13
+                      },
+                      "children": [
+                        {
+                          "key": "press",
+                          "value": {
+                            "kind": {
+                              "kind": "source"
+                            },
+                            "span": {
+                              "line": 5,
+                              "column": 23
+                            },
+                            "raw": "SOURCE"
+                          },
+                          "span": {
+                            "line": 5,
+                            "column": 17
+                          },
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "key": "hovered",
+                      "value": {
+                        "kind": {
+                          "kind": "source"
+                        },
+                        "span": {
+                          "line": 6,
+                          "column": 21
+                        },
+                        "raw": "SOURCE"
+                      },
+                      "span": {
+                        "line": 6,
+                        "column": 13
+                      },
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "record",
+          "key": "counter",
+          "value": null,
+          "span": {
+            "line": 8,
+            "column": 1
+          },
+          "children": []
+        },
+        {
+          "kind": "record",
+          "key": "view",
+          "value": null,
+          "span": {
+            "line": 14,
+            "column": 1
+          },
+          "children": [
+            {
+              "key": "action",
+              "value": null,
+              "span": {
+                "line": 15,
+                "column": 5
+              },
+              "children": [
+                {
+                  "key": "label",
+                  "value": {
+                    "kind": {
+                      "kind": "text",
+                      "value": "Increment"
+                    },
+                    "span": {
+                      "line": 16,
+                      "column": 15
+                    },
+                    "raw": "TEXT { Increment }"
+                  },
+                  "span": {
+                    "line": 16,
+                    "column": 9
+                  },
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "record",
+          "key": "document",
+          "value": null,
+          "span": {
+            "line": 18,
+            "column": 1
+          },
+          "children": [
+            {
+              "key": "root",
+              "value": null,
+              "span": {
+                "line": 20,
+                "column": 9
+              },
+              "children": [
+                {
+                  "key": "element",
+                  "value": {
+                    "kind": {
+                      "kind": "path",
+                      "value": "store.sources.increment_button"
+                    },
+                    "span": {
+                      "line": 22,
+                      "column": 25
+                    },
+                    "raw": "store.sources.increment_button"
+                  },
+                  "span": {
+                    "line": 22,
+                    "column": 17
+                  },
+                  "children": []
+                },
+                {
+                  "key": "label",
+                  "value": {
+                    "kind": {
+                      "kind": "pipeline",
+                      "input": {
+                        "kind": {
+                          "kind": "path",
+                          "value": "counter"
+                        },
+                        "span": {
+                          "line": 23,
+                          "column": 23
+                        },
+                        "raw": "counter"
+                      },
+                      "stages": [
+                        {
+                          "kind": {
+                            "kind": "call",
+                            "path": "Text/from_number",
+                            "args": []
+                          },
+                          "span": {
+                            "line": 23,
+                            "column": 23
+                          },
+                          "raw": "Text/from_number()"
+                        }
+                      ]
+                    },
+                    "span": {
+                      "line": 23,
+                      "column": 23
+                    },
+                    "raw": "counter |> Text/from_number()"
+                  },
+                  "span": {
+                    "line": 23,
+                    "column": 17
+                  },
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "expression",
+          "kind": {
+            "kind": "pipeline",
+            "input": {
+              "kind": {
+                "kind": "number",
+                "value": 0
+              },
+              "span": {
+                "line": 9,
+                "column": 5
+              },
+              "raw": "0"
+            },
+            "stages": [
+              {
+                "kind": {
+                  "kind": "hold",
+                  "state": "state",
+                  "body": {
+                    "kind": {
+                      "kind": "pipeline",
+                      "input": {
+                        "kind": {
+                          "kind": "path",
+                          "value": "store.sources.increment_button.event.press"
+                        },
+                        "span": {
+                          "line": 9,
+                          "column": 5
+                        },
+                        "raw": "store.sources.increment_button.event.press"
+                      },
+                      "stages": [
+                        {
+                          "kind": {
+                            "kind": "then",
+                            "body": {
+                              "kind": {
+                                "kind": "binary",
+                                "op": "add",
+                                "left": {
+                                  "kind": {
+                                    "kind": "path",
+                                    "value": "state"
+                                  },
+                                  "span": {
+                                    "line": 9,
+                                    "column": 5
+                                  },
+                                  "raw": "state"
+                                },
+                                "right": {
+                                  "kind": {
+                                    "kind": "number",
+                                    "value": 1
+                                  },
+                                  "span": {
+                                    "line": 9,
+                                    "column": 5
+                                  },
+                                  "raw": "1"
+                                }
+                              },
+                              "span": {
+                                "line": 9,
+                                "column": 5
+                              },
+                              "raw": "state + 1"
+                            }
+                          },
+                          "span": {
+                            "line": 9,
+                            "column": 5
+                          },
+                          "raw": "THEN { state + 1 }"
+                        }
+                      ]
+                    },
+                    "span": {
+                      "line": 9,
+                      "column": 5
+                    },
+                    "raw": "store.sources.increment_button.event.press\n|> THEN { state + 1 }"
+                  }
+                },
+                "span": {
+                  "line": 9,
+                  "column": 5
+                },
+                "raw": "HOLD state {\nstore.sources.increment_button.event.press\n|> THEN { state + 1 }\n}"
+              }
+            ]
+          },
+          "span": {
+            "line": 9,
+            "column": 5
+          },
+          "raw": "0 |> HOLD state {\nstore.sources.increment_button.event.press\n|> THEN { state + 1 }\n}"
+        },
+        {
+          "kind": "expression",
+          "kind": {
+            "kind": "call",
+            "path": "Document/new",
+            "args": [
+              {
+                "name": "root",
+                "value": {
+                  "kind": {
+                    "kind": "raw"
+                  },
+                  "span": {
+                    "line": 19,
+                    "column": 5
+                  },
+                  "raw": ""
+                },
+                "span": {
+                  "line": 19,
+                  "column": 5
+                }
+              },
+              {
+                "name": "Element/button(\nelement",
+                "value": {
+                  "kind": {
+                    "kind": "pipeline",
+                    "input": {
+                      "kind": {
+                        "kind": "raw"
+                      },
+                      "span": {
+                        "line": 19,
+                        "column": 5
+                      },
+                      "raw": "store.sources.increment_button\nlabel: counter"
+                    },
+                    "stages": [
+                      {
+                        "kind": {
+                          "kind": "raw"
+                        },
+                        "span": {
+                          "line": 19,
+                          "column": 5
+                        },
+                        "raw": "Text/from_number()\n)"
+                      }
+                    ]
+                  },
+                  "span": {
+                    "line": 19,
+                    "column": 5
+                  },
+                  "raw": "store.sources.increment_button\nlabel: counter |> Text/from_number()\n)"
+                },
+                "span": {
+                  "line": 19,
+                  "column": 5
+                }
+              }
+            ]
+          },
+          "span": {
+            "line": 19,
+            "column": 5
+          },
+          "raw": "Document/new(\nroot:\nElement/button(\nelement: store.sources.increment_button\nlabel: counter |> Text/from_number()\n)\n)"
+        }
+      ]
+    },
+    "lines": [
+      {
+        "text": "store:",
+        "span": {
+          "line": 1,
+          "column": 1
+        }
+      },
+      {
+        "text": "sources:",
+        "span": {
+          "line": 2,
+          "column": 5
+        }
+      },
+      {
+        "text": "increment_button:",
+        "span": {
+          "line": 3,
+          "column": 9
+        }
+      },
+      {
+        "text": "event:",
+        "span": {
+          "line": 4,
+          "column": 13
+        }
+      },
+      {
+        "text": "press: SOURCE",
+        "span": {
+          "line": 5,
+          "column": 17
+        }
+      },
+      {
+        "text": "hovered: SOURCE",
+        "span": {
+          "line": 6,
+          "column": 13
+        }
+      },
+      {
+        "text": "counter:",
+        "span": {
+          "line": 8,
+          "column": 1
+        }
+      },
+      {
+        "text": "0 |> HOLD state {",
+        "span": {
+          "line": 9,
+          "column": 5
+        }
+      },
+      {
+        "text": "store.sources.increment_button.event.press",
+        "span": {
+          "line": 10,
+          "column": 9
+        }
+      },
+      {
+        "text": "|> THEN { state + 1 }",
+        "span": {
+          "line": 11,
+          "column": 9
+        }
+      },
+      {
+        "text": "}",
+        "span": {
+          "line": 12,
+          "column": 5
+        }
+      },
+      {
+        "text": "view:",
+        "span": {
+          "line": 14,
+          "column": 1
+        }
+      },
+      {
+        "text": "action:",
+        "span": {
+          "line": 15,
+          "column": 5
+        }
+      },
+      {
+        "text": "label: TEXT { Increment }",
+        "span": {
+          "line": 16,
+          "column": 9
+        }
+      },
+      {
+        "text": "document:",
+        "span": {
+          "line": 18,
+          "column": 1
+        }
+      },
+      {
+        "text": "Document/new(",
+        "span": {
+          "line": 19,
+          "column": 5
+        }
+      },
+      {
+        "text": "root:",
+        "span": {
+          "line": 20,
+          "column": 9
+        }
+      },
+      {
+        "text": "Element/button(",
+        "span": {
+          "line": 21,
+          "column": 13
+        }
+      },
+      {
+        "text": "element: store.sources.increment_button",
+        "span": {
+          "line": 22,
+          "column": 17
+        }
+      },
+      {
+        "text": "label: counter |> Text/from_number()",
+        "span": {
+          "line": 23,
+          "column": 17
+        }
+      },
+      {
+        "text": ")",
+        "span": {
+          "line": 24,
+          "column": 13
+        }
+      },
+      {
+        "text": ")",
+        "span": {
+          "line": 25,
+          "column": 5
+        }
+      }
+    ],
+    "records": [
+      {
+        "key": "store",
+        "value": null,
+        "span": {
+          "line": 1,
+          "column": 1
+        },
+        "children": [
+          {
+            "key": "sources",
+            "value": null,
+            "span": {
+              "line": 2,
+              "column": 5
+            },
+            "children": [
+              {
+                "key": "increment_button",
+                "value": null,
+                "span": {
+                  "line": 3,
+                  "column": 9
+                },
+                "children": [
+                  {
+                    "key": "event",
+                    "value": null,
+                    "span": {
+                      "line": 4,
+                      "column": 13
+                    },
+                    "children": [
+                      {
+                        "key": "press",
+                        "value": "SOURCE",
+                        "span": {
+                          "line": 5,
+                          "column": 17
+                        },
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "key": "hovered",
+                    "value": "SOURCE",
+                    "span": {
+                      "line": 6,
+                      "column": 13
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "counter",
+        "value": null,
+        "span": {
+          "line": 8,
+          "column": 1
+        },
+        "children": []
+      },
+      {
+        "key": "view",
+        "value": null,
+        "span": {
+          "line": 14,
+          "column": 1
+        },
+        "children": [
+          {
+            "key": "action",
+            "value": null,
+            "span": {
+              "line": 15,
+              "column": 5
+            },
+            "children": [
+              {
+                "key": "label",
+                "value": "TEXT { Increment }",
+                "span": {
+                  "line": 16,
+                  "column": 9
+                },
+                "children": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "document",
+        "value": null,
+        "span": {
+          "line": 18,
+          "column": 1
+        },
+        "children": [
+          {
+            "key": "root",
+            "value": null,
+            "span": {
+              "line": 20,
+              "column": 9
+            },
+            "children": [
+              {
+                "key": "element",
+                "value": "store.sources.increment_button",
+                "span": {
+                  "line": 22,
+                  "column": 17
+                },
+                "children": []
+              },
+              {
+                "key": "label",
+                "value": "counter |> Text/from_number()",
+                "span": {
+                  "line": 23,
+                  "column": 17
+                },
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "source_leaves": [
+      {
+        "path": "store.sources.increment_button.event.press",
+        "span": {
+          "line": 5,
+          "column": 24
+        }
+      },
+      {
+        "path": "store.sources.increment_button.hovered",
+        "span": {
+          "line": 6,
+          "column": 22
+        }
+      }
+    ],
+    "module_calls": [
+      {
+        "path": "Document/new",
+        "span": {
+          "line": 19,
+          "column": 5
+        },
+        "args": [
+          {
+            "name": "root",
+            "value": "Element",
+            "span": {
+              "line": 19,
+              "column": 3
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/button",
+        "span": {
+          "line": 21,
+          "column": 13
+        },
+        "args": [
+          {
+            "name": "element",
+            "value": "store.sources.increment_button",
+            "span": {
+              "line": 21,
+              "column": 3
+            }
+          },
+          {
+            "name": "label",
+            "value": "counter",
+            "span": {
+              "line": 21,
+              "column": 43
+            }
+          }
+        ]
+      },
+      {
+        "path": "Text/from_number",
+        "span": {
+          "line": 23,
+          "column": 35
+        },
+        "args": []
+      }
+    ],
+    "text_literals": [
+      {
+        "value": "Increment",
+        "span": {
+          "line": 16,
+          "column": 8
+        }
+      }
+    ],
+    "state_steps": [
+      {
+        "state": "state",
+        "amount": 1,
+        "span": {
+          "line": 11,
+          "column": 11
+        }
+      }
+    ],
+    "map_bindings": []
+  },
+  "items": [
+    {
+      "kind": "record",
+      "key": "store",
+      "value": null,
+      "span": {
+        "line": 1,
+        "column": 1
+      },
+      "children": [
+        {
+          "key": "sources",
+          "value": null,
+          "span": {
+            "line": 2,
+            "column": 5
+          },
+          "children": [
+            {
+              "key": "increment_button",
+              "value": null,
+              "span": {
+                "line": 3,
+                "column": 9
+              },
+              "children": [
+                {
+                  "key": "event",
+                  "value": null,
+                  "span": {
+                    "line": 4,
+                    "column": 13
+                  },
+                  "children": [
+                    {
+                      "key": "press",
+                      "value": {
+                        "kind": {
+                          "kind": "source"
+                        },
+                        "span": {
+                          "line": 5,
+                          "column": 23
+                        },
+                        "raw": "SOURCE"
+                      },
+                      "span": {
+                        "line": 5,
+                        "column": 17
+                      },
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "key": "hovered",
+                  "value": {
+                    "kind": {
+                      "kind": "source"
+                    },
+                    "span": {
+                      "line": 6,
+                      "column": 21
+                    },
+                    "raw": "SOURCE"
+                  },
+                  "span": {
+                    "line": 6,
+                    "column": 13
+                  },
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "record",
+      "key": "counter",
+      "value": null,
+      "span": {
+        "line": 8,
+        "column": 1
+      },
+      "children": []
+    },
+    {
+      "kind": "record",
+      "key": "view",
+      "value": null,
+      "span": {
+        "line": 14,
+        "column": 1
+      },
+      "children": [
+        {
+          "key": "action",
+          "value": null,
+          "span": {
+            "line": 15,
+            "column": 5
+          },
+          "children": [
+            {
+              "key": "label",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "text",
+                    "value": "Increment"
+                  }
+                },
+                "span": {
+                  "line": 16,
+                  "column": 15
+                },
+                "raw": "TEXT { Increment }"
+              },
+              "span": {
+                "line": 16,
+                "column": 9
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "record",
+      "key": "document",
+      "value": null,
+      "span": {
+        "line": 18,
+        "column": 1
+      },
+      "children": [
+        {
+          "key": "root",
+          "value": null,
+          "span": {
+            "line": 20,
+            "column": 9
+          },
+          "children": [
+            {
+              "key": "element",
+              "value": {
+                "kind": {
+                  "kind": "path",
+                  "value": "store.sources.increment_button"
+                },
+                "span": {
+                  "line": 22,
+                  "column": 25
+                },
+                "raw": "store.sources.increment_button"
+              },
+              "span": {
+                "line": 22,
+                "column": 17
+              },
+              "children": []
+            },
+            {
+              "key": "label",
+              "value": {
+                "kind": {
+                  "kind": "pipeline",
+                  "input": {
+                    "kind": {
+                      "kind": "path",
+                      "value": "counter"
+                    },
+                    "span": {
+                      "line": 23,
+                      "column": 23
+                    },
+                    "raw": "counter"
+                  },
+                  "stages": [
+                    {
+                      "kind": {
+                        "kind": "function_call",
+                        "path": "Text/from_number",
+                        "args": []
+                      },
+                      "span": {
+                        "line": 23,
+                        "column": 23
+                      },
+                      "raw": "Text/from_number()"
+                    }
+                  ]
+                },
+                "span": {
+                  "line": 23,
+                  "column": 23
+                },
+                "raw": "counter |> Text/from_number()"
+              },
+              "span": {
+                "line": 23,
+                "column": 17
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "expression",
+      "kind": {
+        "kind": "pipeline",
+        "input": {
+          "kind": {
+            "kind": "literal",
+            "literal": {
+              "kind": "number",
+              "value": 0
+            }
+          },
+          "span": {
+            "line": 9,
+            "column": 5
+          },
+          "raw": "0"
+        },
+        "stages": [
+          {
+            "kind": {
+              "kind": "hold",
+              "state": "state",
+              "body": {
+                "kind": {
+                  "kind": "pipeline",
+                  "input": {
+                    "kind": {
+                      "kind": "path",
+                      "value": "store.sources.increment_button.event.press"
+                    },
+                    "span": {
+                      "line": 9,
+                      "column": 5
+                    },
+                    "raw": "store.sources.increment_button.event.press"
+                  },
+                  "stages": [
+                    {
+                      "kind": {
+                        "kind": "then",
+                        "body": {
+                          "kind": {
+                            "kind": "binary",
+                            "op": "add",
+                            "left": {
+                              "kind": {
+                                "kind": "path",
+                                "value": "state"
+                              },
+                              "span": {
+                                "line": 9,
+                                "column": 5
+                              },
+                              "raw": "state"
+                            },
+                            "right": {
+                              "kind": {
+                                "kind": "literal",
+                                "literal": {
+                                  "kind": "number",
+                                  "value": 1
+                                }
+                              },
+                              "span": {
+                                "line": 9,
+                                "column": 5
+                              },
+                              "raw": "1"
+                            }
+                          },
+                          "span": {
+                            "line": 9,
+                            "column": 5
+                          },
+                          "raw": "state + 1"
+                        }
+                      },
+                      "span": {
+                        "line": 9,
+                        "column": 5
+                      },
+                      "raw": "THEN { state + 1 }"
+                    }
+                  ]
+                },
+                "span": {
+                  "line": 9,
+                  "column": 5
+                },
+                "raw": "store.sources.increment_button.event.press\n|> THEN { state + 1 }"
+              }
+            },
+            "span": {
+              "line": 9,
+              "column": 5
+            },
+            "raw": "HOLD state {\nstore.sources.increment_button.event.press\n|> THEN { state + 1 }\n}"
+          }
+        ]
+      },
+      "span": {
+        "line": 9,
+        "column": 5
+      },
+      "raw": "0 |> HOLD state {\nstore.sources.increment_button.event.press\n|> THEN { state + 1 }\n}"
+    },
+    {
+      "kind": "expression",
+      "kind": {
+        "kind": "host_call",
+        "path": "Document/new",
+        "args": [
+          {
+            "name": "root",
+            "value": {
+              "kind": {
+                "kind": "unsupported",
+                "reason": "raw syntax not yet lowered"
+              },
+              "span": {
+                "line": 19,
+                "column": 5
+              },
+              "raw": ""
+            },
+            "span": {
+              "line": 19,
+              "column": 5
+            }
+          },
+          {
+            "name": "Element/button(\nelement",
+            "value": {
+              "kind": {
+                "kind": "pipeline",
+                "input": {
+                  "kind": {
+                    "kind": "unsupported",
+                    "reason": "raw syntax not yet lowered"
+                  },
+                  "span": {
+                    "line": 19,
+                    "column": 5
+                  },
+                  "raw": "store.sources.increment_button\nlabel: counter"
+                },
+                "stages": [
+                  {
+                    "kind": {
+                      "kind": "unsupported",
+                      "reason": "raw syntax not yet lowered"
+                    },
+                    "span": {
+                      "line": 19,
+                      "column": 5
+                    },
+                    "raw": "Text/from_number()\n)"
+                  }
+                ]
+              },
+              "span": {
+                "line": 19,
+                "column": 5
+              },
+              "raw": "store.sources.increment_button\nlabel: counter |> Text/from_number()\n)"
+            },
+            "span": {
+              "line": 19,
+              "column": 5
+            }
+          }
+        ]
+      },
+      "span": {
+        "line": 19,
+        "column": 5
+      },
+      "raw": "Document/new(\nroot:\nElement/button(\nelement: store.sources.increment_button\nlabel: counter |> Text/from_number()\n)\n)"
+    }
+  ],
+  "features": [
+    "source",
+    "hold",
+    "then",
+    "host_document",
+    "function_call",
+    "pipeline",
+    "binary",
+    "render_expression"
+  ],
+  "dependencies": [
+    {
+      "from": "element",
+      "to": "store.sources.increment_button",
+      "span": {
+        "line": 22,
+        "column": 25
+      }
+    },
+    {
+      "from": "label",
+      "to": "counter",
+      "span": {
+        "line": 23,
+        "column": 23
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "span": {
+        "line": 19,
+        "column": 5
+      },
+      "message": "expression kept as raw syntax: "
+    },
+    {
+      "span": {
+        "line": 19,
+        "column": 5
+      },
+      "message": "expression kept as raw syntax: store.sources.increment_button\nlabel: counter"
+    },
+    {
+      "span": {
+        "line": 19,
+        "column": 5
+      },
+      "message": "expression kept as raw syntax: Text/from_number()\n)"
+    }
+  ]
+}

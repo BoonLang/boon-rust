@@ -53,6 +53,8 @@ pub struct BoonPoweredGateReport {
     pub passed: bool,
     pub scanned_files: Vec<String>,
     pub violations: Vec<BoonPoweredViolation>,
+    pub genericity_complete: bool,
+    pub genericity_gaps: Vec<BoonGenericityGap>,
     pub mutation_probes: Vec<BoonPoweredMutationProbe>,
     pub generated_provenance: BoonPoweredGeneratedProvenance,
 }
@@ -64,6 +66,16 @@ pub struct BoonPoweredViolation {
     pub line: usize,
     pub column: usize,
     pub evidence: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BoonGenericityGap {
+    pub category: String,
+    pub path: String,
+    pub line: usize,
+    pub column: usize,
+    pub evidence: String,
+    pub resolution: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -117,7 +129,15 @@ pub fn verify_boon_powered(artifacts: &Path) -> Result<VerifyReport> {
             frame_hash: None,
             artifact_dir: dir,
             message: if report.passed {
-                "passed Boon-powered anti-cheat gate".to_string()
+                if report.genericity_complete {
+                    "passed Boon-powered anti-cheat gate and genericity audit".to_string()
+                } else {
+                    format!(
+                        "passed Boon-powered anti-cheat gate; {} known genericity gaps remain before full Boon language completion; see {}",
+                        report.genericity_gaps.len(),
+                        report_path.display()
+                    )
+                }
             } else {
                 format!(
                     "Boon-powered anti-cheat gate failed: {} handwritten Rust violations, {} failed mutation/provenance checks; see {}",
@@ -144,6 +164,8 @@ pub fn boon_powered_gate_report(
     for rel in &scanned_files {
         scan_boon_powered_file(root, rel, &mut violations)?;
     }
+    let genericity_gaps = genericity_gaps(root)?;
+    let genericity_complete = genericity_gaps.is_empty();
     let mutation_probes = source_mutation_probes(root)?;
     let generated_provenance = generated_provenance(root, require_generated)?;
     let passed = violations.is_empty()
@@ -153,6 +175,8 @@ pub fn boon_powered_gate_report(
         passed,
         scanned_files,
         violations,
+        genericity_complete,
+        genericity_gaps,
         mutation_probes,
         generated_provenance,
     })
@@ -446,6 +470,108 @@ fn boon_powered_forbidden_needles() -> Vec<(&'static str, &'static str)> {
     ]
 }
 
+fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
+    let probes = [
+        GenericityProbe {
+            category: "family recognizer compiler surface",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "pub struct ProgramSpec",
+            resolution: "replace ProgramSpec family output with generic app IR",
+        },
+        GenericityProbe {
+            category: "family recognizer compiler surface",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "pub enum SurfaceKind",
+            resolution: "derive render scene from lowered Boon view expressions",
+        },
+        GenericityProbe {
+            category: "family recognizer compiler dispatch",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "fn program_spec(",
+            resolution: "lower semantic AST/HIR into generic app IR instead of selecting app families",
+        },
+        GenericityProbe {
+            category: "sequence family recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "SequenceSpec",
+            resolution: "implement List/* semantics as generic app-IR operations",
+        },
+        GenericityProbe {
+            category: "dense grid family recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "DenseGridSpec",
+            resolution: "implement grid/formula behavior through generic state/list/render semantics",
+        },
+        GenericityProbe {
+            category: "kinematics family recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "KinematicSpec",
+            resolution: "express game physics through generic Boon state/frame/list semantics",
+        },
+        GenericityProbe {
+            category: "family based runtime rendering",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "match self.program.scene",
+            resolution: "render the generic Boon scene tree instead of matching fixed surfaces",
+        },
+        GenericityProbe {
+            category: "sequence family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "SequenceBinding",
+            resolution: "route list/input behavior through generic source handlers and list values",
+        },
+        GenericityProbe {
+            category: "dense grid family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "DenseGridState",
+            resolution: "route cell formulas through generic state and dependency graph semantics",
+        },
+        GenericityProbe {
+            category: "kinematics family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "KinematicState",
+            resolution: "route frame/control physics through generic Boon event handlers",
+        },
+    ];
+    let mut gaps = Vec::new();
+    for probe in probes {
+        scan_genericity_probe(root, probe, &mut gaps)?;
+    }
+    Ok(gaps)
+}
+
+struct GenericityProbe {
+    category: &'static str,
+    path: &'static str,
+    needle: &'static str,
+    resolution: &'static str,
+}
+
+fn scan_genericity_probe(
+    root: &Path,
+    probe: GenericityProbe,
+    gaps: &mut Vec<BoonGenericityGap>,
+) -> Result<()> {
+    let path = root.join(probe.path);
+    if !path.exists() {
+        return Ok(());
+    }
+    let text = fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
+    for (line_idx, line) in text.lines().enumerate() {
+        if let Some(column) = line.find(probe.needle) {
+            gaps.push(BoonGenericityGap {
+                category: probe.category.to_string(),
+                path: probe.path.to_string(),
+                line: line_idx + 1,
+                column: column + 1,
+                evidence: line.trim().to_string(),
+                resolution: probe.resolution.to_string(),
+            });
+        }
+    }
+    Ok(())
+}
+
 fn source_mutation_probes(root: &Path) -> Result<Vec<BoonPoweredMutationProbe>> {
     let probes = [
         ("counter", "state + 1", "state + 2"),
@@ -522,6 +648,7 @@ fn compile_and_hash(example: &str, source: &str) -> Result<String> {
         "hir": compiled.hir,
         "sources": compiled.sources,
         "program": compiled.program,
+        "app_ir": compiled.app_ir,
     }))?;
     Ok(hex::encode(Sha256::digest(bytes)))
 }

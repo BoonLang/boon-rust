@@ -1,5 +1,7 @@
 use anyhow::{Context, Result, bail};
-use boon_codegen_rust::{generate_manifest, generate_program_spec};
+use boon_codegen_rust::{
+    generate_app_ir_snapshot, generate_hir_snapshot, generate_manifest, generate_program_spec,
+};
 use boon_examples::list_examples;
 use boon_verify::{
     Backend, GateResult, VerifyReport, native_close_probe_helper,
@@ -303,6 +305,13 @@ fn generate() -> Result<()> {
             .join(name)
             .join("expected.program.json");
         generate_program_spec(name, &src, &out).with_context(|| format!("generating {name}"))?;
+        let out = root.join("examples").join(name).join("expected.hir.json");
+        generate_hir_snapshot(name, &src, &out).with_context(|| format!("generating {name}"))?;
+        let out = root
+            .join("examples")
+            .join(name)
+            .join("expected.app_ir.json");
+        generate_app_ir_snapshot(name, &src, &out).with_context(|| format!("generating {name}"))?;
         app_sources.push((*name, src));
     }
     let generated = root.join("target/generated-examples");

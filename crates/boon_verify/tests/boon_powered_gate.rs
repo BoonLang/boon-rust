@@ -50,6 +50,19 @@ fn runtime_codegen_and_renderers_do_not_embed_example_business_logic() {
             .collect::<Vec<_>>()
             .join("\n")
     );
+    assert!(
+        !report.genericity_complete,
+        "genericity audit unexpectedly reports complete; remove this assertion only after \
+         family-recognizer ProgramSpec/SurfaceKind runtime has been replaced and the final \
+         genericity review proves completion"
+    );
+    assert!(
+        report
+            .genericity_gaps
+            .iter()
+            .any(|gap| gap.evidence.contains("fn program_spec(")),
+        "genericity audit should explicitly report the current compiler family recognizer"
+    );
 }
 
 fn repo_root() -> PathBuf {

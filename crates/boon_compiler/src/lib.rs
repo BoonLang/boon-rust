@@ -14,6 +14,7 @@ pub struct CompiledModule {
     pub hir: HirModule,
     pub sources: SourceInventory,
     pub program: ProgramSpec,
+    pub app_ir: AppIr,
     pub provenance: CompiledProvenance,
 }
 
@@ -30,6 +31,84 @@ pub struct CompiledSourceSpan {
     pub path: String,
     pub line: usize,
     pub column: usize,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AppIr {
+    pub state_cells: Vec<IrStateCell>,
+    pub event_handlers: Vec<IrEventHandler>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct IrStateCell {
+    pub path: String,
+    pub initial: IrValueExpr,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct IrEventHandler {
+    pub source_path: String,
+    pub when: Option<IrPredicate>,
+    pub effects: Vec<IrEffect>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum IrEffect {
+    Assign {
+        state_path: String,
+        expr: IrValueExpr,
+    },
+    ListAppendText {
+        list_path: String,
+        text_state_path: String,
+        trim: bool,
+        skip_empty: bool,
+    },
+    ListToggleAllMarks {
+        list_path: String,
+    },
+    ListToggleOwnerMark {
+        list_path: String,
+    },
+    ListRemoveOwner {
+        list_path: String,
+    },
+    ListRemoveMarked {
+        list_path: String,
+    },
+    SetTagState {
+        state_path: String,
+        value: String,
+    },
+    ClearText {
+        text_state_path: String,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum IrPredicate {
+    SourceTagEquals { path: String, tag: String },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum IrValueExpr {
+    Number {
+        value: i64,
+    },
+    Hold {
+        state_path: String,
+    },
+    Add {
+        left: Box<IrValueExpr>,
+        right: Box<IrValueExpr>,
+    },
+    Source {
+        path: String,
+    },
+    Skip,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -227,13 +306,198 @@ pub fn compile_source(name: &str, source: &str) -> Result<CompiledModule> {
 
     let sources = SourceInventory { entries };
     let program = program_spec(name, &parsed, &sources);
+    let app_ir = app_ir_from_program(&program, &sources);
     Ok(CompiledModule {
         name: name.to_string(),
         hir,
         sources,
         program,
+        app_ir,
         provenance,
     })
+}
+
+fn app_ir_from_program(program: &ProgramSpec, sources: &SourceInventory) -> AppIr {
+    let mut ir = AppIr::default();
+    if let Some(accumulator) = &program.scalar_accumulator {
+        push_accumulator_ir(
+            &mut ir,
+            &accumulator.event_path,
+            &accumulator.state_path,
+            accumulator.initial,
+            accumulator.step,
+        );
+    }
+    if let Some(accumulator) = &program.clock_accumulator {
+        push_accumulator_ir(
+            &mut ir,
+            &accumulator.event_path,
+            &accumulator.state_path,
+            0,
+            1,
+        );
+    }
+    if let Some(sequence) = &program.sequence {
+        let dynamic_family = dynamic_source_families(sources).first().cloned();
+        let list_path = dynamic_family
+            .as_deref()
+            .map(dynamic_family_root)
+            .unwrap_or_else(|| "records".to_string());
+        if sequence.append_on_submit
+            && let Some(static_text_path) =
+                static_source_with_producer(sources, "Element/text_input(element.text)")
+            && let Some(static_key_path) =
+                source_base_from_path(&static_text_path).and_then(|base| {
+                    existing_source_path(sources, &format!("{base}.event.key_down.key"))
+                })
+        {
+            ir.event_handlers.push(IrEventHandler {
+                source_path: static_key_path.clone(),
+                when: Some(IrPredicate::SourceTagEquals {
+                    path: static_key_path,
+                    tag: "Enter".to_string(),
+                }),
+                effects: vec![
+                    IrEffect::ListAppendText {
+                        list_path: list_path.clone(),
+                        text_state_path: static_text_path.clone(),
+                        trim: true,
+                        skip_empty: true,
+                    },
+                    IrEffect::ClearText {
+                        text_state_path: static_text_path,
+                    },
+                ],
+            });
+        }
+        if let Some(event_path) = &sequence.actions.mass_mark_event_path {
+            ir.event_handlers.push(IrEventHandler {
+                source_path: event_path.clone(),
+                when: None,
+                effects: vec![IrEffect::ListToggleAllMarks {
+                    list_path: list_path.clone(),
+                }],
+            });
+        }
+        if let Some(event_path) = &sequence.actions.remove_marked_event_path {
+            ir.event_handlers.push(IrEventHandler {
+                source_path: event_path.clone(),
+                when: None,
+                effects: vec![IrEffect::ListRemoveMarked {
+                    list_path: list_path.clone(),
+                }],
+            });
+        }
+        for selector in &sequence.view_selectors {
+            ir.event_handlers.push(IrEventHandler {
+                source_path: selector.event_path.clone(),
+                when: None,
+                effects: vec![IrEffect::SetTagState {
+                    state_path: "view_selector".to_string(),
+                    value: selector.id.clone(),
+                }],
+            });
+        }
+        if let Some(dynamic_family) = dynamic_family.as_deref() {
+            if sequence.dynamic_mark_toggle
+                && let Some(event_path) = source_family_with_producer(
+                    sources,
+                    dynamic_family,
+                    "Element/checkbox(element.event.click)",
+                )
+            {
+                ir.event_handlers.push(IrEventHandler {
+                    source_path: event_path,
+                    when: None,
+                    effects: vec![IrEffect::ListToggleOwnerMark {
+                        list_path: list_path.clone(),
+                    }],
+                });
+            }
+            if sequence.dynamic_remove
+                && let Some(event_path) = source_family_with_producer(
+                    sources,
+                    dynamic_family,
+                    "Element/button(element.event.press)",
+                )
+            {
+                ir.event_handlers.push(IrEventHandler {
+                    source_path: event_path,
+                    when: None,
+                    effects: vec![IrEffect::ListRemoveOwner {
+                        list_path: list_path.clone(),
+                    }],
+                });
+            }
+        }
+    }
+    ir
+}
+
+fn push_accumulator_ir(
+    ir: &mut AppIr,
+    event_path: &str,
+    state_path: &str,
+    initial: i64,
+    step: i64,
+) {
+    ir.state_cells.push(IrStateCell {
+        path: state_path.to_string(),
+        initial: IrValueExpr::Number { value: initial },
+    });
+    ir.event_handlers.push(IrEventHandler {
+        source_path: event_path.to_string(),
+        when: None,
+        effects: vec![IrEffect::Assign {
+            state_path: state_path.to_string(),
+            expr: IrValueExpr::Add {
+                left: Box::new(IrValueExpr::Hold {
+                    state_path: state_path.to_string(),
+                }),
+                right: Box::new(IrValueExpr::Number { value: step }),
+            },
+        }],
+    });
+}
+
+fn existing_source_path(sources: &SourceInventory, path: &str) -> Option<String> {
+    sources
+        .entries
+        .iter()
+        .any(|entry| entry.path == path)
+        .then(|| path.to_string())
+}
+
+fn source_base_from_path(path: &str) -> Option<String> {
+    for suffix in [
+        ".text",
+        ".checked",
+        ".hovered",
+        ".event.press",
+        ".event.click",
+        ".event.change",
+        ".event.blur",
+        ".event.focus",
+        ".event.double_click",
+        ".event.key_down.key",
+        ".event.tick",
+        ".event.frame",
+    ] {
+        if let Some(base) = path.strip_suffix(suffix) {
+            return Some(base.to_string());
+        }
+    }
+    None
+}
+
+fn dynamic_family_root(family: &str) -> String {
+    family
+        .strip_suffix("[*]")
+        .unwrap_or(family)
+        .rsplit('.')
+        .next()
+        .unwrap_or(family)
+        .to_string()
 }
 
 fn compiled_provenance(source: &str, hir: &HirModule) -> Result<CompiledProvenance> {

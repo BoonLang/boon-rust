@@ -1,0 +1,2698 @@
+{
+  "parsed": {
+    "name": "arkanoid",
+    "ast": {
+      "name": "arkanoid",
+      "items": [
+        {
+          "kind": "record",
+          "key": "store",
+          "value": null,
+          "span": {
+            "line": 1,
+            "column": 1
+          },
+          "children": [
+            {
+              "key": "sources",
+              "value": null,
+              "span": {
+                "line": 2,
+                "column": 5
+              },
+              "children": [
+                {
+                  "key": "tick",
+                  "value": null,
+                  "span": {
+                    "line": 3,
+                    "column": 9
+                  },
+                  "children": [
+                    {
+                      "key": "event",
+                      "value": null,
+                      "span": {
+                        "line": 4,
+                        "column": 13
+                      },
+                      "children": [
+                        {
+                          "key": "frame",
+                          "value": {
+                            "kind": {
+                              "kind": "source"
+                            },
+                            "span": {
+                              "line": 5,
+                              "column": 23
+                            },
+                            "raw": "SOURCE"
+                          },
+                          "span": {
+                            "line": 5,
+                            "column": 17
+                          },
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "key": "paddle",
+                  "value": null,
+                  "span": {
+                    "line": 6,
+                    "column": 9
+                  },
+                  "children": [
+                    {
+                      "key": "event",
+                      "value": null,
+                      "span": {
+                        "line": 7,
+                        "column": 13
+                      },
+                      "children": [
+                        {
+                          "key": "key_down",
+                          "value": null,
+                          "span": {
+                            "line": 8,
+                            "column": 17
+                          },
+                          "children": [
+                            {
+                              "key": "key",
+                              "value": {
+                                "kind": {
+                                  "kind": "source"
+                                },
+                                "span": {
+                                  "line": 9,
+                                  "column": 25
+                                },
+                                "raw": "SOURCE"
+                              },
+                              "span": {
+                                "line": 9,
+                                "column": 21
+                              },
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "record",
+          "key": "game",
+          "value": null,
+          "span": {
+            "line": 11,
+            "column": 1
+          },
+          "children": [
+            {
+              "key": "title",
+              "value": {
+                "kind": {
+                  "kind": "text",
+                  "value": "Arkanoid"
+                },
+                "span": {
+                  "line": 12,
+                  "column": 11
+                },
+                "raw": "TEXT { Arkanoid }"
+              },
+              "span": {
+                "line": 12,
+                "column": 5
+              },
+              "children": []
+            }
+          ]
+        },
+        {
+          "kind": "record",
+          "key": "kinematics",
+          "value": null,
+          "span": {
+            "line": 14,
+            "column": 1
+          },
+          "children": [
+            {
+              "key": "arena",
+              "value": null,
+              "span": {
+                "line": 15,
+                "column": 5
+              },
+              "children": [
+                {
+                  "key": "width",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 1000
+                    },
+                    "span": {
+                      "line": 16,
+                      "column": 15
+                    },
+                    "raw": "1000"
+                  },
+                  "span": {
+                    "line": 16,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "height",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 700
+                    },
+                    "span": {
+                      "line": 17,
+                      "column": 16
+                    },
+                    "raw": "700"
+                  },
+                  "span": {
+                    "line": 17,
+                    "column": 9
+                  },
+                  "children": []
+                }
+              ]
+            },
+            {
+              "key": "body",
+              "value": null,
+              "span": {
+                "line": 18,
+                "column": 5
+              },
+              "children": [
+                {
+                  "key": "x",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 470
+                    },
+                    "span": {
+                      "line": 19,
+                      "column": 11
+                    },
+                    "raw": "470"
+                  },
+                  "span": {
+                    "line": 19,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "y",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 205
+                    },
+                    "span": {
+                      "line": 20,
+                      "column": 11
+                    },
+                    "raw": "205"
+                  },
+                  "span": {
+                    "line": 20,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "dx",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 10
+                    },
+                    "span": {
+                      "line": 21,
+                      "column": 12
+                    },
+                    "raw": "10"
+                  },
+                  "span": {
+                    "line": 21,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "dy",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": -12
+                    },
+                    "span": {
+                      "line": 22,
+                      "column": 12
+                    },
+                    "raw": "-12"
+                  },
+                  "span": {
+                    "line": 22,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "size",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 22
+                    },
+                    "span": {
+                      "line": 23,
+                      "column": 14
+                    },
+                    "raw": "22"
+                  },
+                  "span": {
+                    "line": 23,
+                    "column": 9
+                  },
+                  "children": []
+                }
+              ]
+            },
+            {
+              "key": "primary_control",
+              "value": null,
+              "span": {
+                "line": 24,
+                "column": 5
+              },
+              "children": [
+                {
+                  "key": "axis",
+                  "value": {
+                    "kind": {
+                      "kind": "tag",
+                      "value": "Horizontal"
+                    },
+                    "span": {
+                      "line": 25,
+                      "column": 14
+                    },
+                    "raw": "Horizontal"
+                  },
+                  "span": {
+                    "line": 25,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "position",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 50
+                    },
+                    "span": {
+                      "line": 26,
+                      "column": 18
+                    },
+                    "raw": "50"
+                  },
+                  "span": {
+                    "line": 26,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "step",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 8
+                    },
+                    "span": {
+                      "line": 27,
+                      "column": 14
+                    },
+                    "raw": "8"
+                  },
+                  "span": {
+                    "line": 27,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "x",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 0
+                    },
+                    "span": {
+                      "line": 28,
+                      "column": 11
+                    },
+                    "raw": "0"
+                  },
+                  "span": {
+                    "line": 28,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "y",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 646
+                    },
+                    "span": {
+                      "line": 29,
+                      "column": 11
+                    },
+                    "raw": "646"
+                  },
+                  "span": {
+                    "line": 29,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "width",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 160
+                    },
+                    "span": {
+                      "line": 30,
+                      "column": 15
+                    },
+                    "raw": "160"
+                  },
+                  "span": {
+                    "line": 30,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "height",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 18
+                    },
+                    "span": {
+                      "line": 31,
+                      "column": 16
+                    },
+                    "raw": "18"
+                  },
+                  "span": {
+                    "line": 31,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "auto_track",
+                  "value": {
+                    "kind": {
+                      "kind": "bool",
+                      "value": false
+                    },
+                    "span": {
+                      "line": 32,
+                      "column": 20
+                    },
+                    "raw": "False"
+                  },
+                  "span": {
+                    "line": 32,
+                    "column": 9
+                  },
+                  "children": []
+                }
+              ]
+            },
+            {
+              "key": "contact_field",
+              "value": null,
+              "span": {
+                "line": 33,
+                "column": 5
+              },
+              "children": [
+                {
+                  "key": "rows",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 6
+                    },
+                    "span": {
+                      "line": 34,
+                      "column": 14
+                    },
+                    "raw": "6"
+                  },
+                  "span": {
+                    "line": 34,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "columns",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 12
+                    },
+                    "span": {
+                      "line": 35,
+                      "column": 17
+                    },
+                    "raw": "12"
+                  },
+                  "span": {
+                    "line": 35,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "top",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 56
+                    },
+                    "span": {
+                      "line": 36,
+                      "column": 13
+                    },
+                    "raw": "56"
+                  },
+                  "span": {
+                    "line": 36,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "margin",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 36
+                    },
+                    "span": {
+                      "line": 37,
+                      "column": 16
+                    },
+                    "raw": "36"
+                  },
+                  "span": {
+                    "line": 37,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "gap",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 8
+                    },
+                    "span": {
+                      "line": 38,
+                      "column": 13
+                    },
+                    "raw": "8"
+                  },
+                  "span": {
+                    "line": 38,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "height",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 28
+                    },
+                    "span": {
+                      "line": 39,
+                      "column": 16
+                    },
+                    "raw": "28"
+                  },
+                  "span": {
+                    "line": 39,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "value_per_contact",
+                  "value": {
+                    "kind": {
+                      "kind": "number",
+                      "value": 10
+                    },
+                    "span": {
+                      "line": 40,
+                      "column": 27
+                    },
+                    "raw": "10"
+                  },
+                  "span": {
+                    "line": 40,
+                    "column": 9
+                  },
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "record",
+          "key": "world",
+          "value": null,
+          "span": {
+            "line": 42,
+            "column": 1
+          },
+          "children": []
+        },
+        {
+          "kind": "record",
+          "key": "document",
+          "value": null,
+          "span": {
+            "line": 47,
+            "column": 1
+          },
+          "children": [
+            {
+              "key": "root",
+              "value": null,
+              "span": {
+                "line": 49,
+                "column": 9
+              },
+              "children": [
+                {
+                  "key": "children",
+                  "value": null,
+                  "span": {
+                    "line": 51,
+                    "column": 17
+                  },
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "expression",
+          "kind": {
+            "kind": "pipeline",
+            "input": {
+              "kind": {
+                "kind": "number",
+                "value": 0
+              },
+              "span": {
+                "line": 43,
+                "column": 5
+              },
+              "raw": "0"
+            },
+            "stages": [
+              {
+                "kind": {
+                  "kind": "hold",
+                  "state": "frame",
+                  "body": {
+                    "kind": {
+                      "kind": "pipeline",
+                      "input": {
+                        "kind": {
+                          "kind": "path",
+                          "value": "store.sources.tick.event.frame"
+                        },
+                        "span": {
+                          "line": 43,
+                          "column": 5
+                        },
+                        "raw": "store.sources.tick.event.frame"
+                      },
+                      "stages": [
+                        {
+                          "kind": {
+                            "kind": "then",
+                            "body": {
+                              "kind": {
+                                "kind": "binary",
+                                "op": "add",
+                                "left": {
+                                  "kind": {
+                                    "kind": "path",
+                                    "value": "frame"
+                                  },
+                                  "span": {
+                                    "line": 43,
+                                    "column": 5
+                                  },
+                                  "raw": "frame"
+                                },
+                                "right": {
+                                  "kind": {
+                                    "kind": "number",
+                                    "value": 1
+                                  },
+                                  "span": {
+                                    "line": 43,
+                                    "column": 5
+                                  },
+                                  "raw": "1"
+                                }
+                              },
+                              "span": {
+                                "line": 43,
+                                "column": 5
+                              },
+                              "raw": "frame + 1"
+                            }
+                          },
+                          "span": {
+                            "line": 43,
+                            "column": 5
+                          },
+                          "raw": "THEN { frame + 1 }"
+                        }
+                      ]
+                    },
+                    "span": {
+                      "line": 43,
+                      "column": 5
+                    },
+                    "raw": "store.sources.tick.event.frame |> THEN { frame + 1 }"
+                  }
+                },
+                "span": {
+                  "line": 43,
+                  "column": 5
+                },
+                "raw": "HOLD frame {\nstore.sources.tick.event.frame |> THEN { frame + 1 }\n}"
+              }
+            ]
+          },
+          "span": {
+            "line": 43,
+            "column": 5
+          },
+          "raw": "0 |> HOLD frame {\nstore.sources.tick.event.frame |> THEN { frame + 1 }\n}"
+        },
+        {
+          "kind": "expression",
+          "kind": {
+            "kind": "call",
+            "path": "Document/new",
+            "args": [
+              {
+                "name": "root",
+                "value": {
+                  "kind": {
+                    "kind": "raw"
+                  },
+                  "span": {
+                    "line": 48,
+                    "column": 5
+                  },
+                  "raw": ""
+                },
+                "span": {
+                  "line": 48,
+                  "column": 5
+                }
+              },
+              {
+                "name": "Element/panel(\nchildren",
+                "value": {
+                  "kind": {
+                    "kind": "list",
+                    "items": [
+                      {
+                        "kind": {
+                          "kind": "call",
+                          "path": "Element/label",
+                          "args": [
+                            {
+                              "name": "element",
+                              "value": {
+                                "kind": {
+                                  "kind": "path",
+                                  "value": "store.sources.tick"
+                                },
+                                "span": {
+                                  "line": 48,
+                                  "column": 5
+                                },
+                                "raw": "store.sources.tick"
+                              },
+                              "span": {
+                                "line": 48,
+                                "column": 5
+                              }
+                            }
+                          ]
+                        },
+                        "span": {
+                          "line": 48,
+                          "column": 5
+                        },
+                        "raw": "Element/label(element: store.sources.tick)"
+                      },
+                      {
+                        "kind": {
+                          "kind": "call",
+                          "path": "Element/label",
+                          "args": [
+                            {
+                              "name": "element",
+                              "value": {
+                                "kind": {
+                                  "kind": "path",
+                                  "value": "store.sources.paddle"
+                                },
+                                "span": {
+                                  "line": 48,
+                                  "column": 5
+                                },
+                                "raw": "store.sources.paddle"
+                              },
+                              "span": {
+                                "line": 48,
+                                "column": 5
+                              }
+                            }
+                          ]
+                        },
+                        "span": {
+                          "line": 48,
+                          "column": 5
+                        },
+                        "raw": "Element/label(element: store.sources.paddle)"
+                      }
+                    ]
+                  },
+                  "span": {
+                    "line": 48,
+                    "column": 5
+                  },
+                  "raw": "LIST {\nElement/label(element: store.sources.tick)\nElement/label(element: store.sources.paddle)\n}\n)"
+                },
+                "span": {
+                  "line": 48,
+                  "column": 5
+                }
+              }
+            ]
+          },
+          "span": {
+            "line": 48,
+            "column": 5
+          },
+          "raw": "Document/new(\nroot:\nElement/panel(\nchildren:\nLIST {\nElement/label(element: store.sources.tick)\nElement/label(element: store.sources.paddle)\n}\n)\n)"
+        }
+      ]
+    },
+    "lines": [
+      {
+        "text": "store:",
+        "span": {
+          "line": 1,
+          "column": 1
+        }
+      },
+      {
+        "text": "sources:",
+        "span": {
+          "line": 2,
+          "column": 5
+        }
+      },
+      {
+        "text": "tick:",
+        "span": {
+          "line": 3,
+          "column": 9
+        }
+      },
+      {
+        "text": "event:",
+        "span": {
+          "line": 4,
+          "column": 13
+        }
+      },
+      {
+        "text": "frame: SOURCE",
+        "span": {
+          "line": 5,
+          "column": 17
+        }
+      },
+      {
+        "text": "paddle:",
+        "span": {
+          "line": 6,
+          "column": 9
+        }
+      },
+      {
+        "text": "event:",
+        "span": {
+          "line": 7,
+          "column": 13
+        }
+      },
+      {
+        "text": "key_down:",
+        "span": {
+          "line": 8,
+          "column": 17
+        }
+      },
+      {
+        "text": "key: SOURCE",
+        "span": {
+          "line": 9,
+          "column": 21
+        }
+      },
+      {
+        "text": "game:",
+        "span": {
+          "line": 11,
+          "column": 1
+        }
+      },
+      {
+        "text": "title: TEXT { Arkanoid }",
+        "span": {
+          "line": 12,
+          "column": 5
+        }
+      },
+      {
+        "text": "kinematics:",
+        "span": {
+          "line": 14,
+          "column": 1
+        }
+      },
+      {
+        "text": "arena:",
+        "span": {
+          "line": 15,
+          "column": 5
+        }
+      },
+      {
+        "text": "width: 1000",
+        "span": {
+          "line": 16,
+          "column": 9
+        }
+      },
+      {
+        "text": "height: 700",
+        "span": {
+          "line": 17,
+          "column": 9
+        }
+      },
+      {
+        "text": "body:",
+        "span": {
+          "line": 18,
+          "column": 5
+        }
+      },
+      {
+        "text": "x: 470",
+        "span": {
+          "line": 19,
+          "column": 9
+        }
+      },
+      {
+        "text": "y: 205",
+        "span": {
+          "line": 20,
+          "column": 9
+        }
+      },
+      {
+        "text": "dx: 10",
+        "span": {
+          "line": 21,
+          "column": 9
+        }
+      },
+      {
+        "text": "dy: -12",
+        "span": {
+          "line": 22,
+          "column": 9
+        }
+      },
+      {
+        "text": "size: 22",
+        "span": {
+          "line": 23,
+          "column": 9
+        }
+      },
+      {
+        "text": "primary_control:",
+        "span": {
+          "line": 24,
+          "column": 5
+        }
+      },
+      {
+        "text": "axis: Horizontal",
+        "span": {
+          "line": 25,
+          "column": 9
+        }
+      },
+      {
+        "text": "position: 50",
+        "span": {
+          "line": 26,
+          "column": 9
+        }
+      },
+      {
+        "text": "step: 8",
+        "span": {
+          "line": 27,
+          "column": 9
+        }
+      },
+      {
+        "text": "x: 0",
+        "span": {
+          "line": 28,
+          "column": 9
+        }
+      },
+      {
+        "text": "y: 646",
+        "span": {
+          "line": 29,
+          "column": 9
+        }
+      },
+      {
+        "text": "width: 160",
+        "span": {
+          "line": 30,
+          "column": 9
+        }
+      },
+      {
+        "text": "height: 18",
+        "span": {
+          "line": 31,
+          "column": 9
+        }
+      },
+      {
+        "text": "auto_track: False",
+        "span": {
+          "line": 32,
+          "column": 9
+        }
+      },
+      {
+        "text": "contact_field:",
+        "span": {
+          "line": 33,
+          "column": 5
+        }
+      },
+      {
+        "text": "rows: 6",
+        "span": {
+          "line": 34,
+          "column": 9
+        }
+      },
+      {
+        "text": "columns: 12",
+        "span": {
+          "line": 35,
+          "column": 9
+        }
+      },
+      {
+        "text": "top: 56",
+        "span": {
+          "line": 36,
+          "column": 9
+        }
+      },
+      {
+        "text": "margin: 36",
+        "span": {
+          "line": 37,
+          "column": 9
+        }
+      },
+      {
+        "text": "gap: 8",
+        "span": {
+          "line": 38,
+          "column": 9
+        }
+      },
+      {
+        "text": "height: 28",
+        "span": {
+          "line": 39,
+          "column": 9
+        }
+      },
+      {
+        "text": "value_per_contact: 10",
+        "span": {
+          "line": 40,
+          "column": 9
+        }
+      },
+      {
+        "text": "world:",
+        "span": {
+          "line": 42,
+          "column": 1
+        }
+      },
+      {
+        "text": "0 |> HOLD frame {",
+        "span": {
+          "line": 43,
+          "column": 5
+        }
+      },
+      {
+        "text": "store.sources.tick.event.frame |> THEN { frame + 1 }",
+        "span": {
+          "line": 44,
+          "column": 9
+        }
+      },
+      {
+        "text": "}",
+        "span": {
+          "line": 45,
+          "column": 5
+        }
+      },
+      {
+        "text": "document:",
+        "span": {
+          "line": 47,
+          "column": 1
+        }
+      },
+      {
+        "text": "Document/new(",
+        "span": {
+          "line": 48,
+          "column": 5
+        }
+      },
+      {
+        "text": "root:",
+        "span": {
+          "line": 49,
+          "column": 9
+        }
+      },
+      {
+        "text": "Element/panel(",
+        "span": {
+          "line": 50,
+          "column": 13
+        }
+      },
+      {
+        "text": "children:",
+        "span": {
+          "line": 51,
+          "column": 17
+        }
+      },
+      {
+        "text": "LIST {",
+        "span": {
+          "line": 52,
+          "column": 21
+        }
+      },
+      {
+        "text": "Element/label(element: store.sources.tick)",
+        "span": {
+          "line": 53,
+          "column": 25
+        }
+      },
+      {
+        "text": "Element/label(element: store.sources.paddle)",
+        "span": {
+          "line": 54,
+          "column": 25
+        }
+      },
+      {
+        "text": "}",
+        "span": {
+          "line": 55,
+          "column": 21
+        }
+      },
+      {
+        "text": ")",
+        "span": {
+          "line": 56,
+          "column": 13
+        }
+      },
+      {
+        "text": ")",
+        "span": {
+          "line": 57,
+          "column": 5
+        }
+      }
+    ],
+    "records": [
+      {
+        "key": "store",
+        "value": null,
+        "span": {
+          "line": 1,
+          "column": 1
+        },
+        "children": [
+          {
+            "key": "sources",
+            "value": null,
+            "span": {
+              "line": 2,
+              "column": 5
+            },
+            "children": [
+              {
+                "key": "tick",
+                "value": null,
+                "span": {
+                  "line": 3,
+                  "column": 9
+                },
+                "children": [
+                  {
+                    "key": "event",
+                    "value": null,
+                    "span": {
+                      "line": 4,
+                      "column": 13
+                    },
+                    "children": [
+                      {
+                        "key": "frame",
+                        "value": "SOURCE",
+                        "span": {
+                          "line": 5,
+                          "column": 17
+                        },
+                        "children": []
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "key": "paddle",
+                "value": null,
+                "span": {
+                  "line": 6,
+                  "column": 9
+                },
+                "children": [
+                  {
+                    "key": "event",
+                    "value": null,
+                    "span": {
+                      "line": 7,
+                      "column": 13
+                    },
+                    "children": [
+                      {
+                        "key": "key_down",
+                        "value": null,
+                        "span": {
+                          "line": 8,
+                          "column": 17
+                        },
+                        "children": [
+                          {
+                            "key": "key",
+                            "value": "SOURCE",
+                            "span": {
+                              "line": 9,
+                              "column": 21
+                            },
+                            "children": []
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "game",
+        "value": null,
+        "span": {
+          "line": 11,
+          "column": 1
+        },
+        "children": [
+          {
+            "key": "title",
+            "value": "TEXT { Arkanoid }",
+            "span": {
+              "line": 12,
+              "column": 5
+            },
+            "children": []
+          }
+        ]
+      },
+      {
+        "key": "kinematics",
+        "value": null,
+        "span": {
+          "line": 14,
+          "column": 1
+        },
+        "children": [
+          {
+            "key": "arena",
+            "value": null,
+            "span": {
+              "line": 15,
+              "column": 5
+            },
+            "children": [
+              {
+                "key": "width",
+                "value": "1000",
+                "span": {
+                  "line": 16,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "height",
+                "value": "700",
+                "span": {
+                  "line": 17,
+                  "column": 9
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "key": "body",
+            "value": null,
+            "span": {
+              "line": 18,
+              "column": 5
+            },
+            "children": [
+              {
+                "key": "x",
+                "value": "470",
+                "span": {
+                  "line": 19,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "y",
+                "value": "205",
+                "span": {
+                  "line": 20,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "dx",
+                "value": "10",
+                "span": {
+                  "line": 21,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "dy",
+                "value": "-12",
+                "span": {
+                  "line": 22,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "size",
+                "value": "22",
+                "span": {
+                  "line": 23,
+                  "column": 9
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "key": "primary_control",
+            "value": null,
+            "span": {
+              "line": 24,
+              "column": 5
+            },
+            "children": [
+              {
+                "key": "axis",
+                "value": "Horizontal",
+                "span": {
+                  "line": 25,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "position",
+                "value": "50",
+                "span": {
+                  "line": 26,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "step",
+                "value": "8",
+                "span": {
+                  "line": 27,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "x",
+                "value": "0",
+                "span": {
+                  "line": 28,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "y",
+                "value": "646",
+                "span": {
+                  "line": 29,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "width",
+                "value": "160",
+                "span": {
+                  "line": 30,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "height",
+                "value": "18",
+                "span": {
+                  "line": 31,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "auto_track",
+                "value": "False",
+                "span": {
+                  "line": 32,
+                  "column": 9
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "key": "contact_field",
+            "value": null,
+            "span": {
+              "line": 33,
+              "column": 5
+            },
+            "children": [
+              {
+                "key": "rows",
+                "value": "6",
+                "span": {
+                  "line": 34,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "columns",
+                "value": "12",
+                "span": {
+                  "line": 35,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "top",
+                "value": "56",
+                "span": {
+                  "line": 36,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "margin",
+                "value": "36",
+                "span": {
+                  "line": 37,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "gap",
+                "value": "8",
+                "span": {
+                  "line": 38,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "height",
+                "value": "28",
+                "span": {
+                  "line": 39,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "value_per_contact",
+                "value": "10",
+                "span": {
+                  "line": 40,
+                  "column": 9
+                },
+                "children": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "world",
+        "value": null,
+        "span": {
+          "line": 42,
+          "column": 1
+        },
+        "children": []
+      },
+      {
+        "key": "document",
+        "value": null,
+        "span": {
+          "line": 47,
+          "column": 1
+        },
+        "children": [
+          {
+            "key": "root",
+            "value": null,
+            "span": {
+              "line": 49,
+              "column": 9
+            },
+            "children": [
+              {
+                "key": "children",
+                "value": null,
+                "span": {
+                  "line": 51,
+                  "column": 17
+                },
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "source_leaves": [
+      {
+        "path": "store.sources.tick.event.frame",
+        "span": {
+          "line": 5,
+          "column": 24
+        }
+      },
+      {
+        "path": "store.sources.paddle.event.key_down.key",
+        "span": {
+          "line": 9,
+          "column": 26
+        }
+      }
+    ],
+    "module_calls": [
+      {
+        "path": "Document/new",
+        "span": {
+          "line": 48,
+          "column": 5
+        },
+        "args": [
+          {
+            "name": "root",
+            "value": "Element",
+            "span": {
+              "line": 48,
+              "column": 3
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/panel",
+        "span": {
+          "line": 50,
+          "column": 13
+        },
+        "args": [
+          {
+            "name": "children",
+            "value": "LIST",
+            "span": {
+              "line": 50,
+              "column": 3
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/label",
+        "span": {
+          "line": 53,
+          "column": 25
+        },
+        "args": [
+          {
+            "name": "element",
+            "value": "store.sources.tick",
+            "span": {
+              "line": 53,
+              "column": 2
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/label",
+        "span": {
+          "line": 54,
+          "column": 25
+        },
+        "args": [
+          {
+            "name": "element",
+            "value": "store.sources.paddle",
+            "span": {
+              "line": 54,
+              "column": 2
+            }
+          }
+        ]
+      }
+    ],
+    "text_literals": [
+      {
+        "value": "Arkanoid",
+        "span": {
+          "line": 12,
+          "column": 8
+        }
+      }
+    ],
+    "state_steps": [
+      {
+        "state": "frame",
+        "amount": 1,
+        "span": {
+          "line": 44,
+          "column": 42
+        }
+      }
+    ],
+    "map_bindings": []
+  },
+  "items": [
+    {
+      "kind": "record",
+      "key": "store",
+      "value": null,
+      "span": {
+        "line": 1,
+        "column": 1
+      },
+      "children": [
+        {
+          "key": "sources",
+          "value": null,
+          "span": {
+            "line": 2,
+            "column": 5
+          },
+          "children": [
+            {
+              "key": "tick",
+              "value": null,
+              "span": {
+                "line": 3,
+                "column": 9
+              },
+              "children": [
+                {
+                  "key": "event",
+                  "value": null,
+                  "span": {
+                    "line": 4,
+                    "column": 13
+                  },
+                  "children": [
+                    {
+                      "key": "frame",
+                      "value": {
+                        "kind": {
+                          "kind": "source"
+                        },
+                        "span": {
+                          "line": 5,
+                          "column": 23
+                        },
+                        "raw": "SOURCE"
+                      },
+                      "span": {
+                        "line": 5,
+                        "column": 17
+                      },
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "key": "paddle",
+              "value": null,
+              "span": {
+                "line": 6,
+                "column": 9
+              },
+              "children": [
+                {
+                  "key": "event",
+                  "value": null,
+                  "span": {
+                    "line": 7,
+                    "column": 13
+                  },
+                  "children": [
+                    {
+                      "key": "key_down",
+                      "value": null,
+                      "span": {
+                        "line": 8,
+                        "column": 17
+                      },
+                      "children": [
+                        {
+                          "key": "key",
+                          "value": {
+                            "kind": {
+                              "kind": "source"
+                            },
+                            "span": {
+                              "line": 9,
+                              "column": 25
+                            },
+                            "raw": "SOURCE"
+                          },
+                          "span": {
+                            "line": 9,
+                            "column": 21
+                          },
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "record",
+      "key": "game",
+      "value": null,
+      "span": {
+        "line": 11,
+        "column": 1
+      },
+      "children": [
+        {
+          "key": "title",
+          "value": {
+            "kind": {
+              "kind": "literal",
+              "literal": {
+                "kind": "text",
+                "value": "Arkanoid"
+              }
+            },
+            "span": {
+              "line": 12,
+              "column": 11
+            },
+            "raw": "TEXT { Arkanoid }"
+          },
+          "span": {
+            "line": 12,
+            "column": 5
+          },
+          "children": []
+        }
+      ]
+    },
+    {
+      "kind": "record",
+      "key": "kinematics",
+      "value": null,
+      "span": {
+        "line": 14,
+        "column": 1
+      },
+      "children": [
+        {
+          "key": "arena",
+          "value": null,
+          "span": {
+            "line": 15,
+            "column": 5
+          },
+          "children": [
+            {
+              "key": "width",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 1000
+                  }
+                },
+                "span": {
+                  "line": 16,
+                  "column": 15
+                },
+                "raw": "1000"
+              },
+              "span": {
+                "line": 16,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "height",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 700
+                  }
+                },
+                "span": {
+                  "line": 17,
+                  "column": 16
+                },
+                "raw": "700"
+              },
+              "span": {
+                "line": 17,
+                "column": 9
+              },
+              "children": []
+            }
+          ]
+        },
+        {
+          "key": "body",
+          "value": null,
+          "span": {
+            "line": 18,
+            "column": 5
+          },
+          "children": [
+            {
+              "key": "x",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 470
+                  }
+                },
+                "span": {
+                  "line": 19,
+                  "column": 11
+                },
+                "raw": "470"
+              },
+              "span": {
+                "line": 19,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "y",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 205
+                  }
+                },
+                "span": {
+                  "line": 20,
+                  "column": 11
+                },
+                "raw": "205"
+              },
+              "span": {
+                "line": 20,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "dx",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 10
+                  }
+                },
+                "span": {
+                  "line": 21,
+                  "column": 12
+                },
+                "raw": "10"
+              },
+              "span": {
+                "line": 21,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "dy",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": -12
+                  }
+                },
+                "span": {
+                  "line": 22,
+                  "column": 12
+                },
+                "raw": "-12"
+              },
+              "span": {
+                "line": 22,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "size",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 22
+                  }
+                },
+                "span": {
+                  "line": 23,
+                  "column": 14
+                },
+                "raw": "22"
+              },
+              "span": {
+                "line": 23,
+                "column": 9
+              },
+              "children": []
+            }
+          ]
+        },
+        {
+          "key": "primary_control",
+          "value": null,
+          "span": {
+            "line": 24,
+            "column": 5
+          },
+          "children": [
+            {
+              "key": "axis",
+              "value": {
+                "kind": {
+                  "kind": "tag",
+                  "value": "Horizontal"
+                },
+                "span": {
+                  "line": 25,
+                  "column": 14
+                },
+                "raw": "Horizontal"
+              },
+              "span": {
+                "line": 25,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "position",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 50
+                  }
+                },
+                "span": {
+                  "line": 26,
+                  "column": 18
+                },
+                "raw": "50"
+              },
+              "span": {
+                "line": 26,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "step",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 8
+                  }
+                },
+                "span": {
+                  "line": 27,
+                  "column": 14
+                },
+                "raw": "8"
+              },
+              "span": {
+                "line": 27,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "x",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 0
+                  }
+                },
+                "span": {
+                  "line": 28,
+                  "column": 11
+                },
+                "raw": "0"
+              },
+              "span": {
+                "line": 28,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "y",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 646
+                  }
+                },
+                "span": {
+                  "line": 29,
+                  "column": 11
+                },
+                "raw": "646"
+              },
+              "span": {
+                "line": 29,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "width",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 160
+                  }
+                },
+                "span": {
+                  "line": 30,
+                  "column": 15
+                },
+                "raw": "160"
+              },
+              "span": {
+                "line": 30,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "height",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 18
+                  }
+                },
+                "span": {
+                  "line": 31,
+                  "column": 16
+                },
+                "raw": "18"
+              },
+              "span": {
+                "line": 31,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "auto_track",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "bool",
+                    "value": false
+                  }
+                },
+                "span": {
+                  "line": 32,
+                  "column": 20
+                },
+                "raw": "False"
+              },
+              "span": {
+                "line": 32,
+                "column": 9
+              },
+              "children": []
+            }
+          ]
+        },
+        {
+          "key": "contact_field",
+          "value": null,
+          "span": {
+            "line": 33,
+            "column": 5
+          },
+          "children": [
+            {
+              "key": "rows",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 6
+                  }
+                },
+                "span": {
+                  "line": 34,
+                  "column": 14
+                },
+                "raw": "6"
+              },
+              "span": {
+                "line": 34,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "columns",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 12
+                  }
+                },
+                "span": {
+                  "line": 35,
+                  "column": 17
+                },
+                "raw": "12"
+              },
+              "span": {
+                "line": 35,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "top",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 56
+                  }
+                },
+                "span": {
+                  "line": 36,
+                  "column": 13
+                },
+                "raw": "56"
+              },
+              "span": {
+                "line": 36,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "margin",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 36
+                  }
+                },
+                "span": {
+                  "line": 37,
+                  "column": 16
+                },
+                "raw": "36"
+              },
+              "span": {
+                "line": 37,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "gap",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 8
+                  }
+                },
+                "span": {
+                  "line": 38,
+                  "column": 13
+                },
+                "raw": "8"
+              },
+              "span": {
+                "line": 38,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "height",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 28
+                  }
+                },
+                "span": {
+                  "line": 39,
+                  "column": 16
+                },
+                "raw": "28"
+              },
+              "span": {
+                "line": 39,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "value_per_contact",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "number",
+                    "value": 10
+                  }
+                },
+                "span": {
+                  "line": 40,
+                  "column": 27
+                },
+                "raw": "10"
+              },
+              "span": {
+                "line": 40,
+                "column": 9
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "record",
+      "key": "world",
+      "value": null,
+      "span": {
+        "line": 42,
+        "column": 1
+      },
+      "children": []
+    },
+    {
+      "kind": "record",
+      "key": "document",
+      "value": null,
+      "span": {
+        "line": 47,
+        "column": 1
+      },
+      "children": [
+        {
+          "key": "root",
+          "value": null,
+          "span": {
+            "line": 49,
+            "column": 9
+          },
+          "children": [
+            {
+              "key": "children",
+              "value": null,
+              "span": {
+                "line": 51,
+                "column": 17
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "expression",
+      "kind": {
+        "kind": "pipeline",
+        "input": {
+          "kind": {
+            "kind": "literal",
+            "literal": {
+              "kind": "number",
+              "value": 0
+            }
+          },
+          "span": {
+            "line": 43,
+            "column": 5
+          },
+          "raw": "0"
+        },
+        "stages": [
+          {
+            "kind": {
+              "kind": "hold",
+              "state": "frame",
+              "body": {
+                "kind": {
+                  "kind": "pipeline",
+                  "input": {
+                    "kind": {
+                      "kind": "path",
+                      "value": "store.sources.tick.event.frame"
+                    },
+                    "span": {
+                      "line": 43,
+                      "column": 5
+                    },
+                    "raw": "store.sources.tick.event.frame"
+                  },
+                  "stages": [
+                    {
+                      "kind": {
+                        "kind": "then",
+                        "body": {
+                          "kind": {
+                            "kind": "binary",
+                            "op": "add",
+                            "left": {
+                              "kind": {
+                                "kind": "path",
+                                "value": "frame"
+                              },
+                              "span": {
+                                "line": 43,
+                                "column": 5
+                              },
+                              "raw": "frame"
+                            },
+                            "right": {
+                              "kind": {
+                                "kind": "literal",
+                                "literal": {
+                                  "kind": "number",
+                                  "value": 1
+                                }
+                              },
+                              "span": {
+                                "line": 43,
+                                "column": 5
+                              },
+                              "raw": "1"
+                            }
+                          },
+                          "span": {
+                            "line": 43,
+                            "column": 5
+                          },
+                          "raw": "frame + 1"
+                        }
+                      },
+                      "span": {
+                        "line": 43,
+                        "column": 5
+                      },
+                      "raw": "THEN { frame + 1 }"
+                    }
+                  ]
+                },
+                "span": {
+                  "line": 43,
+                  "column": 5
+                },
+                "raw": "store.sources.tick.event.frame |> THEN { frame + 1 }"
+              }
+            },
+            "span": {
+              "line": 43,
+              "column": 5
+            },
+            "raw": "HOLD frame {\nstore.sources.tick.event.frame |> THEN { frame + 1 }\n}"
+          }
+        ]
+      },
+      "span": {
+        "line": 43,
+        "column": 5
+      },
+      "raw": "0 |> HOLD frame {\nstore.sources.tick.event.frame |> THEN { frame + 1 }\n}"
+    },
+    {
+      "kind": "expression",
+      "kind": {
+        "kind": "host_call",
+        "path": "Document/new",
+        "args": [
+          {
+            "name": "root",
+            "value": {
+              "kind": {
+                "kind": "unsupported",
+                "reason": "raw syntax not yet lowered"
+              },
+              "span": {
+                "line": 48,
+                "column": 5
+              },
+              "raw": ""
+            },
+            "span": {
+              "line": 48,
+              "column": 5
+            }
+          },
+          {
+            "name": "Element/panel(\nchildren",
+            "value": {
+              "kind": {
+                "kind": "list",
+                "items": [
+                  {
+                    "kind": {
+                      "kind": "host_call",
+                      "path": "Element/label",
+                      "args": [
+                        {
+                          "name": "element",
+                          "value": {
+                            "kind": {
+                              "kind": "path",
+                              "value": "store.sources.tick"
+                            },
+                            "span": {
+                              "line": 48,
+                              "column": 5
+                            },
+                            "raw": "store.sources.tick"
+                          },
+                          "span": {
+                            "line": 48,
+                            "column": 5
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "line": 48,
+                      "column": 5
+                    },
+                    "raw": "Element/label(element: store.sources.tick)"
+                  },
+                  {
+                    "kind": {
+                      "kind": "host_call",
+                      "path": "Element/label",
+                      "args": [
+                        {
+                          "name": "element",
+                          "value": {
+                            "kind": {
+                              "kind": "path",
+                              "value": "store.sources.paddle"
+                            },
+                            "span": {
+                              "line": 48,
+                              "column": 5
+                            },
+                            "raw": "store.sources.paddle"
+                          },
+                          "span": {
+                            "line": 48,
+                            "column": 5
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "line": 48,
+                      "column": 5
+                    },
+                    "raw": "Element/label(element: store.sources.paddle)"
+                  }
+                ]
+              },
+              "span": {
+                "line": 48,
+                "column": 5
+              },
+              "raw": "LIST {\nElement/label(element: store.sources.tick)\nElement/label(element: store.sources.paddle)\n}\n)"
+            },
+            "span": {
+              "line": 48,
+              "column": 5
+            }
+          }
+        ]
+      },
+      "span": {
+        "line": 48,
+        "column": 5
+      },
+      "raw": "Document/new(\nroot:\nElement/panel(\nchildren:\nLIST {\nElement/label(element: store.sources.tick)\nElement/label(element: store.sources.paddle)\n}\n)\n)"
+    }
+  ],
+  "features": [
+    "source",
+    "hold",
+    "then",
+    "list_literal",
+    "host_element",
+    "host_document",
+    "pipeline",
+    "binary",
+    "render_expression"
+  ],
+  "dependencies": [],
+  "diagnostics": [
+    {
+      "span": {
+        "line": 48,
+        "column": 5
+      },
+      "message": "expression kept as raw syntax: "
+    }
+  ]
+}

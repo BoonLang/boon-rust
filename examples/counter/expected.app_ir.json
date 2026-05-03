@@ -1,0 +1,34 @@
+{
+  "state_cells": [
+    {
+      "path": "scalar_value",
+      "initial": {
+        "kind": "number",
+        "value": 0
+      }
+    }
+  ],
+  "event_handlers": [
+    {
+      "source_path": "store.sources.increment_button.event.press",
+      "when": null,
+      "effects": [
+        {
+          "kind": "assign",
+          "state_path": "scalar_value",
+          "expr": {
+            "kind": "add",
+            "left": {
+              "kind": "hold",
+              "state_path": "scalar_value"
+            },
+            "right": {
+              "kind": "number",
+              "value": 1
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

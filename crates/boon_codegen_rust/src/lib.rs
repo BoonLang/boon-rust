@@ -23,6 +23,30 @@ pub fn generate_program_spec(
     Ok(())
 }
 
+pub fn generate_hir_snapshot(
+    example_name: &str,
+    source_path: &Path,
+    output_path: &Path,
+) -> Result<()> {
+    let source = fs::read_to_string(source_path)?;
+    let compiled = compile_source(example_name, &source)?;
+    let json = serde_json::to_string_pretty(&compiled.hir)?;
+    fs::write(output_path, json)?;
+    Ok(())
+}
+
+pub fn generate_app_ir_snapshot(
+    example_name: &str,
+    source_path: &Path,
+    output_path: &Path,
+) -> Result<()> {
+    let source = fs::read_to_string(source_path)?;
+    let compiled = compile_source(example_name, &source)?;
+    let json = serde_json::to_string_pretty(&compiled.app_ir)?;
+    fs::write(output_path, json)?;
+    Ok(())
+}
+
 pub fn generate_examples_module(
     examples: &[(&str, impl AsRef<Path>)],
     output_path: &Path,

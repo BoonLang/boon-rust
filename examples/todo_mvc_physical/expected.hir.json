@@ -1,0 +1,4523 @@
+{
+  "parsed": {
+    "name": "todo_mvc_physical",
+    "ast": {
+      "name": "todo_mvc_physical",
+      "items": [
+        {
+          "kind": "record",
+          "key": "store",
+          "value": null,
+          "span": {
+            "line": 1,
+            "column": 1
+          },
+          "children": [
+            {
+              "key": "sources",
+              "value": null,
+              "span": {
+                "line": 2,
+                "column": 5
+              },
+              "children": [
+                {
+                  "key": "new_todo_input",
+                  "value": null,
+                  "span": {
+                    "line": 3,
+                    "column": 9
+                  },
+                  "children": [
+                    {
+                      "key": "text",
+                      "value": {
+                        "kind": {
+                          "kind": "source"
+                        },
+                        "span": {
+                          "line": 4,
+                          "column": 18
+                        },
+                        "raw": "SOURCE"
+                      },
+                      "span": {
+                        "line": 4,
+                        "column": 13
+                      },
+                      "children": []
+                    },
+                    {
+                      "key": "event",
+                      "value": null,
+                      "span": {
+                        "line": 5,
+                        "column": 13
+                      },
+                      "children": [
+                        {
+                          "key": "change",
+                          "value": {
+                            "kind": {
+                              "kind": "source"
+                            },
+                            "span": {
+                              "line": 6,
+                              "column": 24
+                            },
+                            "raw": "SOURCE"
+                          },
+                          "span": {
+                            "line": 6,
+                            "column": 17
+                          },
+                          "children": []
+                        },
+                        {
+                          "key": "key_down",
+                          "value": null,
+                          "span": {
+                            "line": 7,
+                            "column": 17
+                          },
+                          "children": [
+                            {
+                              "key": "key",
+                              "value": {
+                                "kind": {
+                                  "kind": "source"
+                                },
+                                "span": {
+                                  "line": 8,
+                                  "column": 25
+                                },
+                                "raw": "SOURCE"
+                              },
+                              "span": {
+                                "line": 8,
+                                "column": 21
+                              },
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "key": "toggle_all_checkbox",
+                  "value": null,
+                  "span": {
+                    "line": 9,
+                    "column": 9
+                  },
+                  "children": [
+                    {
+                      "key": "event",
+                      "value": null,
+                      "span": {
+                        "line": 10,
+                        "column": 13
+                      },
+                      "children": [
+                        {
+                          "key": "click",
+                          "value": {
+                            "kind": {
+                              "kind": "source"
+                            },
+                            "span": {
+                              "line": 11,
+                              "column": 23
+                            },
+                            "raw": "SOURCE"
+                          },
+                          "span": {
+                            "line": 11,
+                            "column": 17
+                          },
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "key": "clear_completed_button",
+                  "value": null,
+                  "span": {
+                    "line": 12,
+                    "column": 9
+                  },
+                  "children": [
+                    {
+                      "key": "event",
+                      "value": null,
+                      "span": {
+                        "line": 13,
+                        "column": 13
+                      },
+                      "children": [
+                        {
+                          "key": "press",
+                          "value": {
+                            "kind": {
+                              "kind": "source"
+                            },
+                            "span": {
+                              "line": 14,
+                              "column": 23
+                            },
+                            "raw": "SOURCE"
+                          },
+                          "span": {
+                            "line": 14,
+                            "column": 17
+                          },
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "record",
+          "key": "view",
+          "value": null,
+          "span": {
+            "line": 16,
+            "column": 1
+          },
+          "children": [
+            {
+              "key": "physical_debug",
+              "value": {
+                "kind": {
+                  "kind": "bool",
+                  "value": true
+                },
+                "span": {
+                  "line": 17,
+                  "column": 20
+                },
+                "raw": "True"
+              },
+              "span": {
+                "line": 17,
+                "column": 5
+              },
+              "children": []
+            },
+            {
+              "key": "title_line",
+              "value": {
+                "kind": {
+                  "kind": "text",
+                  "value": "todos"
+                },
+                "span": {
+                  "line": 18,
+                  "column": 16
+                },
+                "raw": "TEXT { todos }"
+              },
+              "span": {
+                "line": 18,
+                "column": 5
+              },
+              "children": []
+            },
+            {
+              "key": "entry_hint",
+              "value": {
+                "kind": {
+                  "kind": "text",
+                  "value": "What needs to be done?"
+                },
+                "span": {
+                  "line": 19,
+                  "column": 16
+                },
+                "raw": "TEXT { What needs to be done? }"
+              },
+              "span": {
+                "line": 19,
+                "column": 5
+              },
+              "children": []
+            },
+            {
+              "key": "count_suffix",
+              "value": {
+                "kind": {
+                  "kind": "text",
+                  "value": "items left"
+                },
+                "span": {
+                  "line": 20,
+                  "column": 18
+                },
+                "raw": "TEXT { items left }"
+              },
+              "span": {
+                "line": 20,
+                "column": 5
+              },
+              "children": []
+            },
+            {
+              "key": "actions",
+              "value": null,
+              "span": {
+                "line": 21,
+                "column": 5
+              },
+              "children": [
+                {
+                  "key": "mass_mark",
+                  "value": null,
+                  "span": {
+                    "line": 22,
+                    "column": 9
+                  },
+                  "children": [
+                    {
+                      "key": "source",
+                      "value": {
+                        "kind": {
+                          "kind": "path",
+                          "value": "toggle_all_checkbox"
+                        },
+                        "span": {
+                          "line": 23,
+                          "column": 20
+                        },
+                        "raw": "toggle_all_checkbox"
+                      },
+                      "span": {
+                        "line": 23,
+                        "column": 13
+                      },
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "key": "remove_marked",
+                  "value": null,
+                  "span": {
+                    "line": 24,
+                    "column": 9
+                  },
+                  "children": [
+                    {
+                      "key": "source",
+                      "value": {
+                        "kind": {
+                          "kind": "path",
+                          "value": "clear_completed_button"
+                        },
+                        "span": {
+                          "line": 25,
+                          "column": 20
+                        },
+                        "raw": "clear_completed_button"
+                      },
+                      "span": {
+                        "line": 25,
+                        "column": 13
+                      },
+                      "children": []
+                    },
+                    {
+                      "key": "label",
+                      "value": {
+                        "kind": {
+                          "kind": "text",
+                          "value": "Clear completed"
+                        },
+                        "span": {
+                          "line": 26,
+                          "column": 19
+                        },
+                        "raw": "TEXT { Clear completed }"
+                      },
+                      "span": {
+                        "line": 26,
+                        "column": 13
+                      },
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "key": "auxiliary",
+              "value": null,
+              "span": {
+                "line": 27,
+                "column": 5
+              },
+              "children": [
+                {
+                  "key": "hint",
+                  "value": {
+                    "kind": {
+                      "kind": "text",
+                      "value": "Double-click to edit an item"
+                    },
+                    "span": {
+                      "line": 28,
+                      "column": 14
+                    },
+                    "raw": "TEXT { Double-click to edit an item }"
+                  },
+                  "span": {
+                    "line": 28,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "author",
+                  "value": {
+                    "kind": {
+                      "kind": "text",
+                      "value": "Created by Boon"
+                    },
+                    "span": {
+                      "line": 29,
+                      "column": 16
+                    },
+                    "raw": "TEXT { Created by Boon }"
+                  },
+                  "span": {
+                    "line": 29,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "note",
+                  "value": {
+                    "kind": {
+                      "kind": "text",
+                      "value": "Part of the classic app examples"
+                    },
+                    "span": {
+                      "line": 30,
+                      "column": 14
+                    },
+                    "raw": "TEXT { Part of the classic app examples }"
+                  },
+                  "span": {
+                    "line": 30,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "physical_debug",
+                  "value": {
+                    "kind": {
+                      "kind": "text",
+                      "value": "physical debug: depth bounds and source bindings matrix"
+                    },
+                    "span": {
+                      "line": 31,
+                      "column": 24
+                    },
+                    "raw": "TEXT { physical debug: depth bounds and source bindings matrix }"
+                  },
+                  "span": {
+                    "line": 31,
+                    "column": 9
+                  },
+                  "children": []
+                },
+                {
+                  "key": "sources",
+                  "value": null,
+                  "span": {
+                    "line": 35,
+                    "column": 9
+                  },
+                  "children": [
+                    {
+                      "key": "checkbox",
+                      "value": null,
+                      "span": {
+                        "line": 36,
+                        "column": 13
+                      },
+                      "children": [
+                        {
+                          "key": "event",
+                          "value": null,
+                          "span": {
+                            "line": 37,
+                            "column": 17
+                          },
+                          "children": [
+                            {
+                              "key": "click",
+                              "value": {
+                                "kind": {
+                                  "kind": "source"
+                                },
+                                "span": {
+                                  "line": 38,
+                                  "column": 27
+                                },
+                                "raw": "SOURCE"
+                              },
+                              "span": {
+                                "line": 38,
+                                "column": 21
+                              },
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "key": "remove_button",
+                      "value": null,
+                      "span": {
+                        "line": 39,
+                        "column": 13
+                      },
+                      "children": [
+                        {
+                          "key": "event",
+                          "value": null,
+                          "span": {
+                            "line": 40,
+                            "column": 17
+                          },
+                          "children": [
+                            {
+                              "key": "press",
+                              "value": {
+                                "kind": {
+                                  "kind": "source"
+                                },
+                                "span": {
+                                  "line": 41,
+                                  "column": 27
+                                },
+                                "raw": "SOURCE"
+                              },
+                              "span": {
+                                "line": 41,
+                                "column": 21
+                              },
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "key": "edit_input",
+                      "value": null,
+                      "span": {
+                        "line": 42,
+                        "column": 13
+                      },
+                      "children": [
+                        {
+                          "key": "text",
+                          "value": {
+                            "kind": {
+                              "kind": "source"
+                            },
+                            "span": {
+                              "line": 43,
+                              "column": 22
+                            },
+                            "raw": "SOURCE"
+                          },
+                          "span": {
+                            "line": 43,
+                            "column": 17
+                          },
+                          "children": []
+                        },
+                        {
+                          "key": "event",
+                          "value": null,
+                          "span": {
+                            "line": 44,
+                            "column": 17
+                          },
+                          "children": [
+                            {
+                              "key": "change",
+                              "value": {
+                                "kind": {
+                                  "kind": "source"
+                                },
+                                "span": {
+                                  "line": 45,
+                                  "column": 28
+                                },
+                                "raw": "SOURCE"
+                              },
+                              "span": {
+                                "line": 45,
+                                "column": 21
+                              },
+                              "children": []
+                            },
+                            {
+                              "key": "key_down",
+                              "value": null,
+                              "span": {
+                                "line": 46,
+                                "column": 21
+                              },
+                              "children": [
+                                {
+                                  "key": "key",
+                                  "value": {
+                                    "kind": {
+                                      "kind": "source"
+                                    },
+                                    "span": {
+                                      "line": 47,
+                                      "column": 29
+                                    },
+                                    "raw": "SOURCE"
+                                  },
+                                  "span": {
+                                    "line": 47,
+                                    "column": 25
+                                  },
+                                  "children": []
+                                }
+                              ]
+                            },
+                            {
+                              "key": "blur",
+                              "value": {
+                                "kind": {
+                                  "kind": "source"
+                                },
+                                "span": {
+                                  "line": 48,
+                                  "column": 26
+                                },
+                                "raw": "SOURCE"
+                              },
+                              "span": {
+                                "line": 48,
+                                "column": 21
+                              },
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "key": "title",
+                  "value": {
+                    "kind": {
+                      "kind": "path",
+                      "value": "title"
+                    },
+                    "span": {
+                      "line": 49,
+                      "column": 15
+                    },
+                    "raw": "title"
+                  },
+                  "span": {
+                    "line": 49,
+                    "column": 9
+                  },
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "record",
+          "key": "todos",
+          "value": null,
+          "span": {
+            "line": 53,
+            "column": 1
+          },
+          "children": []
+        },
+        {
+          "kind": "record",
+          "key": "document",
+          "value": null,
+          "span": {
+            "line": 60,
+            "column": 1
+          },
+          "children": [
+            {
+              "key": "root",
+              "value": null,
+              "span": {
+                "line": 62,
+                "column": 9
+              },
+              "children": [
+                {
+                  "key": "children",
+                  "value": null,
+                  "span": {
+                    "line": 64,
+                    "column": 17
+                  },
+                  "children": [
+                    {
+                      "key": "children",
+                      "value": null,
+                      "span": {
+                        "line": 71,
+                        "column": 33
+                      },
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "new_todo",
+          "params": [
+            "title"
+          ],
+          "body": {
+            "kind": {
+              "kind": "record",
+              "entries": [
+                {
+                  "key": "sources",
+                  "value": {
+                    "kind": {
+                      "kind": "raw"
+                    },
+                    "span": {
+                      "line": 33,
+                      "column": 1
+                    },
+                    "raw": ""
+                  },
+                  "span": {
+                    "line": 33,
+                    "column": 1
+                  },
+                  "children": []
+                },
+                {
+                  "key": "checkbox",
+                  "value": {
+                    "kind": {
+                      "kind": "raw"
+                    },
+                    "span": {
+                      "line": 33,
+                      "column": 1
+                    },
+                    "raw": ""
+                  },
+                  "span": {
+                    "line": 33,
+                    "column": 1
+                  },
+                  "children": []
+                },
+                {
+                  "key": "event",
+                  "value": {
+                    "kind": {
+                      "kind": "raw"
+                    },
+                    "span": {
+                      "line": 33,
+                      "column": 1
+                    },
+                    "raw": ""
+                  },
+                  "span": {
+                    "line": 33,
+                    "column": 1
+                  },
+                  "children": []
+                },
+                {
+                  "key": "click",
+                  "value": {
+                    "kind": {
+                      "kind": "source"
+                    },
+                    "span": {
+                      "line": 33,
+                      "column": 1
+                    },
+                    "raw": "SOURCE"
+                  },
+                  "span": {
+                    "line": 33,
+                    "column": 1
+                  },
+                  "children": []
+                },
+                {
+                  "key": "remove_button",
+                  "value": {
+                    "kind": {
+                      "kind": "raw"
+                    },
+                    "span": {
+                      "line": 33,
+                      "column": 1
+                    },
+                    "raw": ""
+                  },
+                  "span": {
+                    "line": 33,
+                    "column": 1
+                  },
+                  "children": []
+                },
+                {
+                  "key": "event",
+                  "value": {
+                    "kind": {
+                      "kind": "raw"
+                    },
+                    "span": {
+                      "line": 33,
+                      "column": 1
+                    },
+                    "raw": ""
+                  },
+                  "span": {
+                    "line": 33,
+                    "column": 1
+                  },
+                  "children": []
+                },
+                {
+                  "key": "press",
+                  "value": {
+                    "kind": {
+                      "kind": "source"
+                    },
+                    "span": {
+                      "line": 33,
+                      "column": 1
+                    },
+                    "raw": "SOURCE"
+                  },
+                  "span": {
+                    "line": 33,
+                    "column": 1
+                  },
+                  "children": []
+                },
+                {
+                  "key": "edit_input",
+                  "value": {
+                    "kind": {
+                      "kind": "raw"
+                    },
+                    "span": {
+                      "line": 33,
+                      "column": 1
+                    },
+                    "raw": ""
+                  },
+                  "span": {
+                    "line": 33,
+                    "column": 1
+                  },
+                  "children": []
+                },
+                {
+                  "key": "text",
+                  "value": {
+                    "kind": {
+                      "kind": "source"
+                    },
+                    "span": {
+                      "line": 33,
+                      "column": 1
+                    },
+                    "raw": "SOURCE"
+                  },
+                  "span": {
+                    "line": 33,
+                    "column": 1
+                  },
+                  "children": []
+                },
+                {
+                  "key": "event",
+                  "value": {
+                    "kind": {
+                      "kind": "raw"
+                    },
+                    "span": {
+                      "line": 33,
+                      "column": 1
+                    },
+                    "raw": ""
+                  },
+                  "span": {
+                    "line": 33,
+                    "column": 1
+                  },
+                  "children": []
+                },
+                {
+                  "key": "change",
+                  "value": {
+                    "kind": {
+                      "kind": "source"
+                    },
+                    "span": {
+                      "line": 33,
+                      "column": 1
+                    },
+                    "raw": "SOURCE"
+                  },
+                  "span": {
+                    "line": 33,
+                    "column": 1
+                  },
+                  "children": []
+                },
+                {
+                  "key": "key_down",
+                  "value": {
+                    "kind": {
+                      "kind": "raw"
+                    },
+                    "span": {
+                      "line": 33,
+                      "column": 1
+                    },
+                    "raw": ""
+                  },
+                  "span": {
+                    "line": 33,
+                    "column": 1
+                  },
+                  "children": []
+                },
+                {
+                  "key": "key",
+                  "value": {
+                    "kind": {
+                      "kind": "source"
+                    },
+                    "span": {
+                      "line": 33,
+                      "column": 1
+                    },
+                    "raw": "SOURCE"
+                  },
+                  "span": {
+                    "line": 33,
+                    "column": 1
+                  },
+                  "children": []
+                },
+                {
+                  "key": "blur",
+                  "value": {
+                    "kind": {
+                      "kind": "source"
+                    },
+                    "span": {
+                      "line": 33,
+                      "column": 1
+                    },
+                    "raw": "SOURCE"
+                  },
+                  "span": {
+                    "line": 33,
+                    "column": 1
+                  },
+                  "children": []
+                },
+                {
+                  "key": "title",
+                  "value": {
+                    "kind": {
+                      "kind": "path",
+                      "value": "title"
+                    },
+                    "span": {
+                      "line": 33,
+                      "column": 1
+                    },
+                    "raw": "title"
+                  },
+                  "span": {
+                    "line": 33,
+                    "column": 1
+                  },
+                  "children": []
+                }
+              ]
+            },
+            "span": {
+              "line": 33,
+              "column": 1
+            },
+            "raw": "[\nsources:\ncheckbox:\nevent:\nclick: SOURCE\nremove_button:\nevent:\npress: SOURCE\nedit_input:\ntext: SOURCE\nevent:\nchange: SOURCE\nkey_down:\nkey: SOURCE\nblur: SOURCE\ntitle: title\n]"
+          },
+          "span": {
+            "line": 33,
+            "column": 1
+          }
+        },
+        {
+          "kind": "expression",
+          "kind": {
+            "kind": "pipeline",
+            "input": {
+              "kind": {
+                "kind": "list",
+                "items": [
+                  {
+                    "kind": {
+                      "kind": "call",
+                      "path": "new_todo",
+                      "args": [
+                        {
+                          "name": "title",
+                          "value": {
+                            "kind": {
+                              "kind": "text",
+                              "value": "Buy groceries"
+                            },
+                            "span": {
+                              "line": 54,
+                              "column": 5
+                            },
+                            "raw": "TEXT { Buy groceries }"
+                          },
+                          "span": {
+                            "line": 54,
+                            "column": 5
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "line": 54,
+                      "column": 5
+                    },
+                    "raw": "new_todo(title: TEXT { Buy groceries })"
+                  },
+                  {
+                    "kind": {
+                      "kind": "call",
+                      "path": "new_todo",
+                      "args": [
+                        {
+                          "name": "title",
+                          "value": {
+                            "kind": {
+                              "kind": "text",
+                              "value": "Clean room"
+                            },
+                            "span": {
+                              "line": 54,
+                              "column": 5
+                            },
+                            "raw": "TEXT { Clean room }"
+                          },
+                          "span": {
+                            "line": 54,
+                            "column": 5
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "line": 54,
+                      "column": 5
+                    },
+                    "raw": "new_todo(title: TEXT { Clean room })"
+                  }
+                ]
+              },
+              "span": {
+                "line": 54,
+                "column": 5
+              },
+              "raw": "LIST {\nnew_todo(title: TEXT { Buy groceries })\nnew_todo(title: TEXT { Clean room })\n}"
+            },
+            "stages": [
+              {
+                "kind": {
+                  "kind": "call",
+                  "path": "List/append",
+                  "args": [
+                    {
+                      "name": "item",
+                      "value": {
+                        "kind": {
+                          "kind": "pipeline",
+                          "input": {
+                            "kind": {
+                              "kind": "path",
+                              "value": "store.sources.new_todo_input.text"
+                            },
+                            "span": {
+                              "line": 54,
+                              "column": 5
+                            },
+                            "raw": "store.sources.new_todo_input.text"
+                          },
+                          "stages": [
+                            {
+                              "kind": {
+                                "kind": "call",
+                                "path": "new_todo",
+                                "args": [
+                                  {
+                                    "name": "title",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "passed"
+                                      },
+                                      "span": {
+                                        "line": 54,
+                                        "column": 5
+                                      },
+                                      "raw": "PASSED"
+                                    },
+                                    "span": {
+                                      "line": 54,
+                                      "column": 5
+                                    }
+                                  }
+                                ]
+                              },
+                              "span": {
+                                "line": 54,
+                                "column": 5
+                              },
+                              "raw": "new_todo(title: PASSED)"
+                            }
+                          ]
+                        },
+                        "span": {
+                          "line": 54,
+                          "column": 5
+                        },
+                        "raw": "store.sources.new_todo_input.text |> new_todo(title: PASSED)"
+                      },
+                      "span": {
+                        "line": 54,
+                        "column": 5
+                      }
+                    }
+                  ]
+                },
+                "span": {
+                  "line": 54,
+                  "column": 5
+                },
+                "raw": "List/append(item: store.sources.new_todo_input.text |> new_todo(title: PASSED))"
+              }
+            ]
+          },
+          "span": {
+            "line": 54,
+            "column": 5
+          },
+          "raw": "LIST {\nnew_todo(title: TEXT { Buy groceries })\nnew_todo(title: TEXT { Clean room })\n}\n|> List/append(item: store.sources.new_todo_input.text |> new_todo(title: PASSED))"
+        },
+        {
+          "kind": "expression",
+          "kind": {
+            "kind": "call",
+            "path": "Document/new",
+            "args": [
+              {
+                "name": "root",
+                "value": {
+                  "kind": {
+                    "kind": "raw"
+                  },
+                  "span": {
+                    "line": 61,
+                    "column": 5
+                  },
+                  "raw": ""
+                },
+                "span": {
+                  "line": 61,
+                  "column": 5
+                }
+              },
+              {
+                "name": "Element/panel(\nchildren",
+                "value": {
+                  "kind": {
+                    "kind": "list",
+                    "items": [
+                      {
+                        "kind": {
+                          "kind": "call",
+                          "path": "Element/text_input",
+                          "args": [
+                            {
+                              "name": "element",
+                              "value": {
+                                "kind": {
+                                  "kind": "path",
+                                  "value": "store.sources.new_todo_input"
+                                },
+                                "span": {
+                                  "line": 61,
+                                  "column": 5
+                                },
+                                "raw": "store.sources.new_todo_input"
+                              },
+                              "span": {
+                                "line": 61,
+                                "column": 5
+                              }
+                            }
+                          ]
+                        },
+                        "span": {
+                          "line": 61,
+                          "column": 5
+                        },
+                        "raw": "Element/text_input(element: store.sources.new_todo_input)"
+                      },
+                      {
+                        "kind": {
+                          "kind": "call",
+                          "path": "Element/checkbox",
+                          "args": [
+                            {
+                              "name": "element",
+                              "value": {
+                                "kind": {
+                                  "kind": "path",
+                                  "value": "store.sources.toggle_all_checkbox"
+                                },
+                                "span": {
+                                  "line": 61,
+                                  "column": 5
+                                },
+                                "raw": "store.sources.toggle_all_checkbox"
+                              },
+                              "span": {
+                                "line": 61,
+                                "column": 5
+                              }
+                            }
+                          ]
+                        },
+                        "span": {
+                          "line": 61,
+                          "column": 5
+                        },
+                        "raw": "Element/checkbox(element: store.sources.toggle_all_checkbox)"
+                      },
+                      {
+                        "kind": {
+                          "kind": "call",
+                          "path": "Element/button",
+                          "args": [
+                            {
+                              "name": "element",
+                              "value": {
+                                "kind": {
+                                  "kind": "path",
+                                  "value": "store.sources.clear_completed_button"
+                                },
+                                "span": {
+                                  "line": 61,
+                                  "column": 5
+                                },
+                                "raw": "store.sources.clear_completed_button"
+                              },
+                              "span": {
+                                "line": 61,
+                                "column": 5
+                              }
+                            }
+                          ]
+                        },
+                        "span": {
+                          "line": 61,
+                          "column": 5
+                        },
+                        "raw": "Element/button(element: store.sources.clear_completed_button)"
+                      },
+                      {
+                        "kind": {
+                          "kind": "pipeline",
+                          "input": {
+                            "kind": {
+                              "kind": "path",
+                              "value": "todos"
+                            },
+                            "span": {
+                              "line": 61,
+                              "column": 5
+                            },
+                            "raw": "todos"
+                          },
+                          "stages": [
+                            {
+                              "kind": {
+                                "kind": "raw"
+                              },
+                              "span": {
+                                "line": 61,
+                                "column": 5
+                              },
+                              "raw": "List/map(item, new:"
+                            }
+                          ]
+                        },
+                        "span": {
+                          "line": 61,
+                          "column": 5
+                        },
+                        "raw": "todos |> List/map(item, new:"
+                      },
+                      {
+                        "kind": {
+                          "kind": "raw"
+                        },
+                        "span": {
+                          "line": 61,
+                          "column": 5
+                        },
+                        "raw": "Element/panel("
+                      },
+                      {
+                        "kind": {
+                          "kind": "raw"
+                        },
+                        "span": {
+                          "line": 61,
+                          "column": 5
+                        },
+                        "raw": "children:"
+                      },
+                      {
+                        "kind": {
+                          "kind": "raw"
+                        },
+                        "span": {
+                          "line": 61,
+                          "column": 5
+                        },
+                        "raw": "LIST {"
+                      },
+                      {
+                        "kind": {
+                          "kind": "call",
+                          "path": "Element/checkbox",
+                          "args": [
+                            {
+                              "name": "element",
+                              "value": {
+                                "kind": {
+                                  "kind": "path",
+                                  "value": "item.sources.checkbox"
+                                },
+                                "span": {
+                                  "line": 61,
+                                  "column": 5
+                                },
+                                "raw": "item.sources.checkbox"
+                              },
+                              "span": {
+                                "line": 61,
+                                "column": 5
+                              }
+                            }
+                          ]
+                        },
+                        "span": {
+                          "line": 61,
+                          "column": 5
+                        },
+                        "raw": "Element/checkbox(element: item.sources.checkbox)"
+                      },
+                      {
+                        "kind": {
+                          "kind": "call",
+                          "path": "Element/button",
+                          "args": [
+                            {
+                              "name": "element",
+                              "value": {
+                                "kind": {
+                                  "kind": "path",
+                                  "value": "item.sources.remove_button"
+                                },
+                                "span": {
+                                  "line": 61,
+                                  "column": 5
+                                },
+                                "raw": "item.sources.remove_button"
+                              },
+                              "span": {
+                                "line": 61,
+                                "column": 5
+                              }
+                            }
+                          ]
+                        },
+                        "span": {
+                          "line": 61,
+                          "column": 5
+                        },
+                        "raw": "Element/button(element: item.sources.remove_button)"
+                      },
+                      {
+                        "kind": {
+                          "kind": "call",
+                          "path": "Element/text_input",
+                          "args": [
+                            {
+                              "name": "element",
+                              "value": {
+                                "kind": {
+                                  "kind": "path",
+                                  "value": "item.sources.edit_input"
+                                },
+                                "span": {
+                                  "line": 61,
+                                  "column": 5
+                                },
+                                "raw": "item.sources.edit_input"
+                              },
+                              "span": {
+                                "line": 61,
+                                "column": 5
+                              }
+                            }
+                          ]
+                        },
+                        "span": {
+                          "line": 61,
+                          "column": 5
+                        },
+                        "raw": "Element/text_input(element: item.sources.edit_input)"
+                      },
+                      {
+                        "kind": {
+                          "kind": "raw"
+                        },
+                        "span": {
+                          "line": 61,
+                          "column": 5
+                        },
+                        "raw": ")"
+                      },
+                      {
+                        "kind": {
+                          "kind": "raw"
+                        },
+                        "span": {
+                          "line": 61,
+                          "column": 5
+                        },
+                        "raw": ")"
+                      }
+                    ]
+                  },
+                  "span": {
+                    "line": 61,
+                    "column": 5
+                  },
+                  "raw": "LIST {\nElement/text_input(element: store.sources.new_todo_input)\nElement/checkbox(element: store.sources.toggle_all_checkbox)\nElement/button(element: store.sources.clear_completed_button)\ntodos |> List/map(item, new:\nElement/panel(\nchildren:\nLIST {\nElement/checkbox(element: item.sources.checkbox)\nElement/button(element: item.sources.remove_button)\nElement/text_input(element: item.sources.edit_input)\n}\n)\n)\n}\n)"
+                },
+                "span": {
+                  "line": 61,
+                  "column": 5
+                }
+              }
+            ]
+          },
+          "span": {
+            "line": 61,
+            "column": 5
+          },
+          "raw": "Document/new(\nroot:\nElement/panel(\nchildren:\nLIST {\nElement/text_input(element: store.sources.new_todo_input)\nElement/checkbox(element: store.sources.toggle_all_checkbox)\nElement/button(element: store.sources.clear_completed_button)\ntodos |> List/map(item, new:\nElement/panel(\nchildren:\nLIST {\nElement/checkbox(element: item.sources.checkbox)\nElement/button(element: item.sources.remove_button)\nElement/text_input(element: item.sources.edit_input)\n}\n)\n)\n}\n)\n)"
+        }
+      ]
+    },
+    "lines": [
+      {
+        "text": "store:",
+        "span": {
+          "line": 1,
+          "column": 1
+        }
+      },
+      {
+        "text": "sources:",
+        "span": {
+          "line": 2,
+          "column": 5
+        }
+      },
+      {
+        "text": "new_todo_input:",
+        "span": {
+          "line": 3,
+          "column": 9
+        }
+      },
+      {
+        "text": "text: SOURCE",
+        "span": {
+          "line": 4,
+          "column": 13
+        }
+      },
+      {
+        "text": "event:",
+        "span": {
+          "line": 5,
+          "column": 13
+        }
+      },
+      {
+        "text": "change: SOURCE",
+        "span": {
+          "line": 6,
+          "column": 17
+        }
+      },
+      {
+        "text": "key_down:",
+        "span": {
+          "line": 7,
+          "column": 17
+        }
+      },
+      {
+        "text": "key: SOURCE",
+        "span": {
+          "line": 8,
+          "column": 21
+        }
+      },
+      {
+        "text": "toggle_all_checkbox:",
+        "span": {
+          "line": 9,
+          "column": 9
+        }
+      },
+      {
+        "text": "event:",
+        "span": {
+          "line": 10,
+          "column": 13
+        }
+      },
+      {
+        "text": "click: SOURCE",
+        "span": {
+          "line": 11,
+          "column": 17
+        }
+      },
+      {
+        "text": "clear_completed_button:",
+        "span": {
+          "line": 12,
+          "column": 9
+        }
+      },
+      {
+        "text": "event:",
+        "span": {
+          "line": 13,
+          "column": 13
+        }
+      },
+      {
+        "text": "press: SOURCE",
+        "span": {
+          "line": 14,
+          "column": 17
+        }
+      },
+      {
+        "text": "view:",
+        "span": {
+          "line": 16,
+          "column": 1
+        }
+      },
+      {
+        "text": "physical_debug: True",
+        "span": {
+          "line": 17,
+          "column": 5
+        }
+      },
+      {
+        "text": "title_line: TEXT { todos }",
+        "span": {
+          "line": 18,
+          "column": 5
+        }
+      },
+      {
+        "text": "entry_hint: TEXT { What needs to be done? }",
+        "span": {
+          "line": 19,
+          "column": 5
+        }
+      },
+      {
+        "text": "count_suffix: TEXT { items left }",
+        "span": {
+          "line": 20,
+          "column": 5
+        }
+      },
+      {
+        "text": "actions:",
+        "span": {
+          "line": 21,
+          "column": 5
+        }
+      },
+      {
+        "text": "mass_mark:",
+        "span": {
+          "line": 22,
+          "column": 9
+        }
+      },
+      {
+        "text": "source: toggle_all_checkbox",
+        "span": {
+          "line": 23,
+          "column": 13
+        }
+      },
+      {
+        "text": "remove_marked:",
+        "span": {
+          "line": 24,
+          "column": 9
+        }
+      },
+      {
+        "text": "source: clear_completed_button",
+        "span": {
+          "line": 25,
+          "column": 13
+        }
+      },
+      {
+        "text": "label: TEXT { Clear completed }",
+        "span": {
+          "line": 26,
+          "column": 13
+        }
+      },
+      {
+        "text": "auxiliary:",
+        "span": {
+          "line": 27,
+          "column": 5
+        }
+      },
+      {
+        "text": "hint: TEXT { Double-click to edit an item }",
+        "span": {
+          "line": 28,
+          "column": 9
+        }
+      },
+      {
+        "text": "author: TEXT { Created by Boon }",
+        "span": {
+          "line": 29,
+          "column": 9
+        }
+      },
+      {
+        "text": "note: TEXT { Part of the classic app examples }",
+        "span": {
+          "line": 30,
+          "column": 9
+        }
+      },
+      {
+        "text": "physical_debug: TEXT { physical debug: depth bounds and source bindings matrix }",
+        "span": {
+          "line": 31,
+          "column": 9
+        }
+      },
+      {
+        "text": "FUNCTION new_todo(title) {",
+        "span": {
+          "line": 33,
+          "column": 1
+        }
+      },
+      {
+        "text": "[",
+        "span": {
+          "line": 34,
+          "column": 5
+        }
+      },
+      {
+        "text": "sources:",
+        "span": {
+          "line": 35,
+          "column": 9
+        }
+      },
+      {
+        "text": "checkbox:",
+        "span": {
+          "line": 36,
+          "column": 13
+        }
+      },
+      {
+        "text": "event:",
+        "span": {
+          "line": 37,
+          "column": 17
+        }
+      },
+      {
+        "text": "click: SOURCE",
+        "span": {
+          "line": 38,
+          "column": 21
+        }
+      },
+      {
+        "text": "remove_button:",
+        "span": {
+          "line": 39,
+          "column": 13
+        }
+      },
+      {
+        "text": "event:",
+        "span": {
+          "line": 40,
+          "column": 17
+        }
+      },
+      {
+        "text": "press: SOURCE",
+        "span": {
+          "line": 41,
+          "column": 21
+        }
+      },
+      {
+        "text": "edit_input:",
+        "span": {
+          "line": 42,
+          "column": 13
+        }
+      },
+      {
+        "text": "text: SOURCE",
+        "span": {
+          "line": 43,
+          "column": 17
+        }
+      },
+      {
+        "text": "event:",
+        "span": {
+          "line": 44,
+          "column": 17
+        }
+      },
+      {
+        "text": "change: SOURCE",
+        "span": {
+          "line": 45,
+          "column": 21
+        }
+      },
+      {
+        "text": "key_down:",
+        "span": {
+          "line": 46,
+          "column": 21
+        }
+      },
+      {
+        "text": "key: SOURCE",
+        "span": {
+          "line": 47,
+          "column": 25
+        }
+      },
+      {
+        "text": "blur: SOURCE",
+        "span": {
+          "line": 48,
+          "column": 21
+        }
+      },
+      {
+        "text": "title: title",
+        "span": {
+          "line": 49,
+          "column": 9
+        }
+      },
+      {
+        "text": "]",
+        "span": {
+          "line": 50,
+          "column": 5
+        }
+      },
+      {
+        "text": "}",
+        "span": {
+          "line": 51,
+          "column": 1
+        }
+      },
+      {
+        "text": "todos:",
+        "span": {
+          "line": 53,
+          "column": 1
+        }
+      },
+      {
+        "text": "LIST {",
+        "span": {
+          "line": 54,
+          "column": 5
+        }
+      },
+      {
+        "text": "new_todo(title: TEXT { Buy groceries })",
+        "span": {
+          "line": 55,
+          "column": 9
+        }
+      },
+      {
+        "text": "new_todo(title: TEXT { Clean room })",
+        "span": {
+          "line": 56,
+          "column": 9
+        }
+      },
+      {
+        "text": "}",
+        "span": {
+          "line": 57,
+          "column": 5
+        }
+      },
+      {
+        "text": "|> List/append(item: store.sources.new_todo_input.text |> new_todo(title: PASSED))",
+        "span": {
+          "line": 58,
+          "column": 5
+        }
+      },
+      {
+        "text": "document:",
+        "span": {
+          "line": 60,
+          "column": 1
+        }
+      },
+      {
+        "text": "Document/new(",
+        "span": {
+          "line": 61,
+          "column": 5
+        }
+      },
+      {
+        "text": "root:",
+        "span": {
+          "line": 62,
+          "column": 9
+        }
+      },
+      {
+        "text": "Element/panel(",
+        "span": {
+          "line": 63,
+          "column": 13
+        }
+      },
+      {
+        "text": "children:",
+        "span": {
+          "line": 64,
+          "column": 17
+        }
+      },
+      {
+        "text": "LIST {",
+        "span": {
+          "line": 65,
+          "column": 21
+        }
+      },
+      {
+        "text": "Element/text_input(element: store.sources.new_todo_input)",
+        "span": {
+          "line": 66,
+          "column": 25
+        }
+      },
+      {
+        "text": "Element/checkbox(element: store.sources.toggle_all_checkbox)",
+        "span": {
+          "line": 67,
+          "column": 25
+        }
+      },
+      {
+        "text": "Element/button(element: store.sources.clear_completed_button)",
+        "span": {
+          "line": 68,
+          "column": 25
+        }
+      },
+      {
+        "text": "todos |> List/map(item, new:",
+        "span": {
+          "line": 69,
+          "column": 25
+        }
+      },
+      {
+        "text": "Element/panel(",
+        "span": {
+          "line": 70,
+          "column": 29
+        }
+      },
+      {
+        "text": "children:",
+        "span": {
+          "line": 71,
+          "column": 33
+        }
+      },
+      {
+        "text": "LIST {",
+        "span": {
+          "line": 72,
+          "column": 37
+        }
+      },
+      {
+        "text": "Element/checkbox(element: item.sources.checkbox)",
+        "span": {
+          "line": 73,
+          "column": 41
+        }
+      },
+      {
+        "text": "Element/button(element: item.sources.remove_button)",
+        "span": {
+          "line": 74,
+          "column": 41
+        }
+      },
+      {
+        "text": "Element/text_input(element: item.sources.edit_input)",
+        "span": {
+          "line": 75,
+          "column": 41
+        }
+      },
+      {
+        "text": "}",
+        "span": {
+          "line": 76,
+          "column": 37
+        }
+      },
+      {
+        "text": ")",
+        "span": {
+          "line": 77,
+          "column": 29
+        }
+      },
+      {
+        "text": ")",
+        "span": {
+          "line": 78,
+          "column": 25
+        }
+      },
+      {
+        "text": "}",
+        "span": {
+          "line": 79,
+          "column": 21
+        }
+      },
+      {
+        "text": ")",
+        "span": {
+          "line": 80,
+          "column": 13
+        }
+      },
+      {
+        "text": ")",
+        "span": {
+          "line": 81,
+          "column": 5
+        }
+      }
+    ],
+    "records": [
+      {
+        "key": "store",
+        "value": null,
+        "span": {
+          "line": 1,
+          "column": 1
+        },
+        "children": [
+          {
+            "key": "sources",
+            "value": null,
+            "span": {
+              "line": 2,
+              "column": 5
+            },
+            "children": [
+              {
+                "key": "new_todo_input",
+                "value": null,
+                "span": {
+                  "line": 3,
+                  "column": 9
+                },
+                "children": [
+                  {
+                    "key": "text",
+                    "value": "SOURCE",
+                    "span": {
+                      "line": 4,
+                      "column": 13
+                    },
+                    "children": []
+                  },
+                  {
+                    "key": "event",
+                    "value": null,
+                    "span": {
+                      "line": 5,
+                      "column": 13
+                    },
+                    "children": [
+                      {
+                        "key": "change",
+                        "value": "SOURCE",
+                        "span": {
+                          "line": 6,
+                          "column": 17
+                        },
+                        "children": []
+                      },
+                      {
+                        "key": "key_down",
+                        "value": null,
+                        "span": {
+                          "line": 7,
+                          "column": 17
+                        },
+                        "children": [
+                          {
+                            "key": "key",
+                            "value": "SOURCE",
+                            "span": {
+                              "line": 8,
+                              "column": 21
+                            },
+                            "children": []
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "key": "toggle_all_checkbox",
+                "value": null,
+                "span": {
+                  "line": 9,
+                  "column": 9
+                },
+                "children": [
+                  {
+                    "key": "event",
+                    "value": null,
+                    "span": {
+                      "line": 10,
+                      "column": 13
+                    },
+                    "children": [
+                      {
+                        "key": "click",
+                        "value": "SOURCE",
+                        "span": {
+                          "line": 11,
+                          "column": 17
+                        },
+                        "children": []
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "key": "clear_completed_button",
+                "value": null,
+                "span": {
+                  "line": 12,
+                  "column": 9
+                },
+                "children": [
+                  {
+                    "key": "event",
+                    "value": null,
+                    "span": {
+                      "line": 13,
+                      "column": 13
+                    },
+                    "children": [
+                      {
+                        "key": "press",
+                        "value": "SOURCE",
+                        "span": {
+                          "line": 14,
+                          "column": 17
+                        },
+                        "children": []
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "view",
+        "value": null,
+        "span": {
+          "line": 16,
+          "column": 1
+        },
+        "children": [
+          {
+            "key": "physical_debug",
+            "value": "True",
+            "span": {
+              "line": 17,
+              "column": 5
+            },
+            "children": []
+          },
+          {
+            "key": "title_line",
+            "value": "TEXT { todos }",
+            "span": {
+              "line": 18,
+              "column": 5
+            },
+            "children": []
+          },
+          {
+            "key": "entry_hint",
+            "value": "TEXT { What needs to be done? }",
+            "span": {
+              "line": 19,
+              "column": 5
+            },
+            "children": []
+          },
+          {
+            "key": "count_suffix",
+            "value": "TEXT { items left }",
+            "span": {
+              "line": 20,
+              "column": 5
+            },
+            "children": []
+          },
+          {
+            "key": "actions",
+            "value": null,
+            "span": {
+              "line": 21,
+              "column": 5
+            },
+            "children": [
+              {
+                "key": "mass_mark",
+                "value": null,
+                "span": {
+                  "line": 22,
+                  "column": 9
+                },
+                "children": [
+                  {
+                    "key": "source",
+                    "value": "toggle_all_checkbox",
+                    "span": {
+                      "line": 23,
+                      "column": 13
+                    },
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "key": "remove_marked",
+                "value": null,
+                "span": {
+                  "line": 24,
+                  "column": 9
+                },
+                "children": [
+                  {
+                    "key": "source",
+                    "value": "clear_completed_button",
+                    "span": {
+                      "line": 25,
+                      "column": 13
+                    },
+                    "children": []
+                  },
+                  {
+                    "key": "label",
+                    "value": "TEXT { Clear completed }",
+                    "span": {
+                      "line": 26,
+                      "column": 13
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "key": "auxiliary",
+            "value": null,
+            "span": {
+              "line": 27,
+              "column": 5
+            },
+            "children": [
+              {
+                "key": "hint",
+                "value": "TEXT { Double-click to edit an item }",
+                "span": {
+                  "line": 28,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "author",
+                "value": "TEXT { Created by Boon }",
+                "span": {
+                  "line": 29,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "note",
+                "value": "TEXT { Part of the classic app examples }",
+                "span": {
+                  "line": 30,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "physical_debug",
+                "value": "TEXT { physical debug: depth bounds and source bindings matrix }",
+                "span": {
+                  "line": 31,
+                  "column": 9
+                },
+                "children": []
+              },
+              {
+                "key": "sources",
+                "value": null,
+                "span": {
+                  "line": 35,
+                  "column": 9
+                },
+                "children": [
+                  {
+                    "key": "checkbox",
+                    "value": null,
+                    "span": {
+                      "line": 36,
+                      "column": 13
+                    },
+                    "children": [
+                      {
+                        "key": "event",
+                        "value": null,
+                        "span": {
+                          "line": 37,
+                          "column": 17
+                        },
+                        "children": [
+                          {
+                            "key": "click",
+                            "value": "SOURCE",
+                            "span": {
+                              "line": 38,
+                              "column": 21
+                            },
+                            "children": []
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "key": "remove_button",
+                    "value": null,
+                    "span": {
+                      "line": 39,
+                      "column": 13
+                    },
+                    "children": [
+                      {
+                        "key": "event",
+                        "value": null,
+                        "span": {
+                          "line": 40,
+                          "column": 17
+                        },
+                        "children": [
+                          {
+                            "key": "press",
+                            "value": "SOURCE",
+                            "span": {
+                              "line": 41,
+                              "column": 21
+                            },
+                            "children": []
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "key": "edit_input",
+                    "value": null,
+                    "span": {
+                      "line": 42,
+                      "column": 13
+                    },
+                    "children": [
+                      {
+                        "key": "text",
+                        "value": "SOURCE",
+                        "span": {
+                          "line": 43,
+                          "column": 17
+                        },
+                        "children": []
+                      },
+                      {
+                        "key": "event",
+                        "value": null,
+                        "span": {
+                          "line": 44,
+                          "column": 17
+                        },
+                        "children": [
+                          {
+                            "key": "change",
+                            "value": "SOURCE",
+                            "span": {
+                              "line": 45,
+                              "column": 21
+                            },
+                            "children": []
+                          },
+                          {
+                            "key": "key_down",
+                            "value": null,
+                            "span": {
+                              "line": 46,
+                              "column": 21
+                            },
+                            "children": [
+                              {
+                                "key": "key",
+                                "value": "SOURCE",
+                                "span": {
+                                  "line": 47,
+                                  "column": 25
+                                },
+                                "children": []
+                              }
+                            ]
+                          },
+                          {
+                            "key": "blur",
+                            "value": "SOURCE",
+                            "span": {
+                              "line": 48,
+                              "column": 21
+                            },
+                            "children": []
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "key": "title",
+                "value": "title",
+                "span": {
+                  "line": 49,
+                  "column": 9
+                },
+                "children": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "todos",
+        "value": null,
+        "span": {
+          "line": 53,
+          "column": 1
+        },
+        "children": []
+      },
+      {
+        "key": "document",
+        "value": null,
+        "span": {
+          "line": 60,
+          "column": 1
+        },
+        "children": [
+          {
+            "key": "root",
+            "value": null,
+            "span": {
+              "line": 62,
+              "column": 9
+            },
+            "children": [
+              {
+                "key": "children",
+                "value": null,
+                "span": {
+                  "line": 64,
+                  "column": 17
+                },
+                "children": [
+                  {
+                    "key": "children",
+                    "value": null,
+                    "span": {
+                      "line": 71,
+                      "column": 33
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "source_leaves": [
+      {
+        "path": "store.sources.new_todo_input.text",
+        "span": {
+          "line": 4,
+          "column": 19
+        }
+      },
+      {
+        "path": "store.sources.new_todo_input.event.change",
+        "span": {
+          "line": 6,
+          "column": 25
+        }
+      },
+      {
+        "path": "store.sources.new_todo_input.event.key_down.key",
+        "span": {
+          "line": 8,
+          "column": 26
+        }
+      },
+      {
+        "path": "store.sources.toggle_all_checkbox.event.click",
+        "span": {
+          "line": 11,
+          "column": 24
+        }
+      },
+      {
+        "path": "store.sources.clear_completed_button.event.press",
+        "span": {
+          "line": 14,
+          "column": 24
+        }
+      },
+      {
+        "path": "sources.checkbox.event.click",
+        "span": {
+          "line": 38,
+          "column": 28
+        }
+      },
+      {
+        "path": "sources.remove_button.event.press",
+        "span": {
+          "line": 41,
+          "column": 28
+        }
+      },
+      {
+        "path": "sources.edit_input.text",
+        "span": {
+          "line": 43,
+          "column": 23
+        }
+      },
+      {
+        "path": "sources.edit_input.event.change",
+        "span": {
+          "line": 45,
+          "column": 29
+        }
+      },
+      {
+        "path": "sources.edit_input.event.key_down.key",
+        "span": {
+          "line": 47,
+          "column": 30
+        }
+      },
+      {
+        "path": "sources.edit_input.event.blur",
+        "span": {
+          "line": 48,
+          "column": 27
+        }
+      }
+    ],
+    "module_calls": [
+      {
+        "path": "List/append",
+        "span": {
+          "line": 58,
+          "column": 8
+        },
+        "args": [
+          {
+            "name": "item",
+            "value": "store.sources.new_todo_input.text",
+            "span": {
+              "line": 58,
+              "column": 2
+            }
+          }
+        ]
+      },
+      {
+        "path": "Document/new",
+        "span": {
+          "line": 61,
+          "column": 5
+        },
+        "args": [
+          {
+            "name": "root",
+            "value": "Element",
+            "span": {
+              "line": 61,
+              "column": 3
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/panel",
+        "span": {
+          "line": 63,
+          "column": 13
+        },
+        "args": [
+          {
+            "name": "children",
+            "value": "LIST",
+            "span": {
+              "line": 63,
+              "column": 3
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/text_input",
+        "span": {
+          "line": 66,
+          "column": 25
+        },
+        "args": [
+          {
+            "name": "element",
+            "value": "store.sources.new_todo_input",
+            "span": {
+              "line": 66,
+              "column": 2
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/checkbox",
+        "span": {
+          "line": 67,
+          "column": 25
+        },
+        "args": [
+          {
+            "name": "element",
+            "value": "store.sources.toggle_all_checkbox",
+            "span": {
+              "line": 67,
+              "column": 2
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/button",
+        "span": {
+          "line": 68,
+          "column": 25
+        },
+        "args": [
+          {
+            "name": "element",
+            "value": "store.sources.clear_completed_button",
+            "span": {
+              "line": 68,
+              "column": 2
+            }
+          }
+        ]
+      },
+      {
+        "path": "List/map",
+        "span": {
+          "line": 69,
+          "column": 34
+        },
+        "args": [
+          {
+            "name": "new",
+            "value": "Element",
+            "span": {
+              "line": 69,
+              "column": 8
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/panel",
+        "span": {
+          "line": 70,
+          "column": 29
+        },
+        "args": [
+          {
+            "name": "children",
+            "value": "LIST",
+            "span": {
+              "line": 70,
+              "column": 3
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/checkbox",
+        "span": {
+          "line": 73,
+          "column": 41
+        },
+        "args": [
+          {
+            "name": "element",
+            "value": "item.sources.checkbox",
+            "span": {
+              "line": 73,
+              "column": 2
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/button",
+        "span": {
+          "line": 74,
+          "column": 41
+        },
+        "args": [
+          {
+            "name": "element",
+            "value": "item.sources.remove_button",
+            "span": {
+              "line": 74,
+              "column": 2
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/text_input",
+        "span": {
+          "line": 75,
+          "column": 41
+        },
+        "args": [
+          {
+            "name": "element",
+            "value": "item.sources.edit_input",
+            "span": {
+              "line": 75,
+              "column": 2
+            }
+          }
+        ]
+      }
+    ],
+    "text_literals": [
+      {
+        "value": "todos",
+        "span": {
+          "line": 18,
+          "column": 13
+        }
+      },
+      {
+        "value": "What needs to be done?",
+        "span": {
+          "line": 19,
+          "column": 13
+        }
+      },
+      {
+        "value": "items left",
+        "span": {
+          "line": 20,
+          "column": 15
+        }
+      },
+      {
+        "value": "Clear completed",
+        "span": {
+          "line": 26,
+          "column": 8
+        }
+      },
+      {
+        "value": "Double-click to edit an item",
+        "span": {
+          "line": 28,
+          "column": 7
+        }
+      },
+      {
+        "value": "Created by Boon",
+        "span": {
+          "line": 29,
+          "column": 9
+        }
+      },
+      {
+        "value": "Part of the classic app examples",
+        "span": {
+          "line": 30,
+          "column": 7
+        }
+      },
+      {
+        "value": "physical debug: depth bounds and source bindings matrix",
+        "span": {
+          "line": 31,
+          "column": 17
+        }
+      },
+      {
+        "value": "Buy groceries",
+        "span": {
+          "line": 55,
+          "column": 17
+        }
+      },
+      {
+        "value": "Clean room",
+        "span": {
+          "line": 56,
+          "column": 17
+        }
+      }
+    ],
+    "state_steps": [],
+    "map_bindings": [
+      {
+        "variable": "item",
+        "collection": "todos",
+        "span": {
+          "line": 69,
+          "column": 19
+        }
+      }
+    ]
+  },
+  "items": [
+    {
+      "kind": "record",
+      "key": "store",
+      "value": null,
+      "span": {
+        "line": 1,
+        "column": 1
+      },
+      "children": [
+        {
+          "key": "sources",
+          "value": null,
+          "span": {
+            "line": 2,
+            "column": 5
+          },
+          "children": [
+            {
+              "key": "new_todo_input",
+              "value": null,
+              "span": {
+                "line": 3,
+                "column": 9
+              },
+              "children": [
+                {
+                  "key": "text",
+                  "value": {
+                    "kind": {
+                      "kind": "source"
+                    },
+                    "span": {
+                      "line": 4,
+                      "column": 18
+                    },
+                    "raw": "SOURCE"
+                  },
+                  "span": {
+                    "line": 4,
+                    "column": 13
+                  },
+                  "children": []
+                },
+                {
+                  "key": "event",
+                  "value": null,
+                  "span": {
+                    "line": 5,
+                    "column": 13
+                  },
+                  "children": [
+                    {
+                      "key": "change",
+                      "value": {
+                        "kind": {
+                          "kind": "source"
+                        },
+                        "span": {
+                          "line": 6,
+                          "column": 24
+                        },
+                        "raw": "SOURCE"
+                      },
+                      "span": {
+                        "line": 6,
+                        "column": 17
+                      },
+                      "children": []
+                    },
+                    {
+                      "key": "key_down",
+                      "value": null,
+                      "span": {
+                        "line": 7,
+                        "column": 17
+                      },
+                      "children": [
+                        {
+                          "key": "key",
+                          "value": {
+                            "kind": {
+                              "kind": "source"
+                            },
+                            "span": {
+                              "line": 8,
+                              "column": 25
+                            },
+                            "raw": "SOURCE"
+                          },
+                          "span": {
+                            "line": 8,
+                            "column": 21
+                          },
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "key": "toggle_all_checkbox",
+              "value": null,
+              "span": {
+                "line": 9,
+                "column": 9
+              },
+              "children": [
+                {
+                  "key": "event",
+                  "value": null,
+                  "span": {
+                    "line": 10,
+                    "column": 13
+                  },
+                  "children": [
+                    {
+                      "key": "click",
+                      "value": {
+                        "kind": {
+                          "kind": "source"
+                        },
+                        "span": {
+                          "line": 11,
+                          "column": 23
+                        },
+                        "raw": "SOURCE"
+                      },
+                      "span": {
+                        "line": 11,
+                        "column": 17
+                      },
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "key": "clear_completed_button",
+              "value": null,
+              "span": {
+                "line": 12,
+                "column": 9
+              },
+              "children": [
+                {
+                  "key": "event",
+                  "value": null,
+                  "span": {
+                    "line": 13,
+                    "column": 13
+                  },
+                  "children": [
+                    {
+                      "key": "press",
+                      "value": {
+                        "kind": {
+                          "kind": "source"
+                        },
+                        "span": {
+                          "line": 14,
+                          "column": 23
+                        },
+                        "raw": "SOURCE"
+                      },
+                      "span": {
+                        "line": 14,
+                        "column": 17
+                      },
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "record",
+      "key": "view",
+      "value": null,
+      "span": {
+        "line": 16,
+        "column": 1
+      },
+      "children": [
+        {
+          "key": "physical_debug",
+          "value": {
+            "kind": {
+              "kind": "literal",
+              "literal": {
+                "kind": "bool",
+                "value": true
+              }
+            },
+            "span": {
+              "line": 17,
+              "column": 20
+            },
+            "raw": "True"
+          },
+          "span": {
+            "line": 17,
+            "column": 5
+          },
+          "children": []
+        },
+        {
+          "key": "title_line",
+          "value": {
+            "kind": {
+              "kind": "literal",
+              "literal": {
+                "kind": "text",
+                "value": "todos"
+              }
+            },
+            "span": {
+              "line": 18,
+              "column": 16
+            },
+            "raw": "TEXT { todos }"
+          },
+          "span": {
+            "line": 18,
+            "column": 5
+          },
+          "children": []
+        },
+        {
+          "key": "entry_hint",
+          "value": {
+            "kind": {
+              "kind": "literal",
+              "literal": {
+                "kind": "text",
+                "value": "What needs to be done?"
+              }
+            },
+            "span": {
+              "line": 19,
+              "column": 16
+            },
+            "raw": "TEXT { What needs to be done? }"
+          },
+          "span": {
+            "line": 19,
+            "column": 5
+          },
+          "children": []
+        },
+        {
+          "key": "count_suffix",
+          "value": {
+            "kind": {
+              "kind": "literal",
+              "literal": {
+                "kind": "text",
+                "value": "items left"
+              }
+            },
+            "span": {
+              "line": 20,
+              "column": 18
+            },
+            "raw": "TEXT { items left }"
+          },
+          "span": {
+            "line": 20,
+            "column": 5
+          },
+          "children": []
+        },
+        {
+          "key": "actions",
+          "value": null,
+          "span": {
+            "line": 21,
+            "column": 5
+          },
+          "children": [
+            {
+              "key": "mass_mark",
+              "value": null,
+              "span": {
+                "line": 22,
+                "column": 9
+              },
+              "children": [
+                {
+                  "key": "source",
+                  "value": {
+                    "kind": {
+                      "kind": "path",
+                      "value": "toggle_all_checkbox"
+                    },
+                    "span": {
+                      "line": 23,
+                      "column": 20
+                    },
+                    "raw": "toggle_all_checkbox"
+                  },
+                  "span": {
+                    "line": 23,
+                    "column": 13
+                  },
+                  "children": []
+                }
+              ]
+            },
+            {
+              "key": "remove_marked",
+              "value": null,
+              "span": {
+                "line": 24,
+                "column": 9
+              },
+              "children": [
+                {
+                  "key": "source",
+                  "value": {
+                    "kind": {
+                      "kind": "path",
+                      "value": "clear_completed_button"
+                    },
+                    "span": {
+                      "line": 25,
+                      "column": 20
+                    },
+                    "raw": "clear_completed_button"
+                  },
+                  "span": {
+                    "line": 25,
+                    "column": 13
+                  },
+                  "children": []
+                },
+                {
+                  "key": "label",
+                  "value": {
+                    "kind": {
+                      "kind": "literal",
+                      "literal": {
+                        "kind": "text",
+                        "value": "Clear completed"
+                      }
+                    },
+                    "span": {
+                      "line": 26,
+                      "column": 19
+                    },
+                    "raw": "TEXT { Clear completed }"
+                  },
+                  "span": {
+                    "line": 26,
+                    "column": 13
+                  },
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "auxiliary",
+          "value": null,
+          "span": {
+            "line": 27,
+            "column": 5
+          },
+          "children": [
+            {
+              "key": "hint",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "text",
+                    "value": "Double-click to edit an item"
+                  }
+                },
+                "span": {
+                  "line": 28,
+                  "column": 14
+                },
+                "raw": "TEXT { Double-click to edit an item }"
+              },
+              "span": {
+                "line": 28,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "author",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "text",
+                    "value": "Created by Boon"
+                  }
+                },
+                "span": {
+                  "line": 29,
+                  "column": 16
+                },
+                "raw": "TEXT { Created by Boon }"
+              },
+              "span": {
+                "line": 29,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "note",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "text",
+                    "value": "Part of the classic app examples"
+                  }
+                },
+                "span": {
+                  "line": 30,
+                  "column": 14
+                },
+                "raw": "TEXT { Part of the classic app examples }"
+              },
+              "span": {
+                "line": 30,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "physical_debug",
+              "value": {
+                "kind": {
+                  "kind": "literal",
+                  "literal": {
+                    "kind": "text",
+                    "value": "physical debug: depth bounds and source bindings matrix"
+                  }
+                },
+                "span": {
+                  "line": 31,
+                  "column": 24
+                },
+                "raw": "TEXT { physical debug: depth bounds and source bindings matrix }"
+              },
+              "span": {
+                "line": 31,
+                "column": 9
+              },
+              "children": []
+            },
+            {
+              "key": "sources",
+              "value": null,
+              "span": {
+                "line": 35,
+                "column": 9
+              },
+              "children": [
+                {
+                  "key": "checkbox",
+                  "value": null,
+                  "span": {
+                    "line": 36,
+                    "column": 13
+                  },
+                  "children": [
+                    {
+                      "key": "event",
+                      "value": null,
+                      "span": {
+                        "line": 37,
+                        "column": 17
+                      },
+                      "children": [
+                        {
+                          "key": "click",
+                          "value": {
+                            "kind": {
+                              "kind": "source"
+                            },
+                            "span": {
+                              "line": 38,
+                              "column": 27
+                            },
+                            "raw": "SOURCE"
+                          },
+                          "span": {
+                            "line": 38,
+                            "column": 21
+                          },
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "key": "remove_button",
+                  "value": null,
+                  "span": {
+                    "line": 39,
+                    "column": 13
+                  },
+                  "children": [
+                    {
+                      "key": "event",
+                      "value": null,
+                      "span": {
+                        "line": 40,
+                        "column": 17
+                      },
+                      "children": [
+                        {
+                          "key": "press",
+                          "value": {
+                            "kind": {
+                              "kind": "source"
+                            },
+                            "span": {
+                              "line": 41,
+                              "column": 27
+                            },
+                            "raw": "SOURCE"
+                          },
+                          "span": {
+                            "line": 41,
+                            "column": 21
+                          },
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "key": "edit_input",
+                  "value": null,
+                  "span": {
+                    "line": 42,
+                    "column": 13
+                  },
+                  "children": [
+                    {
+                      "key": "text",
+                      "value": {
+                        "kind": {
+                          "kind": "source"
+                        },
+                        "span": {
+                          "line": 43,
+                          "column": 22
+                        },
+                        "raw": "SOURCE"
+                      },
+                      "span": {
+                        "line": 43,
+                        "column": 17
+                      },
+                      "children": []
+                    },
+                    {
+                      "key": "event",
+                      "value": null,
+                      "span": {
+                        "line": 44,
+                        "column": 17
+                      },
+                      "children": [
+                        {
+                          "key": "change",
+                          "value": {
+                            "kind": {
+                              "kind": "source"
+                            },
+                            "span": {
+                              "line": 45,
+                              "column": 28
+                            },
+                            "raw": "SOURCE"
+                          },
+                          "span": {
+                            "line": 45,
+                            "column": 21
+                          },
+                          "children": []
+                        },
+                        {
+                          "key": "key_down",
+                          "value": null,
+                          "span": {
+                            "line": 46,
+                            "column": 21
+                          },
+                          "children": [
+                            {
+                              "key": "key",
+                              "value": {
+                                "kind": {
+                                  "kind": "source"
+                                },
+                                "span": {
+                                  "line": 47,
+                                  "column": 29
+                                },
+                                "raw": "SOURCE"
+                              },
+                              "span": {
+                                "line": 47,
+                                "column": 25
+                              },
+                              "children": []
+                            }
+                          ]
+                        },
+                        {
+                          "key": "blur",
+                          "value": {
+                            "kind": {
+                              "kind": "source"
+                            },
+                            "span": {
+                              "line": 48,
+                              "column": 26
+                            },
+                            "raw": "SOURCE"
+                          },
+                          "span": {
+                            "line": 48,
+                            "column": 21
+                          },
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "key": "title",
+              "value": {
+                "kind": {
+                  "kind": "path",
+                  "value": "title"
+                },
+                "span": {
+                  "line": 49,
+                  "column": 15
+                },
+                "raw": "title"
+              },
+              "span": {
+                "line": 49,
+                "column": 9
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "record",
+      "key": "todos",
+      "value": null,
+      "span": {
+        "line": 53,
+        "column": 1
+      },
+      "children": []
+    },
+    {
+      "kind": "record",
+      "key": "document",
+      "value": null,
+      "span": {
+        "line": 60,
+        "column": 1
+      },
+      "children": [
+        {
+          "key": "root",
+          "value": null,
+          "span": {
+            "line": 62,
+            "column": 9
+          },
+          "children": [
+            {
+              "key": "children",
+              "value": null,
+              "span": {
+                "line": 64,
+                "column": 17
+              },
+              "children": [
+                {
+                  "key": "children",
+                  "value": null,
+                  "span": {
+                    "line": 71,
+                    "column": 33
+                  },
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "function",
+      "name": "new_todo",
+      "params": [
+        "title"
+      ],
+      "body": {
+        "kind": {
+          "kind": "record",
+          "entries": [
+            {
+              "key": "sources",
+              "value": {
+                "kind": {
+                  "kind": "unsupported",
+                  "reason": "raw syntax not yet lowered"
+                },
+                "span": {
+                  "line": 33,
+                  "column": 1
+                },
+                "raw": ""
+              },
+              "span": {
+                "line": 33,
+                "column": 1
+              },
+              "children": []
+            },
+            {
+              "key": "checkbox",
+              "value": {
+                "kind": {
+                  "kind": "unsupported",
+                  "reason": "raw syntax not yet lowered"
+                },
+                "span": {
+                  "line": 33,
+                  "column": 1
+                },
+                "raw": ""
+              },
+              "span": {
+                "line": 33,
+                "column": 1
+              },
+              "children": []
+            },
+            {
+              "key": "event",
+              "value": {
+                "kind": {
+                  "kind": "unsupported",
+                  "reason": "raw syntax not yet lowered"
+                },
+                "span": {
+                  "line": 33,
+                  "column": 1
+                },
+                "raw": ""
+              },
+              "span": {
+                "line": 33,
+                "column": 1
+              },
+              "children": []
+            },
+            {
+              "key": "click",
+              "value": {
+                "kind": {
+                  "kind": "source"
+                },
+                "span": {
+                  "line": 33,
+                  "column": 1
+                },
+                "raw": "SOURCE"
+              },
+              "span": {
+                "line": 33,
+                "column": 1
+              },
+              "children": []
+            },
+            {
+              "key": "remove_button",
+              "value": {
+                "kind": {
+                  "kind": "unsupported",
+                  "reason": "raw syntax not yet lowered"
+                },
+                "span": {
+                  "line": 33,
+                  "column": 1
+                },
+                "raw": ""
+              },
+              "span": {
+                "line": 33,
+                "column": 1
+              },
+              "children": []
+            },
+            {
+              "key": "event",
+              "value": {
+                "kind": {
+                  "kind": "unsupported",
+                  "reason": "raw syntax not yet lowered"
+                },
+                "span": {
+                  "line": 33,
+                  "column": 1
+                },
+                "raw": ""
+              },
+              "span": {
+                "line": 33,
+                "column": 1
+              },
+              "children": []
+            },
+            {
+              "key": "press",
+              "value": {
+                "kind": {
+                  "kind": "source"
+                },
+                "span": {
+                  "line": 33,
+                  "column": 1
+                },
+                "raw": "SOURCE"
+              },
+              "span": {
+                "line": 33,
+                "column": 1
+              },
+              "children": []
+            },
+            {
+              "key": "edit_input",
+              "value": {
+                "kind": {
+                  "kind": "unsupported",
+                  "reason": "raw syntax not yet lowered"
+                },
+                "span": {
+                  "line": 33,
+                  "column": 1
+                },
+                "raw": ""
+              },
+              "span": {
+                "line": 33,
+                "column": 1
+              },
+              "children": []
+            },
+            {
+              "key": "text",
+              "value": {
+                "kind": {
+                  "kind": "source"
+                },
+                "span": {
+                  "line": 33,
+                  "column": 1
+                },
+                "raw": "SOURCE"
+              },
+              "span": {
+                "line": 33,
+                "column": 1
+              },
+              "children": []
+            },
+            {
+              "key": "event",
+              "value": {
+                "kind": {
+                  "kind": "unsupported",
+                  "reason": "raw syntax not yet lowered"
+                },
+                "span": {
+                  "line": 33,
+                  "column": 1
+                },
+                "raw": ""
+              },
+              "span": {
+                "line": 33,
+                "column": 1
+              },
+              "children": []
+            },
+            {
+              "key": "change",
+              "value": {
+                "kind": {
+                  "kind": "source"
+                },
+                "span": {
+                  "line": 33,
+                  "column": 1
+                },
+                "raw": "SOURCE"
+              },
+              "span": {
+                "line": 33,
+                "column": 1
+              },
+              "children": []
+            },
+            {
+              "key": "key_down",
+              "value": {
+                "kind": {
+                  "kind": "unsupported",
+                  "reason": "raw syntax not yet lowered"
+                },
+                "span": {
+                  "line": 33,
+                  "column": 1
+                },
+                "raw": ""
+              },
+              "span": {
+                "line": 33,
+                "column": 1
+              },
+              "children": []
+            },
+            {
+              "key": "key",
+              "value": {
+                "kind": {
+                  "kind": "source"
+                },
+                "span": {
+                  "line": 33,
+                  "column": 1
+                },
+                "raw": "SOURCE"
+              },
+              "span": {
+                "line": 33,
+                "column": 1
+              },
+              "children": []
+            },
+            {
+              "key": "blur",
+              "value": {
+                "kind": {
+                  "kind": "source"
+                },
+                "span": {
+                  "line": 33,
+                  "column": 1
+                },
+                "raw": "SOURCE"
+              },
+              "span": {
+                "line": 33,
+                "column": 1
+              },
+              "children": []
+            },
+            {
+              "key": "title",
+              "value": {
+                "kind": {
+                  "kind": "path",
+                  "value": "title"
+                },
+                "span": {
+                  "line": 33,
+                  "column": 1
+                },
+                "raw": "title"
+              },
+              "span": {
+                "line": 33,
+                "column": 1
+              },
+              "children": []
+            }
+          ]
+        },
+        "span": {
+          "line": 33,
+          "column": 1
+        },
+        "raw": "[\nsources:\ncheckbox:\nevent:\nclick: SOURCE\nremove_button:\nevent:\npress: SOURCE\nedit_input:\ntext: SOURCE\nevent:\nchange: SOURCE\nkey_down:\nkey: SOURCE\nblur: SOURCE\ntitle: title\n]"
+      },
+      "span": {
+        "line": 33,
+        "column": 1
+      }
+    },
+    {
+      "kind": "expression",
+      "kind": {
+        "kind": "pipeline",
+        "input": {
+          "kind": {
+            "kind": "list",
+            "items": [
+              {
+                "kind": {
+                  "kind": "function_call",
+                  "path": "new_todo",
+                  "args": [
+                    {
+                      "name": "title",
+                      "value": {
+                        "kind": {
+                          "kind": "literal",
+                          "literal": {
+                            "kind": "text",
+                            "value": "Buy groceries"
+                          }
+                        },
+                        "span": {
+                          "line": 54,
+                          "column": 5
+                        },
+                        "raw": "TEXT { Buy groceries }"
+                      },
+                      "span": {
+                        "line": 54,
+                        "column": 5
+                      }
+                    }
+                  ]
+                },
+                "span": {
+                  "line": 54,
+                  "column": 5
+                },
+                "raw": "new_todo(title: TEXT { Buy groceries })"
+              },
+              {
+                "kind": {
+                  "kind": "function_call",
+                  "path": "new_todo",
+                  "args": [
+                    {
+                      "name": "title",
+                      "value": {
+                        "kind": {
+                          "kind": "literal",
+                          "literal": {
+                            "kind": "text",
+                            "value": "Clean room"
+                          }
+                        },
+                        "span": {
+                          "line": 54,
+                          "column": 5
+                        },
+                        "raw": "TEXT { Clean room }"
+                      },
+                      "span": {
+                        "line": 54,
+                        "column": 5
+                      }
+                    }
+                  ]
+                },
+                "span": {
+                  "line": 54,
+                  "column": 5
+                },
+                "raw": "new_todo(title: TEXT { Clean room })"
+              }
+            ]
+          },
+          "span": {
+            "line": 54,
+            "column": 5
+          },
+          "raw": "LIST {\nnew_todo(title: TEXT { Buy groceries })\nnew_todo(title: TEXT { Clean room })\n}"
+        },
+        "stages": [
+          {
+            "kind": {
+              "kind": "list_call",
+              "op": "append",
+              "args": [
+                {
+                  "name": "item",
+                  "value": {
+                    "kind": {
+                      "kind": "pipeline",
+                      "input": {
+                        "kind": {
+                          "kind": "path",
+                          "value": "store.sources.new_todo_input.text"
+                        },
+                        "span": {
+                          "line": 54,
+                          "column": 5
+                        },
+                        "raw": "store.sources.new_todo_input.text"
+                      },
+                      "stages": [
+                        {
+                          "kind": {
+                            "kind": "function_call",
+                            "path": "new_todo",
+                            "args": [
+                              {
+                                "name": "title",
+                                "value": {
+                                  "kind": {
+                                    "kind": "passed"
+                                  },
+                                  "span": {
+                                    "line": 54,
+                                    "column": 5
+                                  },
+                                  "raw": "PASSED"
+                                },
+                                "span": {
+                                  "line": 54,
+                                  "column": 5
+                                }
+                              }
+                            ]
+                          },
+                          "span": {
+                            "line": 54,
+                            "column": 5
+                          },
+                          "raw": "new_todo(title: PASSED)"
+                        }
+                      ]
+                    },
+                    "span": {
+                      "line": 54,
+                      "column": 5
+                    },
+                    "raw": "store.sources.new_todo_input.text |> new_todo(title: PASSED)"
+                  },
+                  "span": {
+                    "line": 54,
+                    "column": 5
+                  }
+                }
+              ]
+            },
+            "span": {
+              "line": 54,
+              "column": 5
+            },
+            "raw": "List/append(item: store.sources.new_todo_input.text |> new_todo(title: PASSED))"
+          }
+        ]
+      },
+      "span": {
+        "line": 54,
+        "column": 5
+      },
+      "raw": "LIST {\nnew_todo(title: TEXT { Buy groceries })\nnew_todo(title: TEXT { Clean room })\n}\n|> List/append(item: store.sources.new_todo_input.text |> new_todo(title: PASSED))"
+    },
+    {
+      "kind": "expression",
+      "kind": {
+        "kind": "host_call",
+        "path": "Document/new",
+        "args": [
+          {
+            "name": "root",
+            "value": {
+              "kind": {
+                "kind": "unsupported",
+                "reason": "raw syntax not yet lowered"
+              },
+              "span": {
+                "line": 61,
+                "column": 5
+              },
+              "raw": ""
+            },
+            "span": {
+              "line": 61,
+              "column": 5
+            }
+          },
+          {
+            "name": "Element/panel(\nchildren",
+            "value": {
+              "kind": {
+                "kind": "list",
+                "items": [
+                  {
+                    "kind": {
+                      "kind": "host_call",
+                      "path": "Element/text_input",
+                      "args": [
+                        {
+                          "name": "element",
+                          "value": {
+                            "kind": {
+                              "kind": "path",
+                              "value": "store.sources.new_todo_input"
+                            },
+                            "span": {
+                              "line": 61,
+                              "column": 5
+                            },
+                            "raw": "store.sources.new_todo_input"
+                          },
+                          "span": {
+                            "line": 61,
+                            "column": 5
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "line": 61,
+                      "column": 5
+                    },
+                    "raw": "Element/text_input(element: store.sources.new_todo_input)"
+                  },
+                  {
+                    "kind": {
+                      "kind": "host_call",
+                      "path": "Element/checkbox",
+                      "args": [
+                        {
+                          "name": "element",
+                          "value": {
+                            "kind": {
+                              "kind": "path",
+                              "value": "store.sources.toggle_all_checkbox"
+                            },
+                            "span": {
+                              "line": 61,
+                              "column": 5
+                            },
+                            "raw": "store.sources.toggle_all_checkbox"
+                          },
+                          "span": {
+                            "line": 61,
+                            "column": 5
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "line": 61,
+                      "column": 5
+                    },
+                    "raw": "Element/checkbox(element: store.sources.toggle_all_checkbox)"
+                  },
+                  {
+                    "kind": {
+                      "kind": "host_call",
+                      "path": "Element/button",
+                      "args": [
+                        {
+                          "name": "element",
+                          "value": {
+                            "kind": {
+                              "kind": "path",
+                              "value": "store.sources.clear_completed_button"
+                            },
+                            "span": {
+                              "line": 61,
+                              "column": 5
+                            },
+                            "raw": "store.sources.clear_completed_button"
+                          },
+                          "span": {
+                            "line": 61,
+                            "column": 5
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "line": 61,
+                      "column": 5
+                    },
+                    "raw": "Element/button(element: store.sources.clear_completed_button)"
+                  },
+                  {
+                    "kind": {
+                      "kind": "pipeline",
+                      "input": {
+                        "kind": {
+                          "kind": "path",
+                          "value": "todos"
+                        },
+                        "span": {
+                          "line": 61,
+                          "column": 5
+                        },
+                        "raw": "todos"
+                      },
+                      "stages": [
+                        {
+                          "kind": {
+                            "kind": "unsupported",
+                            "reason": "raw syntax not yet lowered"
+                          },
+                          "span": {
+                            "line": 61,
+                            "column": 5
+                          },
+                          "raw": "List/map(item, new:"
+                        }
+                      ]
+                    },
+                    "span": {
+                      "line": 61,
+                      "column": 5
+                    },
+                    "raw": "todos |> List/map(item, new:"
+                  },
+                  {
+                    "kind": {
+                      "kind": "unsupported",
+                      "reason": "raw syntax not yet lowered"
+                    },
+                    "span": {
+                      "line": 61,
+                      "column": 5
+                    },
+                    "raw": "Element/panel("
+                  },
+                  {
+                    "kind": {
+                      "kind": "unsupported",
+                      "reason": "raw syntax not yet lowered"
+                    },
+                    "span": {
+                      "line": 61,
+                      "column": 5
+                    },
+                    "raw": "children:"
+                  },
+                  {
+                    "kind": {
+                      "kind": "unsupported",
+                      "reason": "raw syntax not yet lowered"
+                    },
+                    "span": {
+                      "line": 61,
+                      "column": 5
+                    },
+                    "raw": "LIST {"
+                  },
+                  {
+                    "kind": {
+                      "kind": "host_call",
+                      "path": "Element/checkbox",
+                      "args": [
+                        {
+                          "name": "element",
+                          "value": {
+                            "kind": {
+                              "kind": "path",
+                              "value": "item.sources.checkbox"
+                            },
+                            "span": {
+                              "line": 61,
+                              "column": 5
+                            },
+                            "raw": "item.sources.checkbox"
+                          },
+                          "span": {
+                            "line": 61,
+                            "column": 5
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "line": 61,
+                      "column": 5
+                    },
+                    "raw": "Element/checkbox(element: item.sources.checkbox)"
+                  },
+                  {
+                    "kind": {
+                      "kind": "host_call",
+                      "path": "Element/button",
+                      "args": [
+                        {
+                          "name": "element",
+                          "value": {
+                            "kind": {
+                              "kind": "path",
+                              "value": "item.sources.remove_button"
+                            },
+                            "span": {
+                              "line": 61,
+                              "column": 5
+                            },
+                            "raw": "item.sources.remove_button"
+                          },
+                          "span": {
+                            "line": 61,
+                            "column": 5
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "line": 61,
+                      "column": 5
+                    },
+                    "raw": "Element/button(element: item.sources.remove_button)"
+                  },
+                  {
+                    "kind": {
+                      "kind": "host_call",
+                      "path": "Element/text_input",
+                      "args": [
+                        {
+                          "name": "element",
+                          "value": {
+                            "kind": {
+                              "kind": "path",
+                              "value": "item.sources.edit_input"
+                            },
+                            "span": {
+                              "line": 61,
+                              "column": 5
+                            },
+                            "raw": "item.sources.edit_input"
+                          },
+                          "span": {
+                            "line": 61,
+                            "column": 5
+                          }
+                        }
+                      ]
+                    },
+                    "span": {
+                      "line": 61,
+                      "column": 5
+                    },
+                    "raw": "Element/text_input(element: item.sources.edit_input)"
+                  },
+                  {
+                    "kind": {
+                      "kind": "unsupported",
+                      "reason": "raw syntax not yet lowered"
+                    },
+                    "span": {
+                      "line": 61,
+                      "column": 5
+                    },
+                    "raw": ")"
+                  },
+                  {
+                    "kind": {
+                      "kind": "unsupported",
+                      "reason": "raw syntax not yet lowered"
+                    },
+                    "span": {
+                      "line": 61,
+                      "column": 5
+                    },
+                    "raw": ")"
+                  }
+                ]
+              },
+              "span": {
+                "line": 61,
+                "column": 5
+              },
+              "raw": "LIST {\nElement/text_input(element: store.sources.new_todo_input)\nElement/checkbox(element: store.sources.toggle_all_checkbox)\nElement/button(element: store.sources.clear_completed_button)\ntodos |> List/map(item, new:\nElement/panel(\nchildren:\nLIST {\nElement/checkbox(element: item.sources.checkbox)\nElement/button(element: item.sources.remove_button)\nElement/text_input(element: item.sources.edit_input)\n}\n)\n)\n}\n)"
+            },
+            "span": {
+              "line": 61,
+              "column": 5
+            }
+          }
+        ]
+      },
+      "span": {
+        "line": 61,
+        "column": 5
+      },
+      "raw": "Document/new(\nroot:\nElement/panel(\nchildren:\nLIST {\nElement/text_input(element: store.sources.new_todo_input)\nElement/checkbox(element: store.sources.toggle_all_checkbox)\nElement/button(element: store.sources.clear_completed_button)\ntodos |> List/map(item, new:\nElement/panel(\nchildren:\nLIST {\nElement/checkbox(element: item.sources.checkbox)\nElement/button(element: item.sources.remove_button)\nElement/text_input(element: item.sources.edit_input)\n}\n)\n)\n}\n)\n)"
+    }
+  ],
+  "features": [
+    "source",
+    "list_literal",
+    "list_append",
+    "host_element",
+    "host_document",
+    "function_definition",
+    "function_call",
+    "pipeline",
+    "render_expression"
+  ],
+  "dependencies": [
+    {
+      "from": "source",
+      "to": "toggle_all_checkbox",
+      "span": {
+        "line": 23,
+        "column": 20
+      }
+    },
+    {
+      "from": "source",
+      "to": "clear_completed_button",
+      "span": {
+        "line": 25,
+        "column": 20
+      }
+    },
+    {
+      "from": "title",
+      "to": "title",
+      "span": {
+        "line": 49,
+        "column": 15
+      }
+    },
+    {
+      "from": "title",
+      "to": "title",
+      "span": {
+        "line": 33,
+        "column": 1
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "span": {
+        "line": 33,
+        "column": 1
+      },
+      "message": "expression kept as raw syntax: "
+    },
+    {
+      "span": {
+        "line": 33,
+        "column": 1
+      },
+      "message": "expression kept as raw syntax: "
+    },
+    {
+      "span": {
+        "line": 33,
+        "column": 1
+      },
+      "message": "expression kept as raw syntax: "
+    },
+    {
+      "span": {
+        "line": 33,
+        "column": 1
+      },
+      "message": "expression kept as raw syntax: "
+    },
+    {
+      "span": {
+        "line": 33,
+        "column": 1
+      },
+      "message": "expression kept as raw syntax: "
+    },
+    {
+      "span": {
+        "line": 33,
+        "column": 1
+      },
+      "message": "expression kept as raw syntax: "
+    },
+    {
+      "span": {
+        "line": 33,
+        "column": 1
+      },
+      "message": "expression kept as raw syntax: "
+    },
+    {
+      "span": {
+        "line": 33,
+        "column": 1
+      },
+      "message": "expression kept as raw syntax: "
+    },
+    {
+      "span": {
+        "line": 61,
+        "column": 5
+      },
+      "message": "expression kept as raw syntax: "
+    },
+    {
+      "span": {
+        "line": 61,
+        "column": 5
+      },
+      "message": "expression kept as raw syntax: List/map(item, new:"
+    },
+    {
+      "span": {
+        "line": 61,
+        "column": 5
+      },
+      "message": "expression kept as raw syntax: Element/panel("
+    },
+    {
+      "span": {
+        "line": 61,
+        "column": 5
+      },
+      "message": "expression kept as raw syntax: children:"
+    },
+    {
+      "span": {
+        "line": 61,
+        "column": 5
+      },
+      "message": "expression kept as raw syntax: LIST {"
+    },
+    {
+      "span": {
+        "line": 61,
+        "column": 5
+      },
+      "message": "expression kept as raw syntax: )"
+    },
+    {
+      "span": {
+        "line": 61,
+        "column": 5
+      },
+      "message": "expression kept as raw syntax: )"
+    }
+  ]
+}
