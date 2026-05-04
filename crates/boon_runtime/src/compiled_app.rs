@@ -5,8 +5,8 @@ use crate::{
 use anyhow::{Context, Result, bail};
 use boon_compiler::{
     AppIr, ExecEffect, ExecExpr, ExecutableIr, IrAppMetadata, IrCollectionPredicate,
-    IrCollectionValueExpr, IrEffect, IrPredicate, IrStaticField, IrStaticRecord, IrStaticValue,
-    IrValueExpr,
+    IrCollectionValueExpr, IrEffect, IrPredicate, IrRenderBounds, IrRenderNumber, IrStaticField,
+    IrStaticRecord, IrStaticValue, IrValueExpr,
 };
 use boon_render_ir::{
     DrawCommand, FrameScene, HitTarget, HitTargetAction, HostPatch, NodeId, NodeKind,
@@ -309,14 +309,6 @@ fn is_static(entry: &SourceEntry) -> bool {
     matches!(&entry.owner, SourceOwner::Static)
 }
 
-fn first_static_source_path_matching(inventory: &SourceInventory, suffix: &str) -> Option<String> {
-    inventory
-        .entries
-        .iter()
-        .find(|entry| is_static(entry) && entry.path.ends_with(suffix))
-        .map(|entry| entry.path.clone())
-}
-
 fn source_shape_is_tick(inventory: &SourceInventory, path: &str) -> bool {
     inventory
         .entries
@@ -577,6 +569,14 @@ struct RuntimeDynamicValue {
     generation: u32,
     fields: BTreeMap<String, Value>,
     focus: BTreeMap<String, bool>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct RenderBounds {
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
 }
 
 impl RuntimeDynamicValue {
@@ -1095,11 +1095,12 @@ impl CompiledApp {
                 .eval_exec_number_with_state(left, event, state)?
                 - self.eval_exec_number_with_state(right, event, state)?),
             ExecExpr::Call { path, args } => self.eval_exec_number_call(path, args, event, state),
-            ExecExpr::When { arms } => {
-                let Some(arm) = arms.iter().find(|arm| match &event.value {
-                    SourceValue::Tag(value) => arm.pattern == *value || arm.pattern == "__",
-                    _ => arm.pattern == "__",
-                }) else {
+            ExecExpr::When { input, arms } => {
+                let pattern = self.eval_exec_pattern_with_state(input.as_deref(), event, state)?;
+                let Some(arm) = arms
+                    .iter()
+                    .find(|arm| arm.pattern == pattern || arm.pattern == "__")
+                else {
                     bail!("executable WHEN did not contain a matching arm")
                 };
                 self.eval_exec_number_with_state(&arm.value, event, state)
@@ -1113,6 +1114,58 @@ impl CompiledApp {
         }
     }
 
+    fn eval_exec_bool_with_state(
+        &self,
+        expr: &ExecExpr,
+        event: &SourceEmission,
+        state: &BTreeMap<String, i64>,
+    ) -> Result<bool> {
+        match expr {
+            ExecExpr::Bool { value } => Ok(*value),
+            ExecExpr::Equal { left, right } => Ok(self
+                .eval_exec_number_with_state(left, event, state)
+                .ok()
+                .zip(self.eval_exec_number_with_state(right, event, state).ok())
+                .is_some_and(|(left, right)| left == right)),
+            ExecExpr::Call { path, args } => self.eval_exec_bool_call(path, args, event, state),
+            ExecExpr::When { input, arms } => {
+                let pattern = self.eval_exec_pattern_with_state(input.as_deref(), event, state)?;
+                let Some(arm) = arms
+                    .iter()
+                    .find(|arm| arm.pattern == pattern || arm.pattern == "__")
+                else {
+                    bail!("executable WHEN did not contain a matching arm")
+                };
+                self.eval_exec_bool_with_state(&arm.value, event, state)
+            }
+            _ => bail!("executable expression is not a boolean: {expr:?}"),
+        }
+    }
+
+    fn eval_exec_pattern_with_state(
+        &self,
+        input: Option<&ExecExpr>,
+        event: &SourceEmission,
+        state: &BTreeMap<String, i64>,
+    ) -> Result<String> {
+        let Some(input) = input else {
+            return Ok(match &event.value {
+                SourceValue::Tag(value) => value.clone(),
+                _ => "__".to_string(),
+            });
+        };
+        if let Ok(value) = self.eval_exec_bool_with_state(input, event, state) {
+            return Ok(if value { "True" } else { "False" }.to_string());
+        }
+        if let ExecExpr::Source { path } = input
+            && path == &event.path
+            && let SourceValue::Tag(value) = &event.value
+        {
+            return Ok(value.clone());
+        }
+        Ok("__".to_string())
+    }
+
     fn eval_exec_number_call(
         &self,
         path: &str,
@@ -1121,6 +1174,24 @@ impl CompiledApp {
         state: &BTreeMap<String, i64>,
     ) -> Result<i64> {
         boon_stdlib::eval_number_call(path, |name| {
+            let value = args
+                .iter()
+                .find(|arg| arg.name == name)
+                .ok_or_else(|| format!("missing `{name}` argument for `{path}`"))?;
+            self.eval_exec_number_with_state(&value.value, event, state)
+                .map_err(|err| err.to_string())
+        })
+        .map_err(|err| anyhow::anyhow!("{err}"))
+    }
+
+    fn eval_exec_bool_call(
+        &self,
+        path: &str,
+        args: &[boon_compiler::ExecCallArg],
+        event: &SourceEmission,
+        state: &BTreeMap<String, i64>,
+    ) -> Result<bool> {
+        boon_stdlib::eval_bool_call(path, |name| {
             let value = args
                 .iter()
                 .find(|arg| arg.name == name)
@@ -1338,35 +1409,6 @@ impl CompiledApp {
             .is_some_and(|field| record.bool_field(field))
     }
 
-    fn spatial_source_enabled(&self) -> bool {
-        self.spatial_state_path("body_x").is_some()
-    }
-
-    fn spatial_i64(&self, key: &str, fallback: i64) -> i64 {
-        self.spatial_state_path(key)
-            .and_then(|path| self.generic_state.get(&path))
-            .copied()
-            .unwrap_or(fallback)
-    }
-
-    fn spatial_state_path(&self, key: &str) -> Option<String> {
-        let suffix = format!(".{key}");
-        self.generic_state
-            .keys()
-            .find(|path| path.ends_with(&suffix))
-            .cloned()
-    }
-
-    fn spatial_source_root(&self) -> Option<String> {
-        self.spatial_state_path("body_x")
-            .and_then(|path| path.strip_suffix(".body_x").map(str::to_string))
-    }
-
-    fn spatial_contact_mode(&self) -> bool {
-        self.spatial_state_path("contact_field_live_count")
-            .is_some()
-    }
-
     fn has_render_kind(&self, kind: boon_compiler::IrRenderKind) -> bool {
         self.app_ir
             .render_tree
@@ -1391,8 +1433,6 @@ impl CompiledApp {
     fn render_text(&self) -> String {
         if self.has_render_kind(boon_compiler::IrRenderKind::Grid) {
             self.render_slot_text()
-        } else if self.spatial_source_enabled() {
-            self.render_spatial_text()
         } else if self.can_render_generic_scene() {
             self.render_generic_text()
         } else {
@@ -1409,8 +1449,6 @@ impl CompiledApp {
         push_rect(&mut scene, 0, 0, 1000, 1000, [245, 245, 245, 255]);
         if self.has_render_kind(boon_compiler::IrRenderKind::Grid) {
             self.render_element_grid_scene(&mut scene);
-        } else if self.spatial_source_enabled() {
-            self.render_spatial_scene(&mut scene);
         } else if self.can_render_generic_scene() {
             self.render_generic_scene(&mut scene);
         }
@@ -1420,7 +1458,6 @@ impl CompiledApp {
     fn can_render_generic_scene(&self) -> bool {
         self.app_ir.render_tree.is_some()
             && !self.has_render_kind(boon_compiler::IrRenderKind::Grid)
-            && !self.spatial_source_enabled()
     }
 
     fn render_generic_text(&self) -> String {
@@ -1492,12 +1529,18 @@ impl CompiledApp {
     }
 
     fn render_generic_scene(&self, scene: &mut FrameScene) {
-        push_rect(scene, 0, 0, 1000, 1000, [238, 244, 247, 255]);
-        push_text(scene, 84, 108, 3, &self.program.title, [25, 40, 52, 255]);
         if let Some(tree) = &self.app_ir.render_tree {
-            let mut y = 278;
-            for child in &tree.children {
-                y = self.render_generic_node(scene, child, 278, y, 444, None);
+            if render_tree_has_explicit_layout(tree) {
+                for child in &tree.children {
+                    self.render_generic_node(scene, child, 0, 0, 1000, None);
+                }
+            } else {
+                push_rect(scene, 0, 0, 1000, 1000, [238, 244, 247, 255]);
+                push_text(scene, 84, 108, 3, &self.program.title, [25, 40, 52, 255]);
+                let mut y = 278;
+                for child in &tree.children {
+                    y = self.render_generic_node(scene, child, 278, y, 444, None);
+                }
             }
         }
     }
@@ -1516,15 +1559,73 @@ impl CompiledApp {
                 if let Some(record) = record {
                     return self.render_generic_record_row(scene, node, x, y, width, record);
                 }
+                if let Some(bounds) = self.eval_render_bounds(node.bounds.as_ref()) {
+                    if let Some(color) = node.color {
+                        push_rect(
+                            scene,
+                            bounds.x,
+                            bounds.y,
+                            bounds.width,
+                            bounds.height,
+                            color,
+                        );
+                    }
+                    for child in &node.children {
+                        self.render_generic_node(
+                            scene,
+                            child,
+                            bounds.x,
+                            bounds.y,
+                            bounds.width,
+                            record,
+                        );
+                    }
+                    return y;
+                }
                 let mut next_y = y;
                 for child in &node.children {
                     next_y = self.render_generic_node(scene, child, x, next_y, width, record);
                 }
                 next_y
             }
+            boon_compiler::IrRenderKind::Rect => {
+                if let Some(bounds) = self.eval_render_bounds(node.bounds.as_ref()) {
+                    push_rect(
+                        scene,
+                        bounds.x,
+                        bounds.y,
+                        bounds.width,
+                        bounds.height,
+                        node.color.unwrap_or([72, 126, 176, 255]),
+                    );
+                }
+                y
+            }
             boon_compiler::IrRenderKind::Button => {
-                push_rect(scene, x, y, width, 64, [46, 125, 166, 255]);
-                push_rect_outline(scene, x, y, width, 64, [21, 91, 128, 255]);
+                let bounds =
+                    self.eval_render_bounds(node.bounds.as_ref())
+                        .unwrap_or(RenderBounds {
+                            x,
+                            y,
+                            width,
+                            height: 64,
+                        });
+                push_rect(
+                    scene,
+                    bounds.x,
+                    bounds.y,
+                    bounds.width,
+                    bounds.height,
+                    node.color.unwrap_or([46, 125, 166, 255]),
+                );
+                push_rect_outline(
+                    scene,
+                    bounds.x,
+                    bounds.y,
+                    bounds.width,
+                    bounds.height,
+                    [21, 91, 128, 255],
+                );
                 if let Some(source_path) = node
                     .source_path
                     .as_deref()
@@ -1533,10 +1634,10 @@ impl CompiledApp {
                     self.push_generic_hit_target(
                         scene,
                         format!("generic_{}", node.id),
-                        x,
-                        y,
-                        width,
-                        64,
+                        bounds.x,
+                        bounds.y,
+                        bounds.width,
+                        bounds.height,
                         HitTargetAction::Press,
                         &source_path,
                         record,
@@ -1552,8 +1653,15 @@ impl CompiledApp {
                     })
                     .or_else(|| node.source_path.as_deref().map(generic_source_label))
                     .unwrap_or_default();
-                push_text(scene, x + 18, y + 24, 1, &label, [255, 255, 255, 255]);
-                y + 86
+                push_text(
+                    scene,
+                    bounds.x + 18,
+                    bounds.y + 24,
+                    self.eval_render_scale(node.scale.as_ref()).unwrap_or(1),
+                    &label,
+                    [255, 255, 255, 255],
+                );
+                if node.bounds.is_some() { y } else { y + 86 }
             }
             boon_compiler::IrRenderKind::Label
             | boon_compiler::IrRenderKind::Text
@@ -1568,13 +1676,46 @@ impl CompiledApp {
                     })
                     .unwrap_or_default();
                 if !text.is_empty() {
-                    push_text(scene, x, y, 3, &text, [35, 55, 68, 255]);
+                    if let Some(bounds) = self.eval_render_bounds(node.bounds.as_ref()) {
+                        push_text(
+                            scene,
+                            bounds.x,
+                            bounds.y,
+                            self.eval_render_scale(node.scale.as_ref()).unwrap_or(1),
+                            &text,
+                            node.color.unwrap_or([35, 55, 68, 255]),
+                        );
+                    } else {
+                        push_text(scene, x, y, 3, &text, [35, 55, 68, 255]);
+                    }
                 }
-                y + 72
+                if node.bounds.is_some() { y } else { y + 72 }
             }
             boon_compiler::IrRenderKind::TextInput => {
-                push_rect(scene, x, y, width, 64, [255, 255, 255, 255]);
-                push_rect_outline(scene, x, y, width, 64, [188, 202, 212, 255]);
+                let bounds =
+                    self.eval_render_bounds(node.bounds.as_ref())
+                        .unwrap_or(RenderBounds {
+                            x,
+                            y,
+                            width,
+                            height: 64,
+                        });
+                push_rect(
+                    scene,
+                    bounds.x,
+                    bounds.y,
+                    bounds.width,
+                    bounds.height,
+                    [255, 255, 255, 255],
+                );
+                push_rect_outline(
+                    scene,
+                    bounds.x,
+                    bounds.y,
+                    bounds.width,
+                    bounds.height,
+                    [188, 202, 212, 255],
+                );
                 if let Some(source_path) = node.source_path.as_deref() {
                     let text_state_path = format!("{source_path}.text");
                     let text_value = record
@@ -1590,24 +1731,60 @@ impl CompiledApp {
                     self.push_generic_text_hit_target(
                         scene,
                         format!("generic_{}", node.id),
-                        x,
-                        y,
-                        width,
-                        64,
+                        bounds.x,
+                        bounds.y,
+                        bounds.width,
+                        bounds.height,
                         source_path,
                         text_value.clone(),
                         record,
                     );
                     let display = text_value.unwrap_or_else(|| generic_source_label(source_path));
-                    push_text(scene, x + 18, y + 24, 1, &display, [42, 58, 70, 255]);
+                    push_text(
+                        scene,
+                        bounds.x + 18,
+                        bounds.y + 24,
+                        self.eval_render_scale(node.scale.as_ref()).unwrap_or(1),
+                        &display,
+                        [42, 58, 70, 255],
+                    );
                 }
-                y + 86
+                if node.bounds.is_some() { y } else { y + 86 }
             }
             boon_compiler::IrRenderKind::Checkbox => {
-                push_rect(scene, x, y, 64, 64, [255, 255, 255, 255]);
-                push_rect_outline(scene, x, y, 64, 64, [188, 202, 212, 255]);
+                let bounds =
+                    self.eval_render_bounds(node.bounds.as_ref())
+                        .unwrap_or(RenderBounds {
+                            x,
+                            y,
+                            width: 64,
+                            height: 64,
+                        });
+                push_rect(
+                    scene,
+                    bounds.x,
+                    bounds.y,
+                    bounds.width,
+                    bounds.height,
+                    [255, 255, 255, 255],
+                );
+                push_rect_outline(
+                    scene,
+                    bounds.x,
+                    bounds.y,
+                    bounds.width,
+                    bounds.height,
+                    [188, 202, 212, 255],
+                );
                 if record.is_some_and(|record| self.collection_record_marked(record)) {
-                    push_text(scene, x + 24, y + 24, 1, "x", [68, 146, 126, 255]);
+                    push_text(
+                        scene,
+                        bounds.x + 24,
+                        bounds.y + 24,
+                        1,
+                        "x",
+                        [68, 146, 126, 255],
+                    );
                 }
                 if let Some(source_path) = node
                     .source_path
@@ -1617,16 +1794,16 @@ impl CompiledApp {
                     self.push_generic_hit_target(
                         scene,
                         format!("generic_{}", node.id),
-                        x,
-                        y,
-                        64,
-                        64,
+                        bounds.x,
+                        bounds.y,
+                        bounds.width,
+                        bounds.height,
                         HitTargetAction::Press,
                         &source_path,
                         record,
                     );
                 }
-                y + 86
+                if node.bounds.is_some() { y } else { y + 86 }
             }
             boon_compiler::IrRenderKind::ListMap => {
                 let mut next_y = y;
@@ -1663,6 +1840,7 @@ impl CompiledApp {
                 boon_compiler::IrRenderKind::TextInput
                 | boon_compiler::IrRenderKind::Text
                 | boon_compiler::IrRenderKind::Label
+                | boon_compiler::IrRenderKind::Rect
                 | boon_compiler::IrRenderKind::Unknown => remaining,
                 boon_compiler::IrRenderKind::Root
                 | boon_compiler::IrRenderKind::Panel
@@ -1688,6 +1866,27 @@ impl CompiledApp {
         record: &RuntimeDynamicValue,
     ) {
         match node.kind {
+            boon_compiler::IrRenderKind::Rect => {
+                if let Some(bounds) = self.eval_render_bounds(node.bounds.as_ref()) {
+                    push_rect(
+                        scene,
+                        bounds.x,
+                        bounds.y,
+                        bounds.width,
+                        bounds.height,
+                        node.color.unwrap_or([72, 126, 176, 255]),
+                    );
+                } else {
+                    push_rect(
+                        scene,
+                        x,
+                        y,
+                        width,
+                        64,
+                        node.color.unwrap_or([72, 126, 176, 255]),
+                    );
+                }
+            }
             boon_compiler::IrRenderKind::Checkbox => {
                 push_rect(scene, x, y, width.min(64), 64, [255, 255, 255, 255]);
                 push_rect_outline(scene, x, y, width.min(64), 64, [188, 202, 212, 255]);
@@ -1811,6 +2010,34 @@ impl CompiledApp {
                 .strip_prefix("item.")
                 .map(|field| record.text_field(field))
                 .or_else(|| self.value_text(path)),
+        }
+    }
+
+    fn eval_render_bounds(&self, bounds: Option<&IrRenderBounds>) -> Option<RenderBounds> {
+        let bounds = bounds?;
+        Some(RenderBounds {
+            x: self.eval_render_number(&bounds.x)?.max(0) as u32,
+            y: self.eval_render_number(&bounds.y)?.max(0) as u32,
+            width: self.eval_render_number(&bounds.width)?.max(1) as u32,
+            height: self.eval_render_number(&bounds.height)?.max(1) as u32,
+        })
+    }
+
+    fn eval_render_scale(&self, scale: Option<&IrRenderNumber>) -> Option<u32> {
+        Some(self.eval_render_number(scale?)?.clamp(1, 8) as u32)
+    }
+
+    fn eval_render_number(&self, number: &IrRenderNumber) -> Option<i64> {
+        match number {
+            IrRenderNumber::Literal { value } => Some(*value),
+            IrRenderNumber::Binding { path } => {
+                self.generic_state.get(path).copied().or_else(|| {
+                    match self.source_state.get(path) {
+                        Some(SourceValue::Number(value)) => Some(*value),
+                        _ => None,
+                    }
+                })
+            }
         }
     }
 
@@ -2040,159 +2267,6 @@ impl CompiledApp {
                 }
             }
         }
-    }
-
-    fn render_spatial_scene(&self, scene: &mut FrameScene) {
-        if !self.spatial_source_enabled() {
-            return;
-        }
-        let contact_mode = self.spatial_contact_mode();
-        let arena_width = 1000;
-        let arena_height = 700;
-        let body_size = 22;
-        let control_width = if contact_mode { 160 } else { 18 };
-        let control_height = if contact_mode { 18 } else { 128 };
-        push_rect(scene, 0, 0, 1000, 1000, [18, 24, 32, 255]);
-        push_text(scene, 38, 28, 2, &self.program.title, [231, 241, 247, 255]);
-        push_text(
-            scene,
-            38,
-            66,
-            1,
-            &format!(
-                "frame {} contact_value {} resets_remaining {}",
-                self.spatial_i64("frame", 0),
-                self.spatial_i64("contact_value", 0),
-                self.spatial_i64("resets_remaining", 3)
-            ),
-            [153, 183, 198, 255],
-        );
-        let x0 = 56;
-        let y0 = 118;
-        let w = 888;
-        let h = 622;
-        push_rect(scene, x0, y0, w, h, [12, 20, 29, 255]);
-        push_rect_outline(scene, x0, y0, w, h, [74, 103, 122, 255]);
-        let sx = |value: i64| {
-            x0 + ((value.clamp(0, arena_width) as u32) * w / arena_width.max(1) as u32)
-        };
-        let sy = |value: i64| {
-            y0 + ((value.clamp(0, arena_height) as u32) * h / arena_height.max(1) as u32)
-        };
-        let sw = |value: i64| ((value.max(1) as u32) * w / arena_width.max(1) as u32).max(1);
-        let sh = |value: i64| ((value.max(1) as u32) * h / arena_height.max(1) as u32).max(1);
-
-        if contact_mode {
-            let rows = usize::try_from(self.spatial_i64("contact_field_rows", 6).max(0))
-                .unwrap_or_default();
-            let columns =
-                usize::try_from(self.spatial_i64("contact_field_cols", 12).max(1)).unwrap_or(12);
-            let top = 56;
-            let margin = 36;
-            let gap = 8;
-            let height = 28;
-            let live_count = self
-                .spatial_state_path("contact_field_live_count")
-                .and_then(|path| self.generic_state.get(&path).copied())
-                .and_then(|value| usize::try_from(value).ok())
-                .unwrap_or(rows.saturating_mul(columns));
-            let contact_w = (arena_width - margin * 2 - (columns.saturating_sub(1) as i64 * gap))
-                / columns.max(1) as i64;
-            for row in 0..rows {
-                for col in 0..columns {
-                    let idx = row * columns + col;
-                    if idx < live_count {
-                        let bx = margin + col as i64 * (contact_w + gap);
-                        let by = top + row as i64 * (height + gap);
-                        let color = match row % 4 {
-                            0 => [232, 92, 80, 255],
-                            1 => [236, 168, 72, 255],
-                            2 => [86, 176, 122, 255],
-                            _ => [78, 146, 210, 255],
-                        };
-                        push_rect(scene, sx(bx), sy(by), sw(contact_w), sh(height), color);
-                    }
-                }
-            }
-        }
-
-        let control_x = self.spatial_i64("control_x", 50);
-        let control_y = self.spatial_i64("control_y", 50);
-        let primary_x = if contact_mode {
-            controller_left_from_position(control_x, arena_width, control_width)
-        } else {
-            38
-        };
-        let primary_y = if contact_mode {
-            646
-        } else {
-            controller_top_from_position(control_y, arena_height, control_height)
-        };
-        push_rect(
-            scene,
-            sx(primary_x),
-            sy(primary_y),
-            sw(control_width),
-            sh(control_height),
-            [85, 212, 230, 255],
-        );
-        if !contact_mode {
-            let tracked_x = 944;
-            let tracked_h = 128;
-            let tracked_w = 18;
-            let tracked_y = controller_top_from_position(
-                self.spatial_i64("tracked_control_y", 50),
-                arena_height,
-                tracked_h,
-            );
-            push_rect(
-                scene,
-                sx(tracked_x),
-                sy(tracked_y),
-                sw(tracked_w),
-                sh(tracked_h),
-                [240, 244, 247, 255],
-            );
-        }
-        push_rect(
-            scene,
-            sx(self.spatial_i64("body_x", 500)),
-            sy(self.spatial_i64("body_y", 350)),
-            sw(body_size),
-            sh(body_size),
-            [250, 250, 250, 255],
-        );
-    }
-
-    fn render_spatial_text(&self) -> String {
-        let frame_source = first_static_source_path_matching(&self.inventory, ".event.frame")
-            .unwrap_or_else(|| "frame source".to_string());
-        format!(
-            "{}\nsurface: spatial_scene\nspatial_mode: {}\nframe: {}\ncontrol_y: {}\ncontrol_x: {}\ntracked_control_y: {}\nbody_x: {}\nbody_y: {}\nbody_dx: {}\nbody_dy: {}\ncontact_field_rows: {}\ncontact_field_cols: {}\ncontact_field_live: {}\ncontact_value: {}\nresets_remaining: {}\ndeterministic input source: {}",
-            self.program.title,
-            if self.spatial_contact_mode() {
-                "contact-grid"
-            } else {
-                "tracked-control"
-            },
-            self.spatial_i64("frame", 0),
-            self.spatial_i64("control_y", 50),
-            self.spatial_i64("control_x", 50),
-            self.spatial_i64("tracked_control_y", 50),
-            self.spatial_i64("body_x", 500),
-            self.spatial_i64("body_y", 350),
-            self.spatial_i64("body_dx", 10),
-            self.spatial_i64("body_dy", 8),
-            self.spatial_i64("contact_field_rows", 0),
-            self.spatial_i64("contact_field_cols", 0),
-            self.spatial_state_path("contact_field_live_count")
-                .and_then(|path| self.generic_state.get(&path).copied())
-                .map(|value| value.to_string())
-                .unwrap_or_else(|| "0".to_string()),
-            self.spatial_i64("contact_value", 0),
-            self.spatial_i64("resets_remaining", 3),
-            frame_source
-        )
     }
 
     fn visible_dynamic_values(&self) -> impl Iterator<Item = &RuntimeDynamicValue> {
@@ -2620,60 +2694,6 @@ impl BoonApp for CompiledApp {
                 );
             }
         }
-        if self.spatial_source_enabled() {
-            let root = self
-                .spatial_source_root()
-                .unwrap_or_else(|| "spatial".to_string());
-            values.insert(format!("{root}.frame"), json!(self.spatial_i64("frame", 0)));
-            values.insert(
-                format!("{root}.control_y"),
-                json!(self.spatial_i64("control_y", 50)),
-            );
-            values.insert(
-                format!("{root}.control_x"),
-                json!(self.spatial_i64("control_x", 50)),
-            );
-            values.insert(
-                format!("{root}.tracked_control_y"),
-                json!(self.spatial_i64("tracked_control_y", 50)),
-            );
-            values.insert(
-                format!("{root}.body_x"),
-                json!(self.spatial_i64("body_x", 500)),
-            );
-            values.insert(
-                format!("{root}.body_y"),
-                json!(self.spatial_i64("body_y", 350)),
-            );
-            values.insert(
-                format!("{root}.body_dx"),
-                json!(self.spatial_i64("body_dx", 10)),
-            );
-            values.insert(
-                format!("{root}.body_dy"),
-                json!(self.spatial_i64("body_dy", 8)),
-            );
-            values.insert(
-                format!("{root}.contact_field_rows"),
-                json!(self.spatial_i64("contact_field_rows", 0)),
-            );
-            values.insert(
-                format!("{root}.contact_field_cols"),
-                json!(self.spatial_i64("contact_field_cols", 0)),
-            );
-            values.insert(
-                format!("{root}.contact_field_live_count"),
-                json!(self.spatial_i64("contact_field_live_count", 0)),
-            );
-            values.insert(
-                format!("{root}.contact_value"),
-                json!(self.spatial_i64("contact_value", 0)),
-            );
-            values.insert(
-                format!("{root}.resets_remaining"),
-                json!(self.spatial_i64("resets_remaining", 3)),
-            );
-        }
         let grid_root = self
             .wiring
             .grid
@@ -2791,14 +2811,11 @@ fn render_node_has_kind(
             .any(|child| render_node_has_kind(child, kind))
 }
 
-fn controller_top_from_position(position: i64, arena_h: i64, controller_h: i64) -> i64 {
-    ((arena_h - controller_h).max(0) * position.clamp(0, 100) / 100)
-        .clamp(0, arena_h - controller_h)
-}
-
-fn controller_left_from_position(position: i64, arena_w: i64, controller_w: i64) -> i64 {
-    ((arena_w - controller_w).max(0) * position.clamp(0, 100) / 100)
-        .clamp(0, arena_w - controller_w)
+fn render_tree_has_explicit_layout(node: &boon_compiler::IrRenderNode) -> bool {
+    node.bounds.is_some()
+        || node.color.is_some()
+        || node.scale.is_some()
+        || node.children.iter().any(render_tree_has_explicit_layout)
 }
 
 fn source_state_key(emission: &SourceEmission) -> String {

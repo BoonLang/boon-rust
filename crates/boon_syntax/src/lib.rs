@@ -847,6 +847,10 @@ fn parse_ast_records_from_block(body: &str, span: Span) -> Vec<AstRecord> {
 }
 
 fn parse_when_arms(body: &str, span: Span) -> Vec<AstWhenArm> {
+    let structured = parse_top_level_when_arms(body, span);
+    if !structured.is_empty() {
+        return structured;
+    }
     split_top_level_items(body)
         .into_iter()
         .flat_map(|item| {
@@ -855,6 +859,83 @@ fn parse_when_arms(body: &str, span: Span) -> Vec<AstWhenArm> {
                 .collect::<Vec<_>>()
         })
         .collect()
+}
+
+fn parse_top_level_when_arms(body: &str, span: Span) -> Vec<AstWhenArm> {
+    let arrows = top_level_when_arrows(body);
+    if arrows.is_empty() {
+        return Vec::new();
+    }
+    let mut arms = Vec::new();
+    let mut previous: Option<(String, usize)> = None;
+    for arrow in arrows {
+        let Some((pattern_start, _pattern_end, pattern)) = pattern_before_arrow(body, arrow) else {
+            return Vec::new();
+        };
+        if let Some((previous_pattern, previous_value_start)) = previous.take() {
+            let value = body[previous_value_start..pattern_start].trim();
+            if value.is_empty() {
+                return Vec::new();
+            }
+            arms.push(AstWhenArm {
+                pattern: previous_pattern,
+                value: parse_expr(value, span),
+                span,
+            });
+        } else if !body[..pattern_start].trim().is_empty() {
+            return Vec::new();
+        }
+        previous = Some((pattern, arrow + 2));
+    }
+    if let Some((pattern, value_start)) = previous {
+        let value = body[value_start..].trim();
+        if value.is_empty() {
+            return Vec::new();
+        }
+        arms.push(AstWhenArm {
+            pattern,
+            value: parse_expr(value, span),
+            span,
+        });
+    }
+    arms
+}
+
+fn top_level_when_arrows(body: &str) -> Vec<usize> {
+    let mut arrows = Vec::new();
+    let mut depth = DelimiterDepth::default();
+    let bytes = body.as_bytes();
+    let mut idx = 0;
+    while idx + 1 < bytes.len() {
+        let ch = body[idx..].chars().next().unwrap_or_default();
+        if depth.is_top_level() && bytes[idx] == b'=' && bytes[idx + 1] == b'>' {
+            arrows.push(idx);
+            idx += 2;
+            continue;
+        }
+        depth.update(ch);
+        idx += ch.len_utf8();
+    }
+    arrows
+}
+
+fn pattern_before_arrow(body: &str, arrow: usize) -> Option<(usize, usize, String)> {
+    let before = body[..arrow].trim_end();
+    let pattern_end = before.len();
+    let mut pattern_start = pattern_end;
+    for (idx, ch) in before.char_indices().rev() {
+        if ch.is_ascii_alphanumeric() || ch == '_' {
+            pattern_start = idx;
+        } else {
+            break;
+        }
+    }
+    let pattern = before[pattern_start..pattern_end].trim();
+    if pattern.is_empty() {
+        None
+    } else {
+        Some((pattern_start, pattern_end, pattern.to_string()))
+    }
 }
 
 fn parse_when_item_arms(item: &str, span: Span) -> Vec<AstWhenArm> {
@@ -925,7 +1006,7 @@ fn parse_call_expr(raw: &str, span: Span) -> Option<(String, Vec<AstCallArg>)> {
         return None;
     }
     let args_body = &raw[open + 1..close];
-    let args = split_top_level_items(args_body)
+    let args = split_top_level_call_args(args_body)
         .into_iter()
         .filter_map(|item| {
             let (name, value) = item.split_once(':')?;
@@ -937,6 +1018,51 @@ fn parse_call_expr(raw: &str, span: Span) -> Option<(String, Vec<AstCallArg>)> {
         })
         .collect();
     Some((path.to_string(), args))
+}
+
+fn split_top_level_call_args(raw: &str) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut start = 0;
+    let mut depth = DelimiterDepth::default();
+    for (idx, ch) in raw.char_indices() {
+        if depth.is_top_level() && (ch == ',' || ch == '\n') {
+            push_call_arg(raw, start, idx, &mut parts);
+            start = idx + ch.len_utf8();
+            depth.update(ch);
+            continue;
+        }
+        if depth.is_top_level()
+            && idx > start
+            && (ch.is_ascii_alphabetic() || ch == '_')
+            && raw[..idx].chars().last().is_some_and(char::is_whitespace)
+            && looks_like_named_arg_at(raw, idx)
+        {
+            push_call_arg(raw, start, idx, &mut parts);
+            start = idx;
+        }
+        depth.update(ch);
+    }
+    push_call_arg(raw, start, raw.len(), &mut parts);
+    parts
+}
+
+fn push_call_arg<'a>(raw: &'a str, start: usize, end: usize, parts: &mut Vec<&'a str>) {
+    let item = raw[start..end].trim();
+    if !item.is_empty() {
+        parts.push(item);
+    }
+}
+
+fn looks_like_named_arg_at(raw: &str, idx: usize) -> bool {
+    let Some(rest) = raw.get(idx..) else {
+        return false;
+    };
+    let ident_len = rest
+        .chars()
+        .take_while(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
+        .map(char::len_utf8)
+        .sum::<usize>();
+    ident_len > 0 && rest[ident_len..].trim_start().starts_with(':')
 }
 
 fn split_top_level_pipeline(raw: &str) -> Vec<&str> {

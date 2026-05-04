@@ -241,6 +241,10 @@ where
         "Number/min" => Ok(arg("left")?.min(arg("right")?)),
         "Number/max" => Ok(arg("left")?.max(arg("right")?)),
         "Number/clamp" => Ok(arg("value")?.clamp(arg("min")?, arg("max")?)),
+        "Number/abs" => Ok(arg("value")?.abs()),
+        "Number/neg_abs" => Ok(-arg("value")?.abs()),
+        "Number/scale_percent" => Ok(scale_percent(arg("value")?, arg("min")?, arg("max")?)),
+        "Number/percent_of_range" => Ok(percent_of_range(arg("value")?, arg("min")?, arg("max")?)),
         "Geometry/track_vertical_position" => Ok(track_vertical_position(
             arg("body_y")?,
             arg("body_size")?,
@@ -266,6 +270,29 @@ where
     }
 }
 
+pub fn eval_bool_call<F>(path: &str, mut arg: F) -> Result<bool, String>
+where
+    F: FnMut(&str) -> Result<i64, String>,
+{
+    match path {
+        "Number/less_than" => Ok(arg("left")? < arg("right")?),
+        "Number/less_or_equal" => Ok(arg("left")? <= arg("right")?),
+        "Number/greater_than" => Ok(arg("left")? > arg("right")?),
+        "Number/greater_or_equal" => Ok(arg("left")? >= arg("right")?),
+        "Geometry/intersects" => Ok(rectangles_intersect(
+            arg("ax")?,
+            arg("ay")?,
+            arg("aw")?,
+            arg("ah")?,
+            arg("bx")?,
+            arg("by")?,
+            arg("bw")?,
+            arg("bh")?,
+        )),
+        _ => Err(format!("unsupported executable stdlib predicate `{path}`")),
+    }
+}
+
 fn controller_top_from_position(position: i64, arena_h: i64, controller_h: i64) -> i64 {
     ((arena_h - controller_h).max(0) * position.clamp(0, 100) / 100)
         .clamp(0, arena_h - controller_h)
@@ -274,6 +301,22 @@ fn controller_top_from_position(position: i64, arena_h: i64, controller_h: i64) 
 fn controller_left_from_position(position: i64, arena_w: i64, controller_w: i64) -> i64 {
     ((arena_w - controller_w).max(0) * position.clamp(0, 100) / 100)
         .clamp(0, arena_w - controller_w)
+}
+
+fn scale_percent(value: i64, min: i64, max: i64) -> i64 {
+    let low = min.min(max);
+    let high = min.max(max);
+    low + ((high - low) * value.clamp(0, 100) / 100)
+}
+
+fn percent_of_range(value: i64, min: i64, max: i64) -> i64 {
+    let low = min.min(max);
+    let high = min.max(max);
+    if high == low {
+        0
+    } else {
+        ((value.clamp(low, high) - low) * 100 / (high - low)).clamp(0, 100)
+    }
 }
 
 fn track_vertical_position(body_y: i64, body_size: i64, arena_h: i64, control_h: i64) -> i64 {

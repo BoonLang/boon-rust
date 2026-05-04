@@ -985,6 +985,24 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
             resolution: "render game primitives by executing generic render tree nodes instead of a fixed motion renderer",
         },
         GenericityProbe {
+            category: "kinematics family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn render_spatial_scene",
+            resolution: "render game primitives by executing generic render tree nodes instead of a fixed spatial renderer",
+        },
+        GenericityProbe {
+            category: "kinematics family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "spatial_source_enabled",
+            resolution: "do not detect game-shaped state keys in the runtime bridge",
+        },
+        GenericityProbe {
+            category: "kinematics family renderer",
+            path: "crates/boon_render_ir/src/lib.rs",
+            needle: "KinematicSurface",
+            resolution: "render only generic scene primitives in backend-facing IR",
+        },
+        GenericityProbe {
             category: "runtime-owned game stdlib",
             path: "crates/boon_runtime/src/compiled_app.rs",
             needle: "\"Geometry/peer_body_",

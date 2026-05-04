@@ -22,6 +22,13 @@
       }
     },
     {
+      "path": "kinematics.control_left",
+      "initial": {
+        "kind": "number",
+        "value": 420
+      }
+    },
+    {
       "path": "kinematics.tracked_control_y",
       "initial": {
         "kind": "number",
@@ -291,6 +298,42 @@
           "value": {
             "kind": "state",
             "path": "kinematics.control_y"
+          }
+        }
+      ]
+    },
+    {
+      "source_path": "store.sources.tick.event.frame",
+      "effects": [
+        {
+          "kind": "set_state",
+          "path": "kinematics.control_left",
+          "value": {
+            "kind": "call",
+            "path": "Number/scale_percent",
+            "args": [
+              {
+                "name": "value",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.control_x"
+                }
+              },
+              {
+                "name": "min",
+                "value": {
+                  "kind": "number",
+                  "value": 0
+                }
+              },
+              {
+                "name": "max",
+                "value": {
+                  "kind": "number",
+                  "value": 840
+                }
+              }
+            ]
           }
         }
       ]
@@ -1572,18 +1615,2342 @@
     "kind": "root",
     "children": [
       {
-        "id": "panel_3",
+        "id": "panel_83",
         "kind": "panel",
+        "bounds": {
+          "x": {
+            "kind": "literal",
+            "value": 0
+          },
+          "y": {
+            "kind": "literal",
+            "value": 0
+          },
+          "width": {
+            "kind": "literal",
+            "value": 1000
+          },
+          "height": {
+            "kind": "literal",
+            "value": 760
+          }
+        },
+        "color": [
+          18,
+          24,
+          32,
+          255
+        ],
         "children": [
           {
-            "id": "label_1",
-            "kind": "label",
-            "source_path": "store.sources.tick"
+            "id": "text_1",
+            "kind": "text",
+            "text": {
+              "kind": "literal",
+              "value": "Arkanoid"
+            },
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 38
+              },
+              "y": {
+                "kind": "literal",
+                "value": 28
+              },
+              "width": {
+                "kind": "literal",
+                "value": 240
+              },
+              "height": {
+                "kind": "literal",
+                "value": 32
+              }
+            },
+            "scale": {
+              "kind": "literal",
+              "value": 2
+            },
+            "color": [
+              231,
+              241,
+              247,
+              255
+            ]
           },
           {
-            "id": "label_2",
+            "id": "text_2",
+            "kind": "text",
+            "text": {
+              "kind": "binding",
+              "path": "kinematics.frame"
+            },
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 38
+              },
+              "y": {
+                "kind": "literal",
+                "value": 66
+              },
+              "width": {
+                "kind": "literal",
+                "value": 120
+              },
+              "height": {
+                "kind": "literal",
+                "value": 18
+              }
+            },
+            "color": [
+              153,
+              183,
+              198,
+              255
+            ]
+          },
+          {
+            "id": "text_3",
+            "kind": "text",
+            "text": {
+              "kind": "binding",
+              "path": "kinematics.contact_value"
+            },
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 170
+              },
+              "y": {
+                "kind": "literal",
+                "value": 66
+              },
+              "width": {
+                "kind": "literal",
+                "value": 120
+              },
+              "height": {
+                "kind": "literal",
+                "value": 18
+              }
+            },
+            "color": [
+              153,
+              183,
+              198,
+              255
+            ]
+          },
+          {
+            "id": "text_4",
+            "kind": "text",
+            "text": {
+              "kind": "binding",
+              "path": "kinematics.contact_field_live_count"
+            },
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 302
+              },
+              "y": {
+                "kind": "literal",
+                "value": 66
+              },
+              "width": {
+                "kind": "literal",
+                "value": 120
+              },
+              "height": {
+                "kind": "literal",
+                "value": 18
+              }
+            },
+            "color": [
+              153,
+              183,
+              198,
+              255
+            ]
+          },
+          {
+            "id": "text_5",
+            "kind": "text",
+            "text": {
+              "kind": "binding",
+              "path": "kinematics.resets_remaining"
+            },
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 434
+              },
+              "y": {
+                "kind": "literal",
+                "value": 66
+              },
+              "width": {
+                "kind": "literal",
+                "value": 120
+              },
+              "height": {
+                "kind": "literal",
+                "value": 18
+              }
+            },
+            "color": [
+              153,
+              183,
+              198,
+              255
+            ]
+          },
+          {
+            "id": "label_6",
             "kind": "label",
-            "source_path": "store.sources.paddle"
+            "source_path": "store.sources.tick",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 0
+              },
+              "y": {
+                "kind": "literal",
+                "value": 0
+              },
+              "width": {
+                "kind": "literal",
+                "value": 1
+              },
+              "height": {
+                "kind": "literal",
+                "value": 1
+              }
+            }
+          },
+          {
+            "id": "label_7",
+            "kind": "label",
+            "source_path": "store.sources.paddle",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 0
+              },
+              "y": {
+                "kind": "literal",
+                "value": 0
+              },
+              "width": {
+                "kind": "literal",
+                "value": 1
+              },
+              "height": {
+                "kind": "literal",
+                "value": 1
+              }
+            }
+          },
+          {
+            "id": "rect_8",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 0
+              },
+              "y": {
+                "kind": "literal",
+                "value": 96
+              },
+              "width": {
+                "kind": "literal",
+                "value": 1000
+              },
+              "height": {
+                "kind": "literal",
+                "value": 664
+              }
+            },
+            "color": [
+              12,
+              20,
+              29,
+              255
+            ]
+          },
+          {
+            "id": "rect_9",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 36
+              },
+              "y": {
+                "kind": "literal",
+                "value": 56
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_10",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 114
+              },
+              "y": {
+                "kind": "literal",
+                "value": 56
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_11",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 192
+              },
+              "y": {
+                "kind": "literal",
+                "value": 56
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_12",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 270
+              },
+              "y": {
+                "kind": "literal",
+                "value": 56
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_13",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 348
+              },
+              "y": {
+                "kind": "literal",
+                "value": 56
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_14",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 426
+              },
+              "y": {
+                "kind": "literal",
+                "value": 56
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_15",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 504
+              },
+              "y": {
+                "kind": "literal",
+                "value": 56
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_16",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 582
+              },
+              "y": {
+                "kind": "literal",
+                "value": 56
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_17",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 660
+              },
+              "y": {
+                "kind": "literal",
+                "value": 56
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_18",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 738
+              },
+              "y": {
+                "kind": "literal",
+                "value": 56
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_19",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 816
+              },
+              "y": {
+                "kind": "literal",
+                "value": 56
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_20",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 894
+              },
+              "y": {
+                "kind": "literal",
+                "value": 56
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_21",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 36
+              },
+              "y": {
+                "kind": "literal",
+                "value": 92
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_22",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 114
+              },
+              "y": {
+                "kind": "literal",
+                "value": 92
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_23",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 192
+              },
+              "y": {
+                "kind": "literal",
+                "value": 92
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_24",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 270
+              },
+              "y": {
+                "kind": "literal",
+                "value": 92
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_25",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 348
+              },
+              "y": {
+                "kind": "literal",
+                "value": 92
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_26",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 426
+              },
+              "y": {
+                "kind": "literal",
+                "value": 92
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_27",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 504
+              },
+              "y": {
+                "kind": "literal",
+                "value": 92
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_28",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 582
+              },
+              "y": {
+                "kind": "literal",
+                "value": 92
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_29",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 660
+              },
+              "y": {
+                "kind": "literal",
+                "value": 92
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_30",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 738
+              },
+              "y": {
+                "kind": "literal",
+                "value": 92
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_31",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 816
+              },
+              "y": {
+                "kind": "literal",
+                "value": 92
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_32",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 894
+              },
+              "y": {
+                "kind": "literal",
+                "value": 92
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_33",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 36
+              },
+              "y": {
+                "kind": "literal",
+                "value": 128
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              86,
+              176,
+              122,
+              255
+            ]
+          },
+          {
+            "id": "rect_34",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 114
+              },
+              "y": {
+                "kind": "literal",
+                "value": 128
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              86,
+              176,
+              122,
+              255
+            ]
+          },
+          {
+            "id": "rect_35",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 192
+              },
+              "y": {
+                "kind": "literal",
+                "value": 128
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              86,
+              176,
+              122,
+              255
+            ]
+          },
+          {
+            "id": "rect_36",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 270
+              },
+              "y": {
+                "kind": "literal",
+                "value": 128
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              86,
+              176,
+              122,
+              255
+            ]
+          },
+          {
+            "id": "rect_37",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 348
+              },
+              "y": {
+                "kind": "literal",
+                "value": 128
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              86,
+              176,
+              122,
+              255
+            ]
+          },
+          {
+            "id": "rect_38",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 426
+              },
+              "y": {
+                "kind": "literal",
+                "value": 128
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              86,
+              176,
+              122,
+              255
+            ]
+          },
+          {
+            "id": "rect_39",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 504
+              },
+              "y": {
+                "kind": "literal",
+                "value": 128
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              86,
+              176,
+              122,
+              255
+            ]
+          },
+          {
+            "id": "rect_40",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 582
+              },
+              "y": {
+                "kind": "literal",
+                "value": 128
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              86,
+              176,
+              122,
+              255
+            ]
+          },
+          {
+            "id": "rect_41",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 660
+              },
+              "y": {
+                "kind": "literal",
+                "value": 128
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              86,
+              176,
+              122,
+              255
+            ]
+          },
+          {
+            "id": "rect_42",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 738
+              },
+              "y": {
+                "kind": "literal",
+                "value": 128
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              86,
+              176,
+              122,
+              255
+            ]
+          },
+          {
+            "id": "rect_43",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 816
+              },
+              "y": {
+                "kind": "literal",
+                "value": 128
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              86,
+              176,
+              122,
+              255
+            ]
+          },
+          {
+            "id": "rect_44",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 894
+              },
+              "y": {
+                "kind": "literal",
+                "value": 128
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              86,
+              176,
+              122,
+              255
+            ]
+          },
+          {
+            "id": "rect_45",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 36
+              },
+              "y": {
+                "kind": "literal",
+                "value": 164
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              78,
+              146,
+              210,
+              255
+            ]
+          },
+          {
+            "id": "rect_46",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 114
+              },
+              "y": {
+                "kind": "literal",
+                "value": 164
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              78,
+              146,
+              210,
+              255
+            ]
+          },
+          {
+            "id": "rect_47",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 192
+              },
+              "y": {
+                "kind": "literal",
+                "value": 164
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              78,
+              146,
+              210,
+              255
+            ]
+          },
+          {
+            "id": "rect_48",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 270
+              },
+              "y": {
+                "kind": "literal",
+                "value": 164
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              78,
+              146,
+              210,
+              255
+            ]
+          },
+          {
+            "id": "rect_49",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 348
+              },
+              "y": {
+                "kind": "literal",
+                "value": 164
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              78,
+              146,
+              210,
+              255
+            ]
+          },
+          {
+            "id": "rect_50",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 426
+              },
+              "y": {
+                "kind": "literal",
+                "value": 164
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              78,
+              146,
+              210,
+              255
+            ]
+          },
+          {
+            "id": "rect_51",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 504
+              },
+              "y": {
+                "kind": "literal",
+                "value": 164
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              78,
+              146,
+              210,
+              255
+            ]
+          },
+          {
+            "id": "rect_52",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 582
+              },
+              "y": {
+                "kind": "literal",
+                "value": 164
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              78,
+              146,
+              210,
+              255
+            ]
+          },
+          {
+            "id": "rect_53",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 660
+              },
+              "y": {
+                "kind": "literal",
+                "value": 164
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              78,
+              146,
+              210,
+              255
+            ]
+          },
+          {
+            "id": "rect_54",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 738
+              },
+              "y": {
+                "kind": "literal",
+                "value": 164
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              78,
+              146,
+              210,
+              255
+            ]
+          },
+          {
+            "id": "rect_55",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 816
+              },
+              "y": {
+                "kind": "literal",
+                "value": 164
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              78,
+              146,
+              210,
+              255
+            ]
+          },
+          {
+            "id": "rect_56",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 894
+              },
+              "y": {
+                "kind": "literal",
+                "value": 164
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              78,
+              146,
+              210,
+              255
+            ]
+          },
+          {
+            "id": "rect_57",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 36
+              },
+              "y": {
+                "kind": "literal",
+                "value": 200
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_58",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 114
+              },
+              "y": {
+                "kind": "literal",
+                "value": 200
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_59",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 192
+              },
+              "y": {
+                "kind": "literal",
+                "value": 200
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_60",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 270
+              },
+              "y": {
+                "kind": "literal",
+                "value": 200
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_61",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 348
+              },
+              "y": {
+                "kind": "literal",
+                "value": 200
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_62",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 426
+              },
+              "y": {
+                "kind": "literal",
+                "value": 200
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_63",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 504
+              },
+              "y": {
+                "kind": "literal",
+                "value": 200
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_64",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 582
+              },
+              "y": {
+                "kind": "literal",
+                "value": 200
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_65",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 660
+              },
+              "y": {
+                "kind": "literal",
+                "value": 200
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_66",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 738
+              },
+              "y": {
+                "kind": "literal",
+                "value": 200
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_67",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 816
+              },
+              "y": {
+                "kind": "literal",
+                "value": 200
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_68",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 894
+              },
+              "y": {
+                "kind": "literal",
+                "value": 200
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              232,
+              92,
+              80,
+              255
+            ]
+          },
+          {
+            "id": "rect_69",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 36
+              },
+              "y": {
+                "kind": "literal",
+                "value": 236
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_70",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 114
+              },
+              "y": {
+                "kind": "literal",
+                "value": 236
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_71",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 192
+              },
+              "y": {
+                "kind": "literal",
+                "value": 236
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_72",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 270
+              },
+              "y": {
+                "kind": "literal",
+                "value": 236
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_73",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 348
+              },
+              "y": {
+                "kind": "literal",
+                "value": 236
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_74",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 426
+              },
+              "y": {
+                "kind": "literal",
+                "value": 236
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_75",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 504
+              },
+              "y": {
+                "kind": "literal",
+                "value": 236
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_76",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 582
+              },
+              "y": {
+                "kind": "literal",
+                "value": 236
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_77",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 660
+              },
+              "y": {
+                "kind": "literal",
+                "value": 236
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_78",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 738
+              },
+              "y": {
+                "kind": "literal",
+                "value": 236
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_79",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 816
+              },
+              "y": {
+                "kind": "literal",
+                "value": 236
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_80",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 894
+              },
+              "y": {
+                "kind": "literal",
+                "value": 236
+              },
+              "width": {
+                "kind": "literal",
+                "value": 70
+              },
+              "height": {
+                "kind": "literal",
+                "value": 28
+              }
+            },
+            "color": [
+              236,
+              168,
+              72,
+              255
+            ]
+          },
+          {
+            "id": "rect_81",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "binding",
+                "path": "kinematics.control_left"
+              },
+              "y": {
+                "kind": "literal",
+                "value": 646
+              },
+              "width": {
+                "kind": "literal",
+                "value": 160
+              },
+              "height": {
+                "kind": "literal",
+                "value": 18
+              }
+            },
+            "color": [
+              85,
+              212,
+              230,
+              255
+            ]
+          },
+          {
+            "id": "rect_82",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "binding",
+                "path": "kinematics.body_x"
+              },
+              "y": {
+                "kind": "binding",
+                "path": "kinematics.body_y"
+              },
+              "width": {
+                "kind": "literal",
+                "value": 22
+              },
+              "height": {
+                "kind": "literal",
+                "value": 22
+              }
+            },
+            "color": [
+              250,
+              250,
+              250,
+              255
+            ]
           }
         ]
       }

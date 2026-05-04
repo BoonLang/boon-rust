@@ -12,7 +12,6 @@ pub enum NodeKind {
     TextInput,
     Checkbox,
     Grid,
-    KinematicSurface,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

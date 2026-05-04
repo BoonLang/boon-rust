@@ -127,6 +127,8 @@ pub enum ExecExpr {
         args: Vec<ExecCallArg>,
     },
     When {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        input: Option<Box<ExecExpr>>,
         arms: Vec<ExecWhenArm>,
     },
     Skip,
@@ -194,6 +196,12 @@ pub struct IrRenderNode {
     pub collection_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<IrRenderText>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bounds: Option<IrRenderBounds>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scale: Option<IrRenderNumber>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<[u8; 4]>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<IrRenderNode>,
 }
@@ -209,8 +217,24 @@ pub enum IrRenderKind {
     Checkbox,
     Label,
     Grid,
+    Rect,
     ListMap,
     Unknown,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct IrRenderBounds {
+    pub x: IrRenderNumber,
+    pub y: IrRenderNumber,
+    pub width: IrRenderNumber,
+    pub height: IrRenderNumber,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum IrRenderNumber {
+    Literal { value: i64 },
+    Binding { path: String },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -402,6 +426,7 @@ fn validate_supported_module_paths(parsed: &ParsedModule) -> Result<()> {
             "Document/new"
             | "Element/panel"
             | "Element/text"
+            | "Element/rect"
             | "Element/button"
             | "Element/text_input"
             | "Element/checkbox"
@@ -421,6 +446,15 @@ fn validate_supported_module_paths(parsed: &ParsedModule) -> Result<()> {
             | "Number/min"
             | "Number/max"
             | "Number/clamp"
+            | "Number/abs"
+            | "Number/neg_abs"
+            | "Number/scale_percent"
+            | "Number/percent_of_range"
+            | "Number/less_than"
+            | "Number/less_or_equal"
+            | "Number/greater_than"
+            | "Number/greater_or_equal"
+            | "Geometry/intersects"
             | "Geometry/track_vertical_position"
             | "Geometry/peer_body_x"
             | "Geometry/peer_body_y"
@@ -651,6 +685,9 @@ fn executable_hold_handler_from_record(
     let expr = record.value.as_ref()?;
     let (input, stages) = pipeline_parts(expr)?;
     let initial = exec_expr_from_hir(input, None, sources)?;
+    if !matches!(initial, ExecExpr::Number { .. }) {
+        return None;
+    }
     let (state_name, hold_body) = stages.iter().find_map(hold_stage)?;
     let (source_path, value) =
         executable_source_then_expr(hold_body, state_name, state_path, sources)?;
@@ -735,6 +772,7 @@ fn exec_expr_from_hir(
                 .collect::<Option<Vec<_>>>()?,
         }),
         HirExprKind::When { arms } => Some(ExecExpr::When {
+            input: None,
             arms: arms
                 .iter()
                 .map(|arm| {
@@ -754,6 +792,22 @@ fn exec_expr_from_hir(
                     value: Box::new(exec_expr_from_hir(input, hold_state, sources)?),
                 });
             }
+            if stages.len() == 1
+                && let HirExprKind::When { arms } = &stages[0].kind
+            {
+                return Some(ExecExpr::When {
+                    input: Some(Box::new(exec_expr_from_hir(input, hold_state, sources)?)),
+                    arms: arms
+                        .iter()
+                        .map(|arm| {
+                            Some(ExecWhenArm {
+                                pattern: arm.pattern.clone(),
+                                value: exec_expr_from_hir(&arm.value, hold_state, sources)?,
+                            })
+                        })
+                        .collect::<Option<Vec<_>>>()?,
+                });
+            }
             None
         }
         _ => None,
@@ -770,6 +824,9 @@ fn render_tree_from_hir(hir: &HirModule, sources: &SourceInventory) -> Option<Ir
         source_path: None,
         collection_path: None,
         text: None,
+        bounds: None,
+        scale: None,
+        color: None,
         children: vec![render_node_from_expr(root, sources, &mut ids)],
     })
 }
@@ -810,6 +867,9 @@ fn render_node_from_expr(
             source_path: None,
             collection_path: None,
             text: None,
+            bounds: None,
+            scale: None,
+            color: None,
             children: items
                 .iter()
                 .map(|item| render_node_from_expr(item, sources, ids))
@@ -821,6 +881,9 @@ fn render_node_from_expr(
             source_path: None,
             collection_path: None,
             text: render_text_from_expr(expr),
+            bounds: None,
+            scale: None,
+            color: None,
             children: Vec::new(),
         },
     }
@@ -835,6 +898,7 @@ fn render_host_node(
     let kind = match path {
         "Element/panel" => IrRenderKind::Panel,
         "Element/text" => IrRenderKind::Text,
+        "Element/rect" => IrRenderKind::Rect,
         "Element/button" => IrRenderKind::Button,
         "Element/text_input" => IrRenderKind::TextInput,
         "Element/checkbox" => IrRenderKind::Checkbox,
@@ -858,8 +922,55 @@ fn render_host_node(
         source_path,
         collection_path: None,
         text,
+        bounds: render_bounds_from_args(args),
+        scale: named_arg(args, "scale").and_then(render_number_from_expr),
+        color: named_arg(args, "color").and_then(render_color_from_expr),
         children,
     }
+}
+
+fn render_bounds_from_args(args: &[HirCallArg]) -> Option<IrRenderBounds> {
+    Some(IrRenderBounds {
+        x: named_arg(args, "x").and_then(render_number_from_expr)?,
+        y: named_arg(args, "y").and_then(render_number_from_expr)?,
+        width: named_arg(args, "width").and_then(render_number_from_expr)?,
+        height: named_arg(args, "height").and_then(render_number_from_expr)?,
+    })
+}
+
+fn render_number_from_expr(expr: &HirExpr) -> Option<IrRenderNumber> {
+    match &expr.kind {
+        HirExprKind::Literal {
+            literal: HirLiteral::Number { value },
+        } => Some(IrRenderNumber::Literal { value: *value }),
+        HirExprKind::Path { value } => Some(IrRenderNumber::Binding {
+            path: value.clone(),
+        }),
+        _ => None,
+    }
+}
+
+fn render_color_from_expr(expr: &HirExpr) -> Option<[u8; 4]> {
+    let HirExprKind::Literal {
+        literal: HirLiteral::Text { value },
+    } = &expr.kind
+    else {
+        return None;
+    };
+    parse_hex_color(value)
+}
+
+fn parse_hex_color(value: &str) -> Option<[u8; 4]> {
+    let hex = value.trim().strip_prefix('#')?;
+    let (rgb, alpha) = match hex.len() {
+        6 => (hex, 255),
+        8 => (&hex[..6], u8::from_str_radix(&hex[6..8], 16).ok()?),
+        _ => return None,
+    };
+    let red = u8::from_str_radix(&rgb[0..2], 16).ok()?;
+    let green = u8::from_str_radix(&rgb[2..4], 16).ok()?;
+    let blue = u8::from_str_radix(&rgb[4..6], 16).ok()?;
+    Some([red, green, blue, alpha])
 }
 
 fn render_pipeline_node(
@@ -884,6 +995,9 @@ fn render_pipeline_node(
             source_path: None,
             collection_path: first_path_in_expr(input).map(str::to_string),
             text: None,
+            bounds: None,
+            scale: None,
+            color: None,
             children: named_arg(args, "new")
                 .map(|item| vec![render_node_from_expr(item, sources, ids)])
                 .unwrap_or_default(),
@@ -897,6 +1011,9 @@ fn render_pipeline_node(
         text: first_path_in_expr(input).map(|path| IrRenderText::Binding {
             path: path.to_string(),
         }),
+        bounds: None,
+        scale: None,
+        color: None,
         children: Vec::new(),
     }
 }

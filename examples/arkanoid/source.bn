@@ -33,6 +33,17 @@ kinematics:
         50 |> HOLD control_y {
             store.sources.tick.event.frame |> THEN { control_y }
         }
+    control_left:
+        420 |> HOLD control_left {
+            store.sources.tick.event.frame
+            |> THEN {
+                Number/scale_percent(
+                    value: kinematics.control_x
+                    min: 0
+                    max: 840
+                )
+            }
+        }
     tracked_control_y:
         50 |> HOLD tracked_control_y {
             store.sources.tick.event.frame |> THEN { tracked_control_y }
@@ -41,124 +52,44 @@ kinematics:
         470 |> HOLD body_x {
             store.sources.tick.event.frame
             |> THEN {
-                Geometry/contact_body_x(
-                    x: body_x
-                    y: kinematics.body_y
-                    dx: kinematics.body_dx
-                    dy: kinematics.body_dy
-                    initial_dx: 10
-                    initial_dy: -12
-                    body_size: 22
-                    arena_width: 1000
-                    arena_height: 700
-                    control_width: 160
-                    control_height: 18
-                    control_x: kinematics.control_x
-                    control_y: 646
-                    field_rows: 6
-                    field_columns: 12
-                    field_top: 56
-                    field_margin: 36
-                    field_gap: 8
-                    field_height: 28
-                    live_count: kinematics.contact_field_live_count
-                    value_per_contact: 10
-                    contact_value: kinematics.contact_value
-                    resets_remaining: kinematics.resets_remaining
-                )
+                Number/less_than(left: body_x + kinematics.body_dx, right: -22)
+                |> WHEN {
+                    True => 470
+                    False => Number/greater_than(left: body_x + kinematics.body_dx, right: 1022) |> WHEN { True => 470 False => body_x + kinematics.body_dx }
+                }
             }
         }
     body_y:
         205 |> HOLD body_y {
             store.sources.tick.event.frame
             |> THEN {
-                Geometry/contact_body_y(
-                    x: kinematics.body_x
-                    y: body_y
-                    dx: kinematics.body_dx
-                    dy: kinematics.body_dy
-                    initial_dx: 10
-                    initial_dy: -12
-                    body_size: 22
-                    arena_width: 1000
-                    arena_height: 700
-                    control_width: 160
-                    control_height: 18
-                    control_x: kinematics.control_x
-                    control_y: 646
-                    field_rows: 6
-                    field_columns: 12
-                    field_top: 56
-                    field_margin: 36
-                    field_gap: 8
-                    field_height: 28
-                    live_count: kinematics.contact_field_live_count
-                    value_per_contact: 10
-                    contact_value: kinematics.contact_value
-                    resets_remaining: kinematics.resets_remaining
-                )
+                Number/greater_than(left: body_y + kinematics.body_dy, right: 722)
+                |> WHEN {
+                    True => 205
+                    False => Number/less_than(left: body_y + kinematics.body_dy, right: 0) |> WHEN { True => 0 False => body_y + kinematics.body_dy }
+                }
             }
         }
     body_dx:
         10 |> HOLD body_dx {
             store.sources.tick.event.frame
             |> THEN {
-                Geometry/contact_body_dx(
-                    x: kinematics.body_x
-                    y: kinematics.body_y
-                    dx: body_dx
-                    dy: kinematics.body_dy
-                    initial_dx: 10
-                    initial_dy: -12
-                    body_size: 22
-                    arena_width: 1000
-                    arena_height: 700
-                    control_width: 160
-                    control_height: 18
-                    control_x: kinematics.control_x
-                    control_y: 646
-                    field_rows: 6
-                    field_columns: 12
-                    field_top: 56
-                    field_margin: 36
-                    field_gap: 8
-                    field_height: 28
-                    live_count: kinematics.contact_field_live_count
-                    value_per_contact: 10
-                    contact_value: kinematics.contact_value
-                    resets_remaining: kinematics.resets_remaining
-                )
+                Number/less_than(left: kinematics.body_x + body_dx, right: 0)
+                |> WHEN {
+                    True => Number/abs(value: body_dx)
+                    False => Number/greater_than(left: kinematics.body_x + body_dx + 22, right: 1000) |> WHEN { True => Number/neg_abs(value: body_dx) False => body_dx }
+                }
             }
         }
     body_dy:
         -12 |> HOLD body_dy {
             store.sources.tick.event.frame
             |> THEN {
-                Geometry/contact_body_dy(
-                    x: kinematics.body_x
-                    y: kinematics.body_y
-                    dx: kinematics.body_dx
-                    dy: body_dy
-                    initial_dx: 10
-                    initial_dy: -12
-                    body_size: 22
-                    arena_width: 1000
-                    arena_height: 700
-                    control_width: 160
-                    control_height: 18
-                    control_x: kinematics.control_x
-                    control_y: 646
-                    field_rows: 6
-                    field_columns: 12
-                    field_top: 56
-                    field_margin: 36
-                    field_gap: 8
-                    field_height: 28
-                    live_count: kinematics.contact_field_live_count
-                    value_per_contact: 10
-                    contact_value: kinematics.contact_value
-                    resets_remaining: kinematics.resets_remaining
-                )
+                Number/greater_than(left: kinematics.body_y + body_dy, right: 722)
+                |> WHEN {
+                    True => -12
+                    False => Number/less_than(left: kinematics.body_y + body_dy, right: 0) |> WHEN { True => Number/abs(value: body_dy) False => Geometry/intersects(ax: kinematics.body_x, ay: kinematics.body_y + body_dy, aw: 22, ah: 22, bx: kinematics.control_left, by: 646, bw: 160, bh: 18) |> WHEN { True => Number/neg_abs(value: body_dy) False => Number/greater_than(left: kinematics.contact_field_live_count, right: 0) |> WHEN { True => Geometry/intersects(ax: kinematics.body_x, ay: kinematics.body_y + body_dy, aw: 22, ah: 22, bx: 36, by: 56, bw: 928, bh: 208) |> WHEN { True => Number/abs(value: body_dy) False => body_dy } False => body_dy } } }
+                }
             }
         }
     contact_field_rows:
@@ -173,93 +104,33 @@ kinematics:
         72 |> HOLD contact_field_live_count {
             store.sources.tick.event.frame
             |> THEN {
-                Geometry/contact_live_count(
-                    x: kinematics.body_x
-                    y: kinematics.body_y
-                    dx: kinematics.body_dx
-                    dy: kinematics.body_dy
-                    initial_dx: 10
-                    initial_dy: -12
-                    body_size: 22
-                    arena_width: 1000
-                    arena_height: 700
-                    control_width: 160
-                    control_height: 18
-                    control_x: kinematics.control_x
-                    control_y: 646
-                    field_rows: 6
-                    field_columns: 12
-                    field_top: 56
-                    field_margin: 36
-                    field_gap: 8
-                    field_height: 28
-                    live_count: contact_field_live_count
-                    value_per_contact: 10
-                    contact_value: kinematics.contact_value
-                    resets_remaining: kinematics.resets_remaining
-                )
+                Number/greater_than(left: contact_field_live_count, right: 0)
+                |> WHEN {
+                    True => Geometry/intersects(ax: kinematics.body_x, ay: kinematics.body_y + kinematics.body_dy, aw: 22, ah: 22, bx: 36, by: 56, bw: 928, bh: 208) |> WHEN { True => Number/max(left: contact_field_live_count - 1, right: 0) False => contact_field_live_count }
+                    False => contact_field_live_count
+                }
             }
         }
     contact_value:
         0 |> HOLD contact_value {
             store.sources.tick.event.frame
             |> THEN {
-                Geometry/contact_value(
-                    x: kinematics.body_x
-                    y: kinematics.body_y
-                    dx: kinematics.body_dx
-                    dy: kinematics.body_dy
-                    initial_dx: 10
-                    initial_dy: -12
-                    body_size: 22
-                    arena_width: 1000
-                    arena_height: 700
-                    control_width: 160
-                    control_height: 18
-                    control_x: kinematics.control_x
-                    control_y: 646
-                    field_rows: 6
-                    field_columns: 12
-                    field_top: 56
-                    field_margin: 36
-                    field_gap: 8
-                    field_height: 28
-                    live_count: kinematics.contact_field_live_count
-                    value_per_contact: 10
-                    contact_value: contact_value
-                    resets_remaining: kinematics.resets_remaining
-                )
+                Number/greater_than(left: kinematics.contact_field_live_count, right: 0)
+                |> WHEN {
+                    True => Geometry/intersects(ax: kinematics.body_x, ay: kinematics.body_y + kinematics.body_dy, aw: 22, ah: 22, bx: 36, by: 56, bw: 928, bh: 208) |> WHEN { True => contact_value + 10 False => contact_value }
+                    False => contact_value
+                }
             }
         }
     resets_remaining:
         3 |> HOLD resets_remaining {
             store.sources.tick.event.frame
             |> THEN {
-                Geometry/contact_resets_remaining(
-                    x: kinematics.body_x
-                    y: kinematics.body_y
-                    dx: kinematics.body_dx
-                    dy: kinematics.body_dy
-                    initial_dx: 10
-                    initial_dy: -12
-                    body_size: 22
-                    arena_width: 1000
-                    arena_height: 700
-                    control_width: 160
-                    control_height: 18
-                    control_x: kinematics.control_x
-                    control_y: 646
-                    field_rows: 6
-                    field_columns: 12
-                    field_top: 56
-                    field_margin: 36
-                    field_gap: 8
-                    field_height: 28
-                    live_count: kinematics.contact_field_live_count
-                    value_per_contact: 10
-                    contact_value: kinematics.contact_value
-                    resets_remaining: resets_remaining
-                )
+                Number/greater_than(left: kinematics.body_y + kinematics.body_dy, right: 722)
+                |> WHEN {
+                    True => Number/max(left: resets_remaining - 1, right: 0)
+                    False => resets_remaining
+                }
             }
         }
 
@@ -267,10 +138,95 @@ document:
     Document/new(
         root:
             Element/panel(
+                x: 0
+                y: 0
+                width: 1000
+                height: 760
+                color: TEXT { #121820 }
                 children:
                     LIST {
-                        Element/label(element: store.sources.tick)
-                        Element/label(element: store.sources.paddle)
+                        Element/text(x: 38 y: 28 width: 240 height: 32 scale: 2 text: TEXT { Arkanoid } color: TEXT { #e7f1f7 })
+                        Element/text(x: 38 y: 66 width: 120 height: 18 text: kinematics.frame color: TEXT { #99b7c6 })
+                        Element/text(x: 170 y: 66 width: 120 height: 18 text: kinematics.contact_value color: TEXT { #99b7c6 })
+                        Element/text(x: 302 y: 66 width: 120 height: 18 text: kinematics.contact_field_live_count color: TEXT { #99b7c6 })
+                        Element/text(x: 434 y: 66 width: 120 height: 18 text: kinematics.resets_remaining color: TEXT { #99b7c6 })
+                        Element/label(element: store.sources.tick, x: 0, y: 0, width: 1, height: 1)
+                        Element/label(element: store.sources.paddle, x: 0, y: 0, width: 1, height: 1)
+                        Element/rect(x: 0 y: 96 width: 1000 height: 664 color: TEXT { #0c141d })
+                        Element/rect(x: 36 y: 56 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 114 y: 56 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 192 y: 56 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 270 y: 56 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 348 y: 56 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 426 y: 56 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 504 y: 56 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 582 y: 56 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 660 y: 56 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 738 y: 56 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 816 y: 56 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 894 y: 56 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 36 y: 92 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 114 y: 92 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 192 y: 92 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 270 y: 92 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 348 y: 92 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 426 y: 92 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 504 y: 92 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 582 y: 92 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 660 y: 92 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 738 y: 92 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 816 y: 92 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 894 y: 92 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 36 y: 128 width: 70 height: 28 color: TEXT { #56b07a })
+                        Element/rect(x: 114 y: 128 width: 70 height: 28 color: TEXT { #56b07a })
+                        Element/rect(x: 192 y: 128 width: 70 height: 28 color: TEXT { #56b07a })
+                        Element/rect(x: 270 y: 128 width: 70 height: 28 color: TEXT { #56b07a })
+                        Element/rect(x: 348 y: 128 width: 70 height: 28 color: TEXT { #56b07a })
+                        Element/rect(x: 426 y: 128 width: 70 height: 28 color: TEXT { #56b07a })
+                        Element/rect(x: 504 y: 128 width: 70 height: 28 color: TEXT { #56b07a })
+                        Element/rect(x: 582 y: 128 width: 70 height: 28 color: TEXT { #56b07a })
+                        Element/rect(x: 660 y: 128 width: 70 height: 28 color: TEXT { #56b07a })
+                        Element/rect(x: 738 y: 128 width: 70 height: 28 color: TEXT { #56b07a })
+                        Element/rect(x: 816 y: 128 width: 70 height: 28 color: TEXT { #56b07a })
+                        Element/rect(x: 894 y: 128 width: 70 height: 28 color: TEXT { #56b07a })
+                        Element/rect(x: 36 y: 164 width: 70 height: 28 color: TEXT { #4e92d2 })
+                        Element/rect(x: 114 y: 164 width: 70 height: 28 color: TEXT { #4e92d2 })
+                        Element/rect(x: 192 y: 164 width: 70 height: 28 color: TEXT { #4e92d2 })
+                        Element/rect(x: 270 y: 164 width: 70 height: 28 color: TEXT { #4e92d2 })
+                        Element/rect(x: 348 y: 164 width: 70 height: 28 color: TEXT { #4e92d2 })
+                        Element/rect(x: 426 y: 164 width: 70 height: 28 color: TEXT { #4e92d2 })
+                        Element/rect(x: 504 y: 164 width: 70 height: 28 color: TEXT { #4e92d2 })
+                        Element/rect(x: 582 y: 164 width: 70 height: 28 color: TEXT { #4e92d2 })
+                        Element/rect(x: 660 y: 164 width: 70 height: 28 color: TEXT { #4e92d2 })
+                        Element/rect(x: 738 y: 164 width: 70 height: 28 color: TEXT { #4e92d2 })
+                        Element/rect(x: 816 y: 164 width: 70 height: 28 color: TEXT { #4e92d2 })
+                        Element/rect(x: 894 y: 164 width: 70 height: 28 color: TEXT { #4e92d2 })
+                        Element/rect(x: 36 y: 200 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 114 y: 200 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 192 y: 200 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 270 y: 200 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 348 y: 200 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 426 y: 200 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 504 y: 200 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 582 y: 200 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 660 y: 200 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 738 y: 200 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 816 y: 200 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 894 y: 200 width: 70 height: 28 color: TEXT { #e85c50 })
+                        Element/rect(x: 36 y: 236 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 114 y: 236 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 192 y: 236 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 270 y: 236 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 348 y: 236 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 426 y: 236 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 504 y: 236 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 582 y: 236 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 660 y: 236 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 738 y: 236 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 816 y: 236 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: 894 y: 236 width: 70 height: 28 color: TEXT { #eca848 })
+                        Element/rect(x: kinematics.control_left y: 646 width: 160 height: 18 color: TEXT { #55d4e6 })
+                        Element/rect(x: kinematics.body_x y: kinematics.body_y width: 22 height: 22 color: TEXT { #fafafa })
                     }
             )
     )
