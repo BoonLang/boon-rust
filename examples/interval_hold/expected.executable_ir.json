@@ -1,0 +1,48 @@
+{
+  "state_slots": [
+    {
+      "path": "ticks",
+      "initial": {
+        "kind": "number",
+        "value": 0
+      }
+    }
+  ],
+  "source_handlers": [
+    {
+      "source_path": "store.sources.clock.event.tick",
+      "effects": [
+        {
+          "kind": "set_state",
+          "path": "ticks",
+          "value": {
+            "kind": "add",
+            "left": {
+              "kind": "state",
+              "path": "ticks"
+            },
+            "right": {
+              "kind": "number",
+              "value": 1
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "scene": {
+    "id": "root_0",
+    "kind": "root",
+    "children": [
+      {
+        "id": "label_1",
+        "kind": "label",
+        "source_path": "store.sources.clock",
+        "text": {
+          "kind": "binding",
+          "path": "ticks"
+        }
+      }
+    ]
+  }
+}

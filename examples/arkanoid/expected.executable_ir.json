@@ -1,0 +1,55 @@
+{
+  "state_slots": [
+    {
+      "path": "world",
+      "initial": {
+        "kind": "number",
+        "value": 0
+      }
+    }
+  ],
+  "source_handlers": [
+    {
+      "source_path": "store.sources.tick.event.frame",
+      "effects": [
+        {
+          "kind": "set_state",
+          "path": "world",
+          "value": {
+            "kind": "add",
+            "left": {
+              "kind": "state",
+              "path": "world"
+            },
+            "right": {
+              "kind": "number",
+              "value": 1
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "scene": {
+    "id": "root_0",
+    "kind": "root",
+    "children": [
+      {
+        "id": "panel_3",
+        "kind": "panel",
+        "children": [
+          {
+            "id": "label_1",
+            "kind": "label",
+            "source_path": "store.sources.tick"
+          },
+          {
+            "id": "label_2",
+            "kind": "label",
+            "source_path": "store.sources.paddle"
+          }
+        ]
+      }
+    ]
+  }
+}

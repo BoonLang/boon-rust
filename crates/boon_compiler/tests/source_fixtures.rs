@@ -54,6 +54,22 @@ fn maintained_examples_compile_and_match_source_snapshots() {
         )
         .expect("expected app IR snapshot parses");
         assert_eq!(actual, expected, "compiled app IR changed for {name}");
+
+        let expected_path = root
+            .join("examples")
+            .join(&name)
+            .join("expected.executable_ir.json");
+        let actual =
+            serde_json::to_value(&compiled.executable_ir).expect("executable IR serializes");
+        let expected: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(&expected_path).expect("expected executable IR snapshot readable"),
+        )
+        .expect("expected executable IR snapshot parses");
+        assert_eq!(
+            actual, expected,
+            "compiled executable IR changed for {name}"
+        );
+
         assert_render_tree_bindings_are_inventory_backed(&name, &compiled);
     }
 }
@@ -322,6 +338,20 @@ fn counter_accumulator_lowers_to_generic_event_ir() {
     assert!(
         app_ir.contains("\"hold\"") && app_ir.contains("\"add\""),
         "counter app IR should preserve HOLD state + numeric step semantics: {app_ir}"
+    );
+
+    assert_eq!(compiled.executable_ir.state_slots.len(), 1);
+    assert_eq!(compiled.executable_ir.state_slots[0].path, "counter");
+    assert_eq!(compiled.executable_ir.source_handlers.len(), 1);
+    assert_eq!(
+        compiled.executable_ir.source_handlers[0].source_path,
+        "store.sources.increment_button.event.press"
+    );
+    let executable_ir =
+        serde_json::to_string(&compiled.executable_ir).expect("executable ir serializes");
+    assert!(
+        executable_ir.contains("\"set_state\"") && executable_ir.contains("\"add\""),
+        "counter executable IR should preserve generic state update semantics: {executable_ir}"
     );
 }
 

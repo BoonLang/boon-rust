@@ -17,6 +17,7 @@ pub struct CompiledModule {
     pub sources: SourceInventory,
     pub program: IrAppMetadata,
     pub app_ir: AppIr,
+    pub executable_ir: ExecutableIr,
     pub provenance: CompiledProvenance,
 }
 
@@ -49,6 +50,71 @@ pub struct AppIr {
     pub event_handlers: Vec<IrEventHandler>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub render_tree: Option<IrRenderNode>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ExecutableIr {
+    pub state_slots: Vec<ExecStateSlot>,
+    pub source_handlers: Vec<ExecSourceHandler>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scene: Option<IrRenderNode>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ExecStateSlot {
+    pub path: String,
+    pub initial: ExecExpr,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ExecSourceHandler {
+    pub source_path: String,
+    pub effects: Vec<ExecEffect>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ExecEffect {
+    SetState { path: String, value: ExecExpr },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ExecExpr {
+    Number {
+        value: i64,
+    },
+    Text {
+        value: String,
+    },
+    Bool {
+        value: bool,
+    },
+    Tag {
+        value: String,
+    },
+    State {
+        path: String,
+    },
+    Source {
+        path: String,
+    },
+    Add {
+        left: Box<ExecExpr>,
+        right: Box<ExecExpr>,
+    },
+    Subtract {
+        left: Box<ExecExpr>,
+        right: Box<ExecExpr>,
+    },
+    Equal {
+        left: Box<ExecExpr>,
+        right: Box<ExecExpr>,
+    },
+    TextFromNumber {
+        value: Box<ExecExpr>,
+    },
+    Skip,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -334,6 +400,7 @@ pub fn compile_source(name: &str, source: &str) -> Result<CompiledModule> {
     let sources = SourceInventory { entries };
     validate_static_source_reads(&hir, &sources)?;
     let app_ir = app_ir_from_hir(&hir, &sources);
+    let executable_ir = executable_ir_from_hir(&hir, &sources);
     let program = app_metadata(name, &parsed);
     Ok(CompiledModule {
         name: name.to_string(),
@@ -341,6 +408,7 @@ pub fn compile_source(name: &str, source: &str) -> Result<CompiledModule> {
         sources,
         program,
         app_ir,
+        executable_ir,
         provenance,
     })
 }
@@ -510,6 +578,127 @@ fn app_ir_from_hir(hir: &HirModule, sources: &SourceInventory) -> AppIr {
     ir.render_tree = render_tree_from_hir(hir, sources);
     dedupe_app_ir(&mut ir);
     ir
+}
+
+fn executable_ir_from_hir(hir: &HirModule, sources: &SourceInventory) -> ExecutableIr {
+    let mut executable = ExecutableIr {
+        scene: render_tree_from_hir(hir, sources),
+        ..ExecutableIr::default()
+    };
+    for item in &hir.items {
+        let HirItem::Record(record) = item else {
+            continue;
+        };
+        if let Some((source_path, state_path, initial, value)) =
+            executable_hold_handler_from_record(record, sources)
+        {
+            executable.state_slots.push(ExecStateSlot {
+                path: state_path.clone(),
+                initial,
+            });
+            executable.source_handlers.push(ExecSourceHandler {
+                source_path,
+                effects: vec![ExecEffect::SetState {
+                    path: state_path,
+                    value,
+                }],
+            });
+        }
+    }
+    executable
+}
+
+fn executable_hold_handler_from_record(
+    record: &HirRecord,
+    sources: &SourceInventory,
+) -> Option<(String, String, ExecExpr, ExecExpr)> {
+    let expr = record.value.as_ref()?;
+    let (input, stages) = pipeline_parts(expr)?;
+    let initial = exec_expr_from_hir(input, None, sources)?;
+    let (state_name, hold_body) = stages.iter().find_map(hold_stage)?;
+    let (source_path, value) =
+        executable_source_then_expr(hold_body, state_name, &record.key, sources)?;
+    Some((source_path, record.key.clone(), initial, value))
+}
+
+fn executable_source_then_expr(
+    expr: &HirExpr,
+    state_name: &str,
+    state_path: &str,
+    sources: &SourceInventory,
+) -> Option<(String, ExecExpr)> {
+    match &expr.kind {
+        HirExprKind::Pipeline { input, stages } => {
+            let source_path = resolve_source_path(sources, path_expr(input)?)?;
+            let then = stages.iter().find_map(then_body)?;
+            let value = exec_expr_from_hir(then, Some((state_name, state_path)), sources)?;
+            Some((source_path, value))
+        }
+        HirExprKind::Latest { branches } => branches.iter().find_map(|branch| {
+            executable_source_then_expr(branch, state_name, state_path, sources)
+        }),
+        _ => None,
+    }
+}
+
+fn exec_expr_from_hir(
+    expr: &HirExpr,
+    hold_state: Option<(&str, &str)>,
+    sources: &SourceInventory,
+) -> Option<ExecExpr> {
+    match &expr.kind {
+        HirExprKind::Literal {
+            literal: HirLiteral::Number { value },
+        } => Some(ExecExpr::Number { value: *value }),
+        HirExprKind::Literal {
+            literal: HirLiteral::Text { value },
+        } => Some(ExecExpr::Text {
+            value: value.clone(),
+        }),
+        HirExprKind::Literal {
+            literal: HirLiteral::Bool { value },
+        } => Some(ExecExpr::Bool { value: *value }),
+        HirExprKind::Tag { value } => Some(ExecExpr::Tag {
+            value: value.clone(),
+        }),
+        HirExprKind::Skip => Some(ExecExpr::Skip),
+        HirExprKind::Path { value } => {
+            if let Some((state_name, state_path)) = hold_state
+                && value == state_name
+            {
+                return Some(ExecExpr::State {
+                    path: state_path.to_string(),
+                });
+            }
+            if let Some(path) = resolve_source_path(sources, value) {
+                return Some(ExecExpr::Source { path });
+            }
+            Some(ExecExpr::State {
+                path: value.clone(),
+            })
+        }
+        HirExprKind::Binary { op, left, right } => {
+            let left = Box::new(exec_expr_from_hir(left, hold_state, sources)?);
+            let right = Box::new(exec_expr_from_hir(right, hold_state, sources)?);
+            match op {
+                boon_syntax::AstBinaryOp::Add => Some(ExecExpr::Add { left, right }),
+                boon_syntax::AstBinaryOp::Subtract => Some(ExecExpr::Subtract { left, right }),
+                boon_syntax::AstBinaryOp::Equal => Some(ExecExpr::Equal { left, right }),
+            }
+        }
+        HirExprKind::Pipeline { input, stages } => {
+            if stages.len() == 1
+                && let HirExprKind::FunctionCall { path, .. } = &stages[0].kind
+                && path == "Text/from_number"
+            {
+                return Some(ExecExpr::TextFromNumber {
+                    value: Box::new(exec_expr_from_hir(input, hold_state, sources)?),
+                });
+            }
+            None
+        }
+        _ => None,
+    }
 }
 
 fn render_tree_from_hir(hir: &HirModule, sources: &SourceInventory) -> Option<IrRenderNode> {

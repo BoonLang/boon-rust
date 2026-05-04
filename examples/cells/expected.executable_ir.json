@@ -1,0 +1,15 @@
+{
+  "state_slots": [],
+  "source_handlers": [],
+  "scene": {
+    "id": "root_0",
+    "kind": "root",
+    "children": [
+      {
+        "id": "grid_1",
+        "kind": "grid",
+        "source_path": "store.sources.viewport"
+      }
+    ]
+  }
+}

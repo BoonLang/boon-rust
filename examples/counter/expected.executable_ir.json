@@ -1,0 +1,48 @@
+{
+  "state_slots": [
+    {
+      "path": "counter",
+      "initial": {
+        "kind": "number",
+        "value": 0
+      }
+    }
+  ],
+  "source_handlers": [
+    {
+      "source_path": "store.sources.increment_button.event.press",
+      "effects": [
+        {
+          "kind": "set_state",
+          "path": "counter",
+          "value": {
+            "kind": "add",
+            "left": {
+              "kind": "state",
+              "path": "counter"
+            },
+            "right": {
+              "kind": "number",
+              "value": 1
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "scene": {
+    "id": "root_0",
+    "kind": "root",
+    "children": [
+      {
+        "id": "button_1",
+        "kind": "button",
+        "source_path": "store.sources.increment_button",
+        "text": {
+          "kind": "binding",
+          "path": "counter"
+        }
+      }
+    ]
+  }
+}

@@ -4,29 +4,34 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use boon_compiler::{
-    AppIr, ControlAxis, IrAppMetadata, IrEffect, IrPredicate, IrStaticField, IrStaticRecord,
-    IrStaticValue, IrValueExpr,
+    AppIr, ControlAxis, ExecEffect, ExecExpr, ExecutableIr, IrAppMetadata, IrEffect, IrPredicate,
+    IrStaticField, IrStaticRecord, IrStaticValue, IrValueExpr,
 };
 use boon_render_ir::{
     DrawCommand, FrameScene, HitTarget, HitTargetAction, HostPatch, NodeId, NodeKind,
 };
 use boon_shape::Shape;
 use boon_source::{SourceEntry, SourceOwner};
-use serde_json::json;
+use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
+
+const LIST_TEXT_FIELD: &str = "title";
+const LIST_MARK_FIELD: &str = "completed";
+const LIST_EDIT_FOCUS: &str = "sources.edit_input";
 
 #[derive(Clone, Debug)]
 pub struct CompiledApp {
     program: IrAppMetadata,
     app_ir: AppIr,
+    executable_ir: ExecutableIr,
     inventory: SourceInventory,
     wiring: RuntimeWiring,
     turn: u64,
     frame_text: String,
     clock: RuntimeClock,
-    records: Vec<DynamicRecord>,
-    next_record_id: u64,
+    dynamic_values: Vec<RuntimeDynamicValue>,
+    next_dynamic_value_id: u64,
     entry_text: String,
     source_state: BTreeMap<String, SourceValue>,
     generic_state: BTreeMap<String, i64>,
@@ -48,7 +53,6 @@ struct RuntimeWiring {
 
 #[derive(Clone, Debug)]
 struct StateEventBinding {
-    source_path: String,
     state_path: String,
 }
 
@@ -108,9 +112,26 @@ struct DenseBinding {
 }
 
 impl RuntimeWiring {
-    fn from_compiled(app_ir: &AppIr, inventory: &SourceInventory) -> Self {
+    fn from_compiled(
+        app_ir: &AppIr,
+        executable_ir: &ExecutableIr,
+        inventory: &SourceInventory,
+    ) -> Self {
         let mut action_state = None;
         let mut clock_state = None;
+        for handler in &executable_ir.source_handlers {
+            let Some(state_path) = handler.effects.first().map(|effect| match effect {
+                ExecEffect::SetState { path, .. } => path.clone(),
+            }) else {
+                continue;
+            };
+            let binding = StateEventBinding { state_path };
+            if source_shape_is_tick(inventory, &handler.source_path) {
+                clock_state.get_or_insert(binding);
+            } else {
+                action_state.get_or_insert(binding);
+            }
+        }
         for handler in &app_ir.event_handlers {
             let Some(state_path) = handler.effects.iter().find_map(|effect| match effect {
                 IrEffect::Assign { state_path, .. } => Some(state_path.clone()),
@@ -118,10 +139,7 @@ impl RuntimeWiring {
             }) else {
                 continue;
             };
-            let binding = StateEventBinding {
-                source_path: handler.source_path.clone(),
-                state_path,
-            };
+            let binding = StateEventBinding { state_path };
             if source_shape_is_tick(inventory, &handler.source_path) {
                 clock_state.get_or_insert(binding);
             } else {
@@ -329,10 +347,10 @@ fn static_base_for_producer(inventory: &SourceInventory, producer: &str) -> Opti
         .and_then(|path| source_base_from_path(&path))
 }
 
-fn eval_initial_number(expr: &IrValueExpr) -> Result<i64> {
+fn selfless_eval_exec_number(expr: &ExecExpr) -> Result<i64> {
     match expr {
-        IrValueExpr::Number { value } => Ok(*value),
-        _ => bail!("generic state cell initial value must be a number"),
+        ExecExpr::Number { value } => Ok(*value),
+        _ => bail!("executable state slot initial value must be a number"),
     }
 }
 
@@ -525,12 +543,56 @@ fn runtime_list_visibility_from_tag(value: &str) -> Option<RuntimeListVisibility
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct DynamicRecord {
+struct RuntimeDynamicValue {
     id: u64,
     generation: u32,
-    content_text: String,
-    mark: bool,
-    edit_focus: bool,
+    fields: BTreeMap<String, Value>,
+    focus: BTreeMap<String, bool>,
+}
+
+impl RuntimeDynamicValue {
+    fn new(id: u64, text: String, completed: bool) -> Self {
+        let mut fields = BTreeMap::new();
+        fields.insert(LIST_TEXT_FIELD.to_string(), json!(text));
+        fields.insert(LIST_MARK_FIELD.to_string(), json!(completed));
+        Self {
+            id,
+            generation: 0,
+            fields,
+            focus: BTreeMap::new(),
+        }
+    }
+
+    fn text_field(&self, path: &str) -> String {
+        self.fields
+            .get(path)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string()
+    }
+
+    fn set_text_field(&mut self, path: &str, value: String) {
+        self.fields.insert(path.to_string(), json!(value));
+    }
+
+    fn bool_field(&self, path: &str) -> bool {
+        self.fields
+            .get(path)
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+    }
+
+    fn set_bool_field(&mut self, path: &str, value: bool) {
+        self.fields.insert(path.to_string(), json!(value));
+    }
+
+    fn focus_field(&self, path: &str) -> bool {
+        self.focus.get(path).copied().unwrap_or(false)
+    }
+
+    fn set_focus_field(&mut self, path: &str, value: bool) {
+        self.focus.insert(path.to_string(), value);
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -651,7 +713,8 @@ impl CompiledApp {
         let inventory = compiled.sources;
         let program = compiled.program;
         let app_ir = compiled.app_ir;
-        let wiring = RuntimeWiring::from_compiled(&app_ir, &inventory);
+        let executable_ir = compiled.executable_ir;
+        let wiring = RuntimeWiring::from_compiled(&app_ir, &executable_ir, &inventory);
         let initial_records = app_ir
             .list_states
             .first()
@@ -673,31 +736,32 @@ impl CompiledApp {
             },
         );
         let mut generic_state = BTreeMap::new();
-        for cell in &app_ir.state_cells {
-            if let Ok(value) = eval_initial_number(&cell.initial) {
-                generic_state.insert(cell.path.clone(), value);
+        for slot in &executable_ir.state_slots {
+            if let Ok(value) = selfless_eval_exec_number(&slot.initial) {
+                generic_state.insert(slot.path.clone(), value);
             }
         }
         let mut app = Self {
             program,
             app_ir,
+            executable_ir,
             inventory,
             wiring,
             turn: 0,
             frame_text: String::new(),
             clock: RuntimeClock::default(),
-            records: initial_records
+            dynamic_values: initial_records
                 .into_iter()
                 .enumerate()
-                .map(|(idx, item)| DynamicRecord {
-                    id: idx as u64 + 1,
-                    generation: 0,
-                    content_text: item.text.unwrap_or_default(),
-                    mark: item.mark,
-                    edit_focus: false,
+                .map(|(idx, item)| {
+                    RuntimeDynamicValue::new(
+                        idx as u64 + 1,
+                        item.text.unwrap_or_default(),
+                        item.mark,
+                    )
                 })
                 .collect(),
-            next_record_id: 1,
+            next_dynamic_value_id: 1,
             entry_text: String::new(),
             source_state: BTreeMap::new(),
             generic_state,
@@ -706,7 +770,7 @@ impl CompiledApp {
             frame_index: 0,
             motion,
         };
-        app.next_record_id = app.records.len() as u64 + 1;
+        app.next_dynamic_value_id = app.dynamic_values.len() as u64 + 1;
         app.frame_text = app.render_text();
         app
     }
@@ -828,6 +892,10 @@ impl CompiledApp {
     }
 
     fn apply_generic_event(&mut self, event: &SourceEmission) -> Result<Option<Vec<String>>> {
+        if let Some(changed) = self.apply_executable_event(event)? {
+            return Ok(Some(changed));
+        }
+
         let handlers = self
             .app_ir
             .event_handlers
@@ -903,6 +971,33 @@ impl CompiledApp {
         Ok(Some(unique_paths(changed)))
     }
 
+    fn apply_executable_event(&mut self, event: &SourceEmission) -> Result<Option<Vec<String>>> {
+        let handlers = self
+            .executable_ir
+            .source_handlers
+            .iter()
+            .filter(|handler| handler.source_path == event.path)
+            .cloned()
+            .collect::<Vec<_>>();
+        if handlers.is_empty() {
+            return Ok(None);
+        }
+
+        let mut changed = Vec::new();
+        for handler in handlers {
+            for effect in handler.effects {
+                match effect {
+                    ExecEffect::SetState { path, value } => {
+                        let value = self.eval_exec_number(&value, event)?;
+                        self.generic_state.insert(path.clone(), value);
+                        changed.push(path);
+                    }
+                }
+            }
+        }
+        Ok(Some(unique_paths(changed)))
+    }
+
     fn generic_predicate_matches(
         &self,
         predicate: Option<&IrPredicate>,
@@ -932,6 +1027,29 @@ impl CompiledApp {
                 _ => bail!("generic numeric source `{path}` did not emit a number"),
             },
             IrValueExpr::Skip => bail!("generic SKIP is not assignable to numeric state"),
+        }
+    }
+
+    fn eval_exec_number(&self, expr: &ExecExpr, event: &SourceEmission) -> Result<i64> {
+        match expr {
+            ExecExpr::Number { value } => Ok(*value),
+            ExecExpr::State { path } => Ok(*self.generic_state.get(path).unwrap_or(&0)),
+            ExecExpr::Source { path } => match &event.value {
+                SourceValue::Number(value) if path == &event.path => Ok(*value),
+                _ => bail!("executable numeric source `{path}` did not emit a number"),
+            },
+            ExecExpr::Add { left, right } => {
+                Ok(self.eval_exec_number(left, event)? + self.eval_exec_number(right, event)?)
+            }
+            ExecExpr::Subtract { left, right } => {
+                Ok(self.eval_exec_number(left, event)? - self.eval_exec_number(right, event)?)
+            }
+            ExecExpr::Equal { .. }
+            | ExecExpr::Text { .. }
+            | ExecExpr::Bool { .. }
+            | ExecExpr::Tag { .. }
+            | ExecExpr::TextFromNumber { .. }
+            | ExecExpr::Skip => bail!("executable expression is not a number: {expr:?}"),
         }
     }
 
@@ -969,14 +1087,12 @@ impl CompiledApp {
         if skip_empty && text.is_empty() {
             return Ok(false);
         }
-        self.records.push(DynamicRecord {
-            id: self.next_record_id,
-            generation: 0,
-            content_text: text,
-            mark: false,
-            edit_focus: false,
-        });
-        self.next_record_id += 1;
+        self.dynamic_values.push(RuntimeDynamicValue::new(
+            self.next_dynamic_value_id,
+            text,
+            false,
+        ));
+        self.next_dynamic_value_id += 1;
         Ok(true)
     }
 
@@ -984,9 +1100,12 @@ impl CompiledApp {
         if self.record_root() != Some(list_path) {
             return false;
         }
-        let all_marked = self.records.iter().all(|record| record.mark);
-        for record in &mut self.records {
-            record.mark = !all_marked;
+        let all_marked = self
+            .dynamic_values
+            .iter()
+            .all(|record| record.bool_field(LIST_MARK_FIELD));
+        for record in &mut self.dynamic_values {
+            record.set_bool_field(LIST_MARK_FIELD, !all_marked);
         }
         true
     }
@@ -1003,17 +1122,17 @@ impl CompiledApp {
             .owner_id
             .as_deref()
             .expect("dynamic event owner_id was validated");
-        let record_id = owner_id
+        let dynamic_value_id = owner_id
             .parse::<u64>()
-            .map_err(|_| anyhow::anyhow!("record owner_id `{owner_id}` is not numeric"))?;
+            .map_err(|_| anyhow::anyhow!("dynamic value owner_id `{owner_id}` is not numeric"))?;
         let Some(record) = self
-            .records
+            .dynamic_values
             .iter_mut()
-            .find(|record| record.id == record_id)
+            .find(|record| record.id == dynamic_value_id)
         else {
             return Ok(false);
         };
-        record.mark = !record.mark;
+        record.set_bool_field(LIST_MARK_FIELD, !record.bool_field(LIST_MARK_FIELD));
         Ok(true)
     }
 
@@ -1029,21 +1148,23 @@ impl CompiledApp {
             .owner_id
             .as_deref()
             .expect("dynamic event owner_id was validated");
-        let record_id = owner_id
+        let dynamic_value_id = owner_id
             .parse::<u64>()
-            .map_err(|_| anyhow::anyhow!("record owner_id `{owner_id}` is not numeric"))?;
-        let before = self.records.len();
-        self.records.retain(|record| record.id != record_id);
-        Ok(self.records.len() != before)
+            .map_err(|_| anyhow::anyhow!("dynamic value owner_id `{owner_id}` is not numeric"))?;
+        let before = self.dynamic_values.len();
+        self.dynamic_values
+            .retain(|record| record.id != dynamic_value_id);
+        Ok(self.dynamic_values.len() != before)
     }
 
     fn apply_generic_list_remove_marked(&mut self, list_path: &str) -> bool {
         if self.record_root() != Some(list_path) {
             return false;
         }
-        let before = self.records.len();
-        self.records.retain(|record| !record.mark);
-        self.records.len() != before
+        let before = self.dynamic_values.len();
+        self.dynamic_values
+            .retain(|record| !record.bool_field(LIST_MARK_FIELD));
+        self.dynamic_values.len() != before
     }
 
     fn clear_generic_text_state(&mut self, text_state_path: &str) {
@@ -1104,22 +1225,8 @@ impl CompiledApp {
             self.render_matrix_text()
         } else if !self.app_ir.dynamics_models.is_empty() {
             self.render_dynamics_text()
-        } else if let Some(value) = self.action_value() {
-            let label = self
-                .program
-                .primary_label
-                .as_deref()
-                .filter(|label| !label.is_empty())
-                .unwrap_or("action");
-            format!(
-                "{}\nsurface: button-scalar\n[ {label} ]\ncount: {}",
-                self.program.title, value
-            )
-        } else if let Some(value) = self.clock_value() {
-            format!(
-                "{}\nsurface: clock-scalar\nruntime_clock_ms: {}\nticks: {}",
-                self.program.title, self.clock.millis, value
-            )
+        } else if self.can_render_generic_scene() {
+            self.render_generic_text()
         } else {
             String::new()
         }
@@ -1138,74 +1245,147 @@ impl CompiledApp {
             self.render_matrix_scene(&mut scene);
         } else if !self.app_ir.dynamics_models.is_empty() {
             self.render_dynamics_scene(&mut scene);
-        } else if self.action_value().is_some() {
-            self.render_action_value_scene(&mut scene);
-        } else if self.clock_value().is_some() {
-            self.render_clock_value_scene(&mut scene);
+        } else if self.can_render_generic_scene() {
+            self.render_generic_scene(&mut scene);
         }
         scene
     }
 
-    fn render_action_value_scene(&self, scene: &mut FrameScene) {
-        push_rect(scene, 0, 0, 1000, 1000, [238, 244, 247, 255]);
-        push_text(scene, 84, 108, 3, &self.program.title, [25, 40, 52, 255]);
-        push_rect(scene, 338, 388, 324, 92, [46, 125, 166, 255]);
-        push_rect_outline(scene, 338, 388, 324, 92, [21, 91, 128, 255]);
-        if let Some(path) = self
-            .wiring
-            .action_state
-            .as_ref()
-            .map(|binding| binding.source_path.as_str())
-        {
-            push_hit_target(
-                scene,
-                "scalar_action",
-                338,
-                388,
-                324,
-                92,
-                HitTargetAction::Press,
-                path,
-            );
-        }
-        let label = self
-            .program
-            .primary_label
-            .as_deref()
-            .filter(|label| !label.is_empty())
-            .unwrap_or("action");
-        push_text(scene, 424, 424, 2, label, [255, 255, 255, 255]);
-        push_text(
-            scene,
-            424,
-            548,
-            3,
-            &format!("count {}", self.action_value().unwrap_or(0)),
-            [35, 55, 68, 255],
-        );
+    fn can_render_generic_scene(&self) -> bool {
+        self.app_ir.render_tree.is_some()
+            && !self.has_repeater_surface()
+            && !self.has_render_kind(boon_compiler::IrRenderKind::Grid)
+            && self.app_ir.dynamics_models.is_empty()
     }
 
-    fn render_clock_value_scene(&self, scene: &mut FrameScene) {
-        push_rect(scene, 0, 0, 1000, 1000, [235, 241, 245, 255]);
-        push_text(scene, 84, 108, 3, &self.program.title, [24, 42, 55, 255]);
-        push_rect(scene, 120, 280, 760, 270, [28, 44, 58, 255]);
-        push_rect_outline(scene, 120, 280, 760, 270, [91, 156, 187, 255]);
-        push_text(
-            scene,
-            184,
-            348,
-            4,
-            &format!("ticks {}", self.clock_value().unwrap_or(0)),
-            [240, 250, 255, 255],
-        );
-        push_text(
-            scene,
-            184,
-            456,
-            2,
-            &format!("runtime clock {} ms", self.clock.millis),
-            [166, 207, 224, 255],
-        );
+    fn render_generic_text(&self) -> String {
+        let mut lines = vec![
+            self.program.title.clone(),
+            "surface: generic_scene".to_string(),
+        ];
+        if let Some(tree) = &self.app_ir.render_tree {
+            self.collect_generic_text(tree, &mut lines);
+        }
+        lines.join("\n")
+    }
+
+    fn collect_generic_text(&self, node: &boon_compiler::IrRenderNode, lines: &mut Vec<String>) {
+        if let Some(text) = node
+            .text
+            .as_ref()
+            .and_then(|text| self.eval_render_text(text))
+        {
+            lines.push(text);
+        }
+        for child in &node.children {
+            self.collect_generic_text(child, lines);
+        }
+    }
+
+    fn render_generic_scene(&self, scene: &mut FrameScene) {
+        push_rect(scene, 0, 0, 1000, 1000, [238, 244, 247, 255]);
+        push_text(scene, 84, 108, 3, &self.program.title, [25, 40, 52, 255]);
+        if let Some(tree) = &self.app_ir.render_tree {
+            let mut y = 278;
+            for child in &tree.children {
+                y = self.render_generic_node(scene, child, 278, y, 444);
+            }
+        }
+    }
+
+    fn render_generic_node(
+        &self,
+        scene: &mut FrameScene,
+        node: &boon_compiler::IrRenderNode,
+        x: u32,
+        y: u32,
+        width: u32,
+    ) -> u32 {
+        match node.kind {
+            boon_compiler::IrRenderKind::Root | boon_compiler::IrRenderKind::Panel => {
+                let mut next_y = y;
+                for child in &node.children {
+                    next_y = self.render_generic_node(scene, child, x, next_y, width);
+                }
+                next_y
+            }
+            boon_compiler::IrRenderKind::Button => {
+                push_rect(scene, x, y, width, 92, [46, 125, 166, 255]);
+                push_rect_outline(scene, x, y, width, 92, [21, 91, 128, 255]);
+                if let Some(source_path) = node
+                    .source_path
+                    .as_deref()
+                    .and_then(|base| self.primary_event_source(base))
+                {
+                    push_hit_target(
+                        scene,
+                        format!("generic_{}", node.id),
+                        x,
+                        y,
+                        width,
+                        92,
+                        HitTargetAction::Press,
+                        &source_path,
+                    );
+                }
+                let label = node
+                    .text
+                    .as_ref()
+                    .and_then(|text| self.eval_render_text(text))
+                    .unwrap_or_default();
+                push_text(scene, x + 86, y + 36, 2, &label, [255, 255, 255, 255]);
+                y + 124
+            }
+            boon_compiler::IrRenderKind::Label
+            | boon_compiler::IrRenderKind::Text
+            | boon_compiler::IrRenderKind::Unknown => {
+                let text = node
+                    .text
+                    .as_ref()
+                    .and_then(|text| self.eval_render_text(text))
+                    .unwrap_or_default();
+                if !text.is_empty() {
+                    push_text(scene, x, y, 3, &text, [35, 55, 68, 255]);
+                }
+                y + 72
+            }
+            boon_compiler::IrRenderKind::TextInput | boon_compiler::IrRenderKind::Checkbox => {
+                push_rect(scene, x, y, width, 64, [255, 255, 255, 255]);
+                push_rect_outline(scene, x, y, width, 64, [188, 202, 212, 255]);
+                y + 86
+            }
+            boon_compiler::IrRenderKind::Grid | boon_compiler::IrRenderKind::ListMap => y,
+        }
+    }
+
+    fn eval_render_text(&self, text: &boon_compiler::IrRenderText) -> Option<String> {
+        match text {
+            boon_compiler::IrRenderText::Literal { value } => Some(value.clone()),
+            boon_compiler::IrRenderText::Binding { path } => self.value_text(path),
+        }
+    }
+
+    fn value_text(&self, path: &str) -> Option<String> {
+        self.generic_state
+            .get(path)
+            .map(i64::to_string)
+            .or_else(|| match self.source_state.get(path) {
+                Some(SourceValue::Text(value)) => Some(value.clone()),
+                Some(SourceValue::Number(value)) => Some(value.to_string()),
+                Some(SourceValue::Tag(value)) => Some(value.clone()),
+                Some(SourceValue::EmptyRecord) | None => None,
+            })
+    }
+
+    fn primary_event_source(&self, base: &str) -> Option<String> {
+        [
+            format!("{base}.event.press"),
+            format!("{base}.event.click"),
+            format!("{base}.event.tick"),
+            base.to_string(),
+        ]
+        .into_iter()
+        .find(|candidate| self.inventory.get(candidate).is_some())
     }
 
     fn render_repeater_scene(&self, scene: &mut FrameScene) {
@@ -1274,9 +1454,9 @@ impl CompiledApp {
                 [54, 54, 54, 255]
             },
         );
-        let visible_records: Vec<_> = self.visible_records().collect();
+        let visible_dynamic_values: Vec<_> = self.visible_dynamic_values().collect();
         let mut y = 234;
-        for record in &visible_records {
+        for record in &visible_dynamic_values {
             if y >= 1000 {
                 break;
             }
@@ -1343,7 +1523,7 @@ impl CompiledApp {
                             owner_id: None,
                             generation: 0,
                             text_state_path: Some(text_path.to_string()),
-                            text_value: Some(record.content_text.clone()),
+                            text_value: Some(record.text_field(LIST_TEXT_FIELD)),
                             key_event_path: sequence.dynamic_text_key.clone(),
                             change_event_path: sequence.dynamic_text_change.clone(),
                             focus_event_path: None,
@@ -1354,7 +1534,7 @@ impl CompiledApp {
                     ));
                 }
             }
-            if record.mark {
+            if record.bool_field(LIST_MARK_FIELD) {
                 push_text(scene, 231, y + 19, 1, "x", [68, 146, 126, 255]);
             }
             push_text(
@@ -1362,8 +1542,8 @@ impl CompiledApp {
                 270,
                 y + 22,
                 2,
-                &record.content_text,
-                if record.mark {
+                &record.text_field(LIST_TEXT_FIELD),
+                if record.bool_field(LIST_MARK_FIELD) {
                     [160, 160, 160, 255]
                 } else {
                     [60, 60, 60, 255]
@@ -1372,9 +1552,13 @@ impl CompiledApp {
             push_text(scene, 744, y + 22, 1, "x", [172, 84, 84, 255]);
             y += 62;
         }
-        let mark = self.records.iter().filter(|record| record.mark).count();
-        let unmarked = self.records.len().saturating_sub(mark);
-        y = 234 + visible_records.len() as u32 * 62;
+        let mark = self
+            .dynamic_values
+            .iter()
+            .filter(|record| record.bool_field(LIST_MARK_FIELD))
+            .count();
+        let unmarked = self.dynamic_values.len().saturating_sub(mark);
+        y = 234 + visible_dynamic_values.len() as u32 * 62;
         if y >= 1000 {
             return;
         }
@@ -1711,8 +1895,12 @@ impl CompiledApp {
 
     fn render_repeater_text(&self) -> String {
         let view = self.list_view();
-        let mark = self.records.iter().filter(|record| record.mark).count();
-        let unmarked = self.records.len().saturating_sub(mark);
+        let mark = self
+            .dynamic_values
+            .iter()
+            .filter(|record| record.bool_field(LIST_MARK_FIELD))
+            .count();
+        let unmarked = self.dynamic_values.len().saturating_sub(mark);
         let mut lines = vec![
             self.program.title.clone(),
             "surface: sequence".to_string(),
@@ -1721,12 +1909,16 @@ impl CompiledApp {
                 .unwrap_or_default(),
             format!("input: {}", self.entry_text),
         ];
-        for record in self.visible_records() {
+        for record in self.visible_dynamic_values() {
             lines.push(format!(
                 "{} [{}] {}",
                 record.id,
-                if record.mark { "x" } else { " " },
-                record.content_text
+                if record.bool_field(LIST_MARK_FIELD) {
+                    "x"
+                } else {
+                    " "
+                },
+                record.text_field(LIST_TEXT_FIELD)
             ));
         }
         lines.push(format!(
@@ -1964,7 +2156,7 @@ impl CompiledApp {
         }
     }
 
-    fn visible_records(&self) -> impl Iterator<Item = &DynamicRecord> {
+    fn visible_dynamic_values(&self) -> impl Iterator<Item = &RuntimeDynamicValue> {
         let visibility = self
             .list_view()
             .and_then(|view| {
@@ -1974,11 +2166,13 @@ impl CompiledApp {
                     .map(|selector| selector.visibility)
             })
             .unwrap_or_default();
-        self.records.iter().filter(move |record| match visibility {
-            RuntimeListVisibility::All => true,
-            RuntimeListVisibility::Unmarked => !record.mark,
-            RuntimeListVisibility::Marked => record.mark,
-        })
+        self.dynamic_values
+            .iter()
+            .filter(move |record| match visibility {
+                RuntimeListVisibility::All => true,
+                RuntimeListVisibility::Unmarked => !record.bool_field(LIST_MARK_FIELD),
+                RuntimeListVisibility::Marked => record.bool_field(LIST_MARK_FIELD),
+            })
     }
 
     fn render_matrix_text(&self) -> String {
@@ -2274,15 +2468,17 @@ impl CompiledApp {
         if let Some(sequence) = &self.wiring.list
             && path.starts_with(&sequence.family)
         {
-            let record_id = owner_id
-                .parse::<u64>()
-                .map_err(|_| anyhow::anyhow!("record owner_id `{owner_id}` is not numeric"))?;
+            let dynamic_value_id = owner_id.parse::<u64>().map_err(|_| {
+                anyhow::anyhow!("dynamic value owner_id `{owner_id}` is not numeric")
+            })?;
             return self
-                .records
+                .dynamic_values
                 .iter()
-                .find(|record| record.id == record_id)
+                .find(|record| record.id == dynamic_value_id)
                 .map(|record| record.generation)
-                .ok_or_else(|| anyhow::anyhow!("dynamic record owner `{owner_id}` is not live"));
+                .ok_or_else(|| {
+                    anyhow::anyhow!("dynamic dynamic value owner `{owner_id}` is not live")
+                });
         }
         if let Some(grid) = &self.wiring.grid
             && path.starts_with(&grid.family)
@@ -2343,16 +2539,18 @@ impl BoonApp for CompiledApp {
                     .owner_id
                     .as_deref()
                     .expect("dynamic edit text owner_id was validated");
-                let record_id = owner_id
-                    .parse::<u64>()
-                    .map_err(|_| anyhow::anyhow!("record owner_id `{owner_id}` is not numeric"))?;
+                let dynamic_value_id = owner_id.parse::<u64>().map_err(|_| {
+                    anyhow::anyhow!("dynamic value owner_id `{owner_id}` is not numeric")
+                })?;
                 let record = self
-                    .records
+                    .dynamic_values
                     .iter_mut()
-                    .find(|record| record.id == record_id)
-                    .ok_or_else(|| anyhow::anyhow!("record owner `{owner_id}` is not live"))?;
-                record.content_text = value;
-                record.edit_focus = true;
+                    .find(|record| record.id == dynamic_value_id)
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("dynamic value owner `{owner_id}` is not live")
+                    })?;
+                record.set_text_field(LIST_TEXT_FIELD, value);
+                record.set_focus_field(LIST_EDIT_FOCUS, true);
             } else if self
                 .wiring
                 .grid
@@ -2392,16 +2590,16 @@ impl BoonApp for CompiledApp {
                     .owner_id
                     .as_deref()
                     .expect("dynamic edit_input key owner_id was validated");
-                let record_id = owner_id
-                    .parse::<u64>()
-                    .map_err(|_| anyhow::anyhow!("record owner_id `{owner_id}` is not numeric"))?;
+                let dynamic_value_id = owner_id.parse::<u64>().map_err(|_| {
+                    anyhow::anyhow!("dynamic value owner_id `{owner_id}` is not numeric")
+                })?;
                 if let Some(record) = self
-                    .records
+                    .dynamic_values
                     .iter_mut()
-                    .find(|record| record.id == record_id)
+                    .find(|record| record.id == dynamic_value_id)
                     && matches!(event.value, SourceValue::Tag(ref key) if key == "Enter")
                 {
-                    record.edit_focus = false;
+                    record.set_focus_field(LIST_EDIT_FOCUS, false);
                 }
                 results.push(self.emit_frame_owned(self.record_change_paths(), metrics));
             } else if self.dynamic_text_event_matches(&event.path) {
@@ -2409,16 +2607,16 @@ impl BoonApp for CompiledApp {
                     .owner_id
                     .as_deref()
                     .expect("dynamic edit_input event owner_id was validated");
-                let record_id = owner_id
-                    .parse::<u64>()
-                    .map_err(|_| anyhow::anyhow!("record owner_id `{owner_id}` is not numeric"))?;
+                let dynamic_value_id = owner_id.parse::<u64>().map_err(|_| {
+                    anyhow::anyhow!("dynamic value owner_id `{owner_id}` is not numeric")
+                })?;
                 if let Some(record) = self
-                    .records
+                    .dynamic_values
                     .iter_mut()
-                    .find(|record| record.id == record_id)
+                    .find(|record| record.id == dynamic_value_id)
                     && event.path.ends_with(".event.blur")
                 {
-                    record.edit_focus = false;
+                    record.set_focus_field(LIST_EDIT_FOCUS, false);
                 }
                 results.push(self.emit_frame_owned(self.record_change_paths(), metrics));
             } else if self
@@ -2549,7 +2747,11 @@ impl BoonApp for CompiledApp {
     }
 
     fn snapshot(&self) -> AppSnapshot {
-        let mark = self.records.iter().filter(|record| record.mark).count() as i64;
+        let mark = self
+            .dynamic_values
+            .iter()
+            .filter(|record| record.bool_field(LIST_MARK_FIELD))
+            .count() as i64;
         let mut values = BTreeMap::new();
         for (path, value) in &self.generic_state {
             values.insert(path.clone(), json!(value));
@@ -2560,12 +2762,12 @@ impl BoonApp for CompiledApp {
         if let Some(root) = self.record_root() {
             values.insert(
                 format!("store.{root}_count"),
-                json!(self.records.len() as i64),
+                json!(self.dynamic_values.len() as i64),
             );
             values.insert(format!("store.marked_{root}_count"), json!(mark));
             values.insert(
                 format!("store.unmarked_{root}_count"),
-                json!(self.records.len() as i64 - mark),
+                json!(self.dynamic_values.len() as i64 - mark),
             );
         }
         if let Some(value) = self.clock_value() {
@@ -2578,16 +2780,16 @@ impl BoonApp for CompiledApp {
             values.insert(
                 format!("store.{}_titles", sequence.root),
                 json!(
-                    self.records
+                    self.dynamic_values
                         .iter()
-                        .map(|record| record.content_text.clone())
+                        .map(|record| record.text_field(LIST_TEXT_FIELD))
                         .collect::<Vec<_>>()
                 ),
             );
             values.insert(
                 format!("store.{}_ids", sequence.root),
                 json!(
-                    self.records
+                    self.dynamic_values
                         .iter()
                         .map(|record| record.id)
                         .collect::<Vec<_>>()
@@ -2596,24 +2798,24 @@ impl BoonApp for CompiledApp {
             values.insert(
                 format!("store.visible_{}_ids", sequence.root),
                 json!(
-                    self.visible_records()
+                    self.visible_dynamic_values()
                         .map(|record| record.id)
                         .collect::<Vec<_>>()
                 ),
             );
             values.insert(view_selector_state_key(), json!(self.view_selector));
-            for record in &self.records {
+            for record in &self.dynamic_values {
                 values.insert(
                     format!("store.{}[{}].content_text", sequence.root, record.id),
-                    json!(record.content_text),
+                    json!(record.text_field(LIST_TEXT_FIELD)),
                 );
                 values.insert(
                     format!("store.{}[{}].mark", sequence.root, record.id),
-                    json!(record.mark),
+                    json!(record.bool_field(LIST_MARK_FIELD)),
                 );
                 values.insert(
                     format!("store.{}[{}].edit_focus", sequence.root, record.id),
-                    json!(record.edit_focus),
+                    json!(record.focus_field(LIST_EDIT_FOCUS)),
                 );
             }
         }

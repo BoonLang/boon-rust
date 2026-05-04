@@ -98,6 +98,7 @@ pub struct BoonPoweredGeneratedProvenance {
     pub required: bool,
     pub has_source_sha256: bool,
     pub has_ir_sha256: bool,
+    pub has_executable_ir: bool,
     pub has_source_span_table: bool,
     pub passed: bool,
 }
@@ -142,8 +143,9 @@ pub fn verify_boon_powered(artifacts: &Path) -> Result<VerifyReport> {
                 }
             } else {
                 format!(
-                    "Boon-powered anti-cheat gate failed: {} handwritten Rust violations, {} failed mutation/provenance checks; see {}",
+                    "Boon-powered anti-cheat gate failed: {} handwritten Rust violations, {} genericity gaps, {} failed mutation/provenance checks; see {}",
                     report.violations.len(),
+                    report.genericity_gaps.len(),
                     report
                         .mutation_probes
                         .iter()
@@ -171,6 +173,7 @@ pub fn boon_powered_gate_report(
     let mutation_probes = source_mutation_probes(root)?;
     let generated_provenance = generated_provenance(root, require_generated)?;
     let passed = violations.is_empty()
+        && genericity_complete
         && mutation_probes.iter().all(|probe| probe.passed)
         && generated_provenance.passed;
     Ok(BoonPoweredGateReport {
@@ -519,6 +522,54 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
         GenericityProbe {
             category: "list model recognizer",
             path: "crates/boon_compiler/src/lib.rs",
+            needle: "pub struct IrListState",
+            resolution: "replace fixed list state extraction with generated Rust code from generic Boon list/state expressions",
+        },
+        GenericityProbe {
+            category: "list model recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "list_states: Vec<IrListState>",
+            resolution: "replace fixed list state storage in AppIr with generic generated app state",
+        },
+        GenericityProbe {
+            category: "list model recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "fn push_list_state_from_hir_record(",
+            resolution: "lower list initialization through generic Boon expressions instead of extracting a fixed runtime list family",
+        },
+        GenericityProbe {
+            category: "list model recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "fn push_list_handlers_from_hir_record(",
+            resolution: "compile list updates into generated Rust handlers from Boon source instead of fixed list effect extraction",
+        },
+        GenericityProbe {
+            category: "list model recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "ListAppendText",
+            resolution: "replace text/mark list effects with generic generated Boon handler code and reusable List/* primitives",
+        },
+        GenericityProbe {
+            category: "list model recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "ListToggleAllMarks",
+            resolution: "replace text/mark list effects with generic generated Boon handler code and reusable List/* primitives",
+        },
+        GenericityProbe {
+            category: "list model recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "ListToggleOwnerMark",
+            resolution: "replace text/mark list effects with generic generated Boon handler code and reusable List/* primitives",
+        },
+        GenericityProbe {
+            category: "list model recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "ListRemoveMarked",
+            resolution: "replace text/mark list effects with generic generated Boon handler code and reusable List/* primitives",
+        },
+        GenericityProbe {
+            category: "list model recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
             needle: "pub struct IrListViewSpec",
             resolution: "lower list rendering from generic Boon render/view expressions instead of a fixed list view model",
         },
@@ -527,6 +578,36 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
             path: "crates/boon_compiler/src/lib.rs",
             needle: "fn list_view_from_hir(",
             resolution: "lower list rendering from generic Boon render/view expressions instead of a fixed list view extractor",
+        },
+        GenericityProbe {
+            category: "dense grid family recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "pub struct IrMatrixModel",
+            resolution: "implement matrix/grid/formula behavior through generated Rust from Boon source instead of a fixed matrix model",
+        },
+        GenericityProbe {
+            category: "dense grid family recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "matrix_models: Vec<IrMatrixModel>",
+            resolution: "replace fixed matrix model storage in AppIr with generic generated app state and scene code",
+        },
+        GenericityProbe {
+            category: "dense grid family recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "fn matrix_model_from_hir(",
+            resolution: "lower grid/formula behavior from generic Boon state/render expressions instead of recognizing Element/grid as a fixed app model",
+        },
+        GenericityProbe {
+            category: "dense grid family recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "expression_functions",
+            resolution: "move formula parsing/evaluation to Boon source or an explicit reusable stdlib API, not a hidden Cells runtime family",
+        },
+        GenericityProbe {
+            category: "dense grid family recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "\"Element/grid\" => IrRenderKind::Grid",
+            resolution: "treat grid as a generic scene primitive, not a trigger for a fixed matrix runtime family",
         },
         GenericityProbe {
             category: "dense grid family recognizer",
@@ -549,6 +630,30 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
         GenericityProbe {
             category: "kinematics family recognizer",
             path: "crates/boon_compiler/src/lib.rs",
+            needle: "pub struct IrDynamicsModel",
+            resolution: "express game physics through generated Rust from Boon source and generic Geometry/List/std primitives instead of a fixed dynamics model",
+        },
+        GenericityProbe {
+            category: "kinematics family recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "dynamics_models: Vec<IrDynamicsModel>",
+            resolution: "replace fixed dynamics model storage in AppIr with generic generated app state and scene code",
+        },
+        GenericityProbe {
+            category: "kinematics family recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "top_record(&hir.parsed, \"kinematics\")",
+            resolution: "compile top-level records generically; do not recognize kinematics as a privileged game family",
+        },
+        GenericityProbe {
+            category: "kinematics family recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "fn dynamics_model_from_record(",
+            resolution: "lower frame/control/collision behavior through generated Boon handlers instead of recognizing a kinematics record",
+        },
+        GenericityProbe {
+            category: "kinematics family recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
             needle: "KinematicSpec",
             resolution: "express game physics through generic Boon state/frame/list semantics",
         },
@@ -563,6 +668,24 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
             path: "crates/boon_compiler/src/lib.rs",
             needle: "fn motion_model_from_record(",
             resolution: "lower frame/control/collision behavior through generic Boon handlers instead of recognizing a kinematics record",
+        },
+        GenericityProbe {
+            category: "family based runtime rendering",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn render_repeater_scene",
+            resolution: "render repeated UI by executing a generic Boon-built scene tree instead of a fixed repeater/list renderer",
+        },
+        GenericityProbe {
+            category: "family based runtime rendering",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn render_matrix_scene",
+            resolution: "render matrix/grid UI by executing a generic Boon-built scene tree instead of a fixed spreadsheet renderer",
+        },
+        GenericityProbe {
+            category: "family based runtime rendering",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn render_dynamics_scene",
+            resolution: "render game UI by executing a generic Boon-built scene tree instead of a fixed dynamics renderer",
         },
         GenericityProbe {
             category: "family based runtime rendering",
@@ -609,6 +732,42 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
         GenericityProbe {
             category: "sequence family runtime",
             path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "struct DynamicRecord",
+            resolution: "store generated Boon state values generically instead of a fixed text/mark/edit-focus record family",
+        },
+        GenericityProbe {
+            category: "sequence family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "records: Vec<DynamicRecord>",
+            resolution: "store generated Boon state values generically instead of a fixed text/mark/edit-focus record family",
+        },
+        GenericityProbe {
+            category: "sequence family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn apply_generic_list_append_text(",
+            resolution: "execute generated Boon handler code for list updates instead of fixed text-list runtime mutations",
+        },
+        GenericityProbe {
+            category: "sequence family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn apply_generic_list_toggle_all_marks(",
+            resolution: "execute generated Boon handler code for list updates instead of fixed mark/toggle runtime mutations",
+        },
+        GenericityProbe {
+            category: "sequence family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn apply_generic_list_toggle_owner_mark(",
+            resolution: "execute generated Boon handler code for dynamic row updates instead of fixed mark/toggle runtime mutations",
+        },
+        GenericityProbe {
+            category: "sequence family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn apply_generic_list_remove_marked(",
+            resolution: "execute generated Boon handler code for list filtering/removal instead of fixed clear-completed runtime mutations",
+        },
+        GenericityProbe {
+            category: "sequence family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
             needle: "SequenceBinding",
             resolution: "route list/input behavior through generic source handlers and list values",
         },
@@ -623,6 +782,42 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
             path: "crates/boon_runtime/src/compiled_app.rs",
             needle: "fn render_list_model_scene",
             resolution: "render list UI by executing generic render tree nodes instead of a fixed list renderer",
+        },
+        GenericityProbe {
+            category: "dense grid family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "struct MatrixRuntimeState",
+            resolution: "move spreadsheet state, formula text, dependency graph, and selected-cell behavior into generated Boon app code",
+        },
+        GenericityProbe {
+            category: "dense grid family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "grid: MatrixRuntimeState",
+            resolution: "move spreadsheet state, formula text, dependency graph, and selected-cell behavior into generated Boon app code",
+        },
+        GenericityProbe {
+            category: "dense grid family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn render_matrix_text",
+            resolution: "build matrix text/scene from Boon-authored view code instead of fixed runtime formatting",
+        },
+        GenericityProbe {
+            category: "dense grid family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn set_dense_text(",
+            resolution: "move cell edit handling and recomputation into generated Boon app code",
+        },
+        GenericityProbe {
+            category: "dense grid family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn resolve_dense_expression(",
+            resolution: "move formula parsing/evaluation into Boon source or an explicit reusable stdlib API",
+        },
+        GenericityProbe {
+            category: "dense grid family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn parse_dense_range(",
+            resolution: "move formula reference parsing into Boon source or an explicit reusable stdlib API",
         },
         GenericityProbe {
             category: "dense grid family runtime",
@@ -647,6 +842,54 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
             path: "crates/boon_runtime/src/compiled_app.rs",
             needle: "fn render_grid_model_scene",
             resolution: "render grid UI by executing generic render tree nodes instead of a fixed grid renderer",
+        },
+        GenericityProbe {
+            category: "kinematics family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "struct DynamicsRuntimeState",
+            resolution: "move frame progression, collision, controls, score/lives/reset state into generated Boon app code",
+        },
+        GenericityProbe {
+            category: "kinematics family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "motion: DynamicsRuntimeState",
+            resolution: "move frame progression, collision, controls, score/lives/reset state into generated Boon app code",
+        },
+        GenericityProbe {
+            category: "kinematics family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn render_dynamics_text",
+            resolution: "build game text/scene from Boon-authored view code instead of fixed runtime formatting",
+        },
+        GenericityProbe {
+            category: "kinematics family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn advance_kinematic_step(",
+            resolution: "move frame progression into generated Boon event handlers",
+        },
+        GenericityProbe {
+            category: "kinematics family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn advance_bounded_peer_step(",
+            resolution: "move Pong collision and paddle tracking into Boon source or reusable Geometry primitives",
+        },
+        GenericityProbe {
+            category: "kinematics family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn advance_bounded_contact_field_step(",
+            resolution: "move Arkanoid collision, brick removal, and reset behavior into Boon source or reusable Geometry primitives",
+        },
+        GenericityProbe {
+            category: "kinematics family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "\"kinematics.frame\"",
+            resolution: "snapshot state must come from generated Boon state names, not hardcoded dynamics-family aliases",
+        },
+        GenericityProbe {
+            category: "kinematics family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "\"kinematics.body_x\"",
+            resolution: "snapshot state must come from generated Boon state names, not hardcoded dynamics-family aliases",
         },
         GenericityProbe {
             category: "kinematics family runtime",
@@ -789,6 +1032,7 @@ fn compile_and_hash(example: &str, source: &str) -> Result<String> {
         "sources": compiled.sources,
         "program": compiled.program,
         "app_ir": compiled.app_ir,
+        "executable_ir": compiled.executable_ir,
     }))?;
     Ok(hex::encode(Sha256::digest(bytes)))
 }
@@ -803,11 +1047,13 @@ fn generated_provenance(root: &Path, required: bool) -> Result<BoonPoweredGenera
     };
     let has_source_sha256 = text.contains("SOURCE_SHA256");
     let has_ir_sha256 = text.contains("IR_SHA256");
+    let has_executable_ir = text.contains("EXECUTABLE_IR_JSON");
     let has_source_span_table = text.contains("SOURCE_SPANS") || text.contains("SourceSpan");
     let passed = if required {
-        exists && has_source_sha256 && has_ir_sha256 && has_source_span_table
+        exists && has_source_sha256 && has_ir_sha256 && has_executable_ir && has_source_span_table
     } else {
-        !exists || (has_source_sha256 && has_ir_sha256 && has_source_span_table)
+        !exists
+            || (has_source_sha256 && has_ir_sha256 && has_executable_ir && has_source_span_table)
     };
     Ok(BoonPoweredGeneratedProvenance {
         path: path.to_string_lossy().to_string(),
@@ -815,6 +1061,7 @@ fn generated_provenance(root: &Path, required: bool) -> Result<BoonPoweredGenera
         required,
         has_source_sha256,
         has_ir_sha256,
+        has_executable_ir,
         has_source_span_table,
         passed,
     })

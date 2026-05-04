@@ -1,5 +1,5 @@
 use boon_compiler::compile_source;
-use boon_examples::{CompiledApp, app, definition};
+use boon_examples::{CompiledApp, app, definition, executable_ir};
 use boon_runtime::{BoonApp, SourceBatch, SourceEmission, SourceValue};
 
 #[test]
@@ -51,6 +51,82 @@ fn source_dispatch_rejects_unknown_paths_and_shapes() {
     assert!(
         wrong_shape.contains("expected EmptyRecord"),
         "{wrong_shape}"
+    );
+}
+
+#[test]
+fn generated_examples_expose_source_derived_executable_ir() {
+    let counter = executable_ir("counter").expect("counter executable IR is generated");
+    assert_eq!(counter.state_slots.len(), 1);
+    assert_eq!(counter.state_slots[0].path, "counter");
+    assert_eq!(counter.source_handlers.len(), 1);
+    assert_eq!(
+        counter.source_handlers[0].source_path,
+        "store.sources.increment_button.event.press"
+    );
+
+    let interval = executable_ir("interval").expect("interval executable IR is generated");
+    assert_eq!(interval.state_slots.len(), 1);
+    assert_eq!(interval.state_slots[0].path, "ticks");
+    assert_eq!(interval.source_handlers.len(), 1);
+    assert_eq!(
+        interval.source_handlers[0].source_path,
+        "store.sources.clock.event.tick"
+    );
+}
+
+#[test]
+fn counter_and_interval_render_from_generic_boon_scene_tree() {
+    let mut counter = app("counter").expect("counter app");
+    counter.mount();
+    let counter_frame = counter.snapshot().frame_text;
+    assert!(
+        counter_frame.contains("surface: generic_scene"),
+        "counter should render through generic Boon scene tree: {counter_frame}"
+    );
+    assert!(
+        !counter_frame.contains("button-scalar"),
+        "counter must not use the scalar fallback renderer: {counter_frame}"
+    );
+
+    let mut interval = app("interval").expect("interval app");
+    interval.mount();
+    let interval_frame = interval.snapshot().frame_text;
+    assert!(
+        interval_frame.contains("surface: generic_scene"),
+        "interval should render through generic Boon scene tree: {interval_frame}"
+    );
+    assert!(
+        !interval_frame.contains("clock-scalar"),
+        "interval must not use the clock fallback renderer: {interval_frame}"
+    );
+}
+
+#[test]
+fn counter_dispatch_uses_executable_ir_without_legacy_app_ir_handlers() {
+    let source = definition("counter")
+        .expect("counter definition")
+        .source
+        .to_string();
+    let mut compiled = compile_source("counter_without_legacy_handlers", &source)
+        .expect("counter source compiles");
+    compiled.app_ir.event_handlers.clear();
+    let mut app = CompiledApp::new(compiled);
+
+    for _ in 0..2 {
+        app.dispatch_batch(SourceBatch {
+            state_updates: Vec::new(),
+            events: vec![emission(
+                "store.sources.increment_button.event.press",
+                SourceValue::EmptyRecord,
+            )],
+        })
+        .expect("counter dispatch uses executable IR");
+    }
+
+    assert_eq!(
+        app.snapshot().values.get("counter"),
+        Some(&serde_json::json!(2))
     );
 }
 

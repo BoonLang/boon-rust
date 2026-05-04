@@ -14,12 +14,15 @@ fn runtime_codegen_and_renderers_do_not_embed_example_business_logic() {
          must come from examples/<name>/source.bn lowered through Boon IR/codegen.\n\n\
          Scanned files: {}\n\
          Handwritten Rust violations: {}\n\
+         Genericity gaps: {}\n\
          Failed mutation probes: {}\n\
          Generated provenance passed: {}\n\n\
          First violations:\n{}\n\n\
+         First genericity gaps:\n{}\n\n\
          Mutation probes:\n{}",
         report.scanned_files.len(),
         report.violations.len(),
+        report.genericity_gaps.len(),
         report
             .mutation_probes
             .iter()
@@ -37,6 +40,16 @@ fn runtime_codegen_and_renderers_do_not_embed_example_business_logic() {
                 violation.column,
                 violation.check,
                 violation.evidence
+            ))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        report
+            .genericity_gaps
+            .iter()
+            .take(120)
+            .map(|gap| format!(
+                "{}:{}:{} [{}] {}",
+                gap.path, gap.line, gap.column, gap.category, gap.evidence
             ))
             .collect::<Vec<_>>()
             .join("\n"),

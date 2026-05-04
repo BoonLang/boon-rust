@@ -1,6 +1,7 @@
 use anyhow::{Context, Result, bail};
 use boon_codegen_rust::{
-    generate_app_ir_snapshot, generate_hir_snapshot, generate_manifest, generate_program_spec,
+    generate_app_ir_snapshot, generate_executable_ir_snapshot, generate_hir_snapshot,
+    generate_manifest, generate_program_spec,
 };
 use boon_examples::list_examples;
 use boon_verify::{
@@ -320,6 +321,12 @@ fn generate() -> Result<()> {
             .join(name)
             .join("expected.app_ir.json");
         generate_app_ir_snapshot(name, &src, &out).with_context(|| format!("generating {name}"))?;
+        let out = root
+            .join("examples")
+            .join(name)
+            .join("expected.executable_ir.json");
+        generate_executable_ir_snapshot(name, &src, &out)
+            .with_context(|| format!("generating {name}"))?;
         app_sources.push((*name, src));
     }
     let generated = root.join("target/generated-examples");
