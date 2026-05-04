@@ -515,6 +515,8 @@ fn boon_powered_forbidden_needles() -> Vec<(&'static str, &'static str)> {
         ("non-generic dense owner label", "grid_cell"),
         ("non-generic indexed state", "focused_slot"),
         ("non-generic indexed state", "editing_slot"),
+        ("non-generic indexed state", "focused_owner"),
+        ("non-generic indexed state", "editing_owner"),
         ("non-generic indexed wiring", "DenseSourceWiring"),
         ("non-generic indexed renderer", "render_dense_node"),
         ("non-generic indexed text", "collect_dense_summary"),
@@ -530,7 +532,22 @@ fn boon_powered_forbidden_needles() -> Vec<(&'static str, &'static str)> {
             "runtime static expression recognizer",
             "collect_std_function_names",
         ),
+        (
+            "compiler static expression recognizer",
+            "hir_record(hir, \"expressions\")",
+        ),
+        (
+            "runtime default expression surface",
+            "ExpressionBook::new(1, 1",
+        ),
+        ("non-generic selector record name", "record.key != \"view\""),
+        (
+            "non-generic selector record name",
+            "record.path == \"view\"",
+        ),
         ("non-generic sequence state", "primary_text"),
+        ("non-generic sequence state", "content_text"),
+        ("non-generic sequence state", "].mark"),
         ("non-generic sequence state", "flagged_"),
         ("non-generic sequence state", "unflagged_"),
         ("non-generic sequence state", "marked_{root}_count"),
@@ -541,6 +558,8 @@ fn boon_powered_forbidden_needles() -> Vec<(&'static str, &'static str)> {
             "non-generic sequence view predicate",
             "CollectionViewVisibility",
         ),
+        ("non-generic sequence filter name", "CollectionView"),
+        ("non-generic sequence filter name", "collection_view"),
         ("non-generic sequence view predicate", "Unmarked"),
         ("non-generic sequence view predicate", "Marked"),
         ("non-generic view passthrough", "view_text"),
@@ -882,6 +901,12 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
             path: "crates/boon_runtime/src/compiled_app.rs",
             needle: "fn render_matrix_text",
             resolution: "build matrix text/scene from Boon-authored view code instead of fixed runtime formatting",
+        },
+        GenericityProbe {
+            category: "dense grid family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn collect_grid_summary",
+            resolution: "build grid text/frame output from Boon-authored scene nodes instead of a fixed spreadsheet summary",
         },
         GenericityProbe {
             category: "dense grid family runtime",
@@ -5278,7 +5303,7 @@ fn todomvc_playground_edit_remove(name: &str) -> Result<NativePlaygroundScenario
         "press Enter to commit edit",
         "Return",
     )?;
-    let title_key = format!("store.todos[{first_id}].content_text");
+    let title_key = format!("store.todos[{first_id}].title");
     let edited_title = state
         .snapshot()?
         .values
@@ -5786,9 +5811,9 @@ fn run_native_scripted_scenario(
                 ),
             )?;
             expect(
-                app.snapshot().values.get("store.todos[3].content_text"),
+                app.snapshot().values.get("store.todos[3].title"),
                 json!("Buy oat milk"),
-                "store.todos[3].content_text after edit",
+                "store.todos[3].title after edit",
             )?;
             dispatch!(
                 "click toggle all checkbox",
@@ -6089,9 +6114,9 @@ fn run_core_scenario(
                 ),
             )?;
             expect(
-                app.snapshot().values.get("store.todos[3].content_text"),
+                app.snapshot().values.get("store.todos[3].title"),
                 json!("Buy oat milk"),
-                "store.todos[3].content_text after edit",
+                "store.todos[3].title after edit",
             )?;
             backend.dispatch(
                 app,
@@ -6459,9 +6484,9 @@ fn run_core_scenario_wgpu(
                 ),
             )?;
             expect(
-                app.snapshot().values.get("store.todos[3].content_text"),
+                app.snapshot().values.get("store.todos[3].title"),
                 json!("Buy oat milk"),
-                "store.todos[3].content_text after edit",
+                "store.todos[3].title after edit",
             )?;
             backend.dispatch_frame_ready(
                 app,

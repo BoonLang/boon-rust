@@ -6,31 +6,213 @@
     "kind": "root",
     "children": [
       {
-        "id": "grid_6",
-        "kind": "grid",
-        "source_path": "store.sources.viewport",
+        "id": "panel_12",
+        "kind": "panel",
         "children": [
           {
-            "id": "list_map_1",
-            "kind": "list_map",
-            "collection_path": "grid",
+            "id": "rect_1",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 0
+              },
+              "y": {
+                "kind": "literal",
+                "value": 0
+              },
+              "width": {
+                "kind": "literal",
+                "value": 1000
+              },
+              "height": {
+                "kind": "literal",
+                "value": 1000
+              }
+            },
+            "color": [
+              248,
+              249,
+              250,
+              255
+            ]
+          },
+          {
+            "id": "text_2",
+            "kind": "text",
+            "text": {
+              "kind": "literal",
+              "value": "Cells"
+            },
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 48
+              },
+              "y": {
+                "kind": "literal",
+                "value": 34
+              },
+              "width": {
+                "kind": "literal",
+                "value": 240
+              },
+              "height": {
+                "kind": "literal",
+                "value": 32
+              }
+            },
+            "scale": {
+              "kind": "literal",
+              "value": 2
+            },
+            "color": [
+              31,
+              46,
+              60,
+              255
+            ]
+          },
+          {
+            "id": "rect_3",
+            "kind": "rect",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 48
+              },
+              "y": {
+                "kind": "literal",
+                "value": 82
+              },
+              "width": {
+                "kind": "literal",
+                "value": 904
+              },
+              "height": {
+                "kind": "literal",
+                "value": 50
+              }
+            },
+            "color": [
+              255,
+              255,
+              255,
+              255
+            ]
+          },
+          {
+            "id": "text_4",
+            "kind": "text",
+            "text": {
+              "kind": "binding",
+              "path": "grid.selected"
+            },
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 64
+              },
+              "y": {
+                "kind": "literal",
+                "value": 100
+              },
+              "width": {
+                "kind": "literal",
+                "value": 64
+              },
+              "height": {
+                "kind": "literal",
+                "value": 24
+              }
+            },
+            "color": [
+              40,
+              64,
+              82,
+              255
+            ]
+          },
+          {
+            "id": "text_5",
+            "kind": "text",
+            "text": {
+              "kind": "binding",
+              "path": "grid.selected_expression"
+            },
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 142
+              },
+              "y": {
+                "kind": "literal",
+                "value": 100
+              },
+              "width": {
+                "kind": "literal",
+                "value": 780
+              },
+              "height": {
+                "kind": "literal",
+                "value": 24
+              }
+            },
+            "color": [
+              35,
+              50,
+              64,
+              255
+            ]
+          },
+          {
+            "id": "grid_11",
+            "kind": "grid",
+            "source_path": "store.sources.viewport",
+            "bounds": {
+              "x": {
+                "kind": "literal",
+                "value": 48
+              },
+              "y": {
+                "kind": "literal",
+                "value": 160
+              },
+              "width": {
+                "kind": "literal",
+                "value": 904
+              },
+              "height": {
+                "kind": "literal",
+                "value": 620
+              }
+            },
             "children": [
               {
-                "id": "list_map_2",
+                "id": "list_map_6",
                 "kind": "list_map",
-                "collection_path": "row",
+                "collection_path": "grid",
                 "children": [
                   {
-                    "id": "panel_5",
-                    "kind": "panel",
+                    "id": "list_map_7",
+                    "kind": "list_map",
+                    "collection_path": "row",
                     "children": [
                       {
-                        "id": "label_3",
-                        "kind": "label"
-                      },
-                      {
-                        "id": "text_input_4",
-                        "kind": "text_input"
+                        "id": "panel_10",
+                        "kind": "panel",
+                        "children": [
+                          {
+                            "id": "label_8",
+                            "kind": "label",
+                            "source_path": "cells[*].sources.display"
+                          },
+                          {
+                            "id": "text_input_9",
+                            "kind": "text_input",
+                            "source_path": "cells[*].sources.editor"
+                          }
+                        ]
                       }
                     ]
                   }

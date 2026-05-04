@@ -604,186 +604,103 @@
                   "value": {
                     "kind": {
                       "kind": "call",
-                      "path": "Element/grid",
+                      "path": "Element/panel",
                       "args": [
                         {
-                          "name": "element",
+                          "name": "children",
                           "value": {
                             "kind": {
-                              "kind": "path",
-                              "value": "store.sources.viewport"
-                            },
-                            "span": {
-                              "line": 44,
-                              "column": 10
-                            },
-                            "raw": "store.sources.viewport"
-                          },
-                          "span": {
-                            "line": 44,
-                            "column": 10
-                          }
-                        },
-                        {
-                          "name": "cells",
-                          "value": {
-                            "kind": {
-                              "kind": "pipeline",
-                              "input": {
-                                "kind": {
-                                  "kind": "path",
-                                  "value": "grid"
-                                },
-                                "span": {
-                                  "line": 44,
-                                  "column": 10
-                                },
-                                "raw": "grid"
-                              },
-                              "stages": [
+                              "kind": "list",
+                              "items": [
                                 {
                                   "kind": {
                                     "kind": "call",
-                                    "path": "List/map",
+                                    "path": "Element/rect",
                                     "args": [
                                       {
-                                        "name": "new",
+                                        "name": "x",
                                         "value": {
                                           "kind": {
-                                            "kind": "pipeline",
-                                            "input": {
-                                              "kind": {
-                                                "kind": "path",
-                                                "value": "row"
-                                              },
-                                              "span": {
-                                                "line": 44,
-                                                "column": 10
-                                              },
-                                              "raw": "row"
-                                            },
-                                            "stages": [
-                                              {
-                                                "kind": {
-                                                  "kind": "call",
-                                                  "path": "List/map",
-                                                  "args": [
-                                                    {
-                                                      "name": "new",
-                                                      "value": {
-                                                        "kind": {
-                                                          "kind": "call",
-                                                          "path": "Element/panel",
-                                                          "args": [
-                                                            {
-                                                              "name": "children",
-                                                              "value": {
-                                                                "kind": {
-                                                                  "kind": "list",
-                                                                  "items": [
-                                                                    {
-                                                                      "kind": {
-                                                                        "kind": "call",
-                                                                        "path": "Element/label",
-                                                                        "args": [
-                                                                          {
-                                                                            "name": "element",
-                                                                            "value": {
-                                                                              "kind": {
-                                                                                "kind": "path",
-                                                                                "value": "cell.sources.display"
-                                                                              },
-                                                                              "span": {
-                                                                                "line": 44,
-                                                                                "column": 10
-                                                                              },
-                                                                              "raw": "cell.sources.display"
-                                                                            },
-                                                                            "span": {
-                                                                              "line": 44,
-                                                                              "column": 10
-                                                                            }
-                                                                          }
-                                                                        ]
-                                                                      },
-                                                                      "span": {
-                                                                        "line": 44,
-                                                                        "column": 10
-                                                                      },
-                                                                      "raw": "Element/label(element: cell.sources.display)"
-                                                                    },
-                                                                    {
-                                                                      "kind": {
-                                                                        "kind": "call",
-                                                                        "path": "Element/text_input",
-                                                                        "args": [
-                                                                          {
-                                                                            "name": "element",
-                                                                            "value": {
-                                                                              "kind": {
-                                                                                "kind": "path",
-                                                                                "value": "cell.sources.editor"
-                                                                              },
-                                                                              "span": {
-                                                                                "line": 44,
-                                                                                "column": 10
-                                                                              },
-                                                                              "raw": "cell.sources.editor"
-                                                                            },
-                                                                            "span": {
-                                                                              "line": 44,
-                                                                              "column": 10
-                                                                            }
-                                                                          }
-                                                                        ]
-                                                                      },
-                                                                      "span": {
-                                                                        "line": 44,
-                                                                        "column": 10
-                                                                      },
-                                                                      "raw": "Element/text_input(element: cell.sources.editor)"
-                                                                    }
-                                                                  ]
-                                                                },
-                                                                "span": {
-                                                                  "line": 44,
-                                                                  "column": 10
-                                                                },
-                                                                "raw": "LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}"
-                                                              },
-                                                              "span": {
-                                                                "line": 44,
-                                                                "column": 10
-                                                              }
-                                                            }
-                                                          ]
-                                                        },
-                                                        "span": {
-                                                          "line": 44,
-                                                          "column": 10
-                                                        },
-                                                        "raw": "Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)"
-                                                      },
-                                                      "span": {
-                                                        "line": 44,
-                                                        "column": 10
-                                                      }
-                                                    }
-                                                  ]
-                                                },
-                                                "span": {
-                                                  "line": 44,
-                                                  "column": 10
-                                                },
-                                                "raw": "List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)"
-                                              }
-                                            ]
+                                            "kind": "number",
+                                            "value": 0
                                           },
                                           "span": {
                                             "line": 44,
                                             "column": 10
                                           },
-                                          "raw": "row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)"
+                                          "raw": "0"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "y",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 0
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "0"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "width",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 1000
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "1000"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "height",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 1000
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "1000"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "color",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "text",
+                                            "value": "#f8f9fa"
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "TEXT { #f8f9fa }"
                                         },
                                         "span": {
                                           "line": 44,
@@ -796,7 +713,835 @@
                                     "line": 44,
                                     "column": 10
                                   },
-                                  "raw": "List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)"
+                                  "raw": "Element/rect(x: 0, y: 0, width: 1000, height: 1000, color: TEXT { #f8f9fa })"
+                                },
+                                {
+                                  "kind": {
+                                    "kind": "call",
+                                    "path": "Element/text",
+                                    "args": [
+                                      {
+                                        "name": "x",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 48
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "48"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "y",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 34
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "34"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "width",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 240
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "240"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "height",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 32
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "32"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "scale",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 2
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "2"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "text",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "text",
+                                            "value": "Cells"
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "TEXT { Cells }"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "color",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "text",
+                                            "value": "#1f2e3c"
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "TEXT { #1f2e3c }"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "span": {
+                                    "line": 44,
+                                    "column": 10
+                                  },
+                                  "raw": "Element/text(x: 48, y: 34, width: 240, height: 32, scale: 2, text: TEXT { Cells }, color: TEXT { #1f2e3c })"
+                                },
+                                {
+                                  "kind": {
+                                    "kind": "call",
+                                    "path": "Element/rect",
+                                    "args": [
+                                      {
+                                        "name": "x",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 48
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "48"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "y",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 82
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "82"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "width",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 904
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "904"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "height",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 50
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "50"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "color",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "text",
+                                            "value": "#ffffff"
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "TEXT { #ffffff }"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "span": {
+                                    "line": 44,
+                                    "column": 10
+                                  },
+                                  "raw": "Element/rect(x: 48, y: 82, width: 904, height: 50, color: TEXT { #ffffff })"
+                                },
+                                {
+                                  "kind": {
+                                    "kind": "call",
+                                    "path": "Element/text",
+                                    "args": [
+                                      {
+                                        "name": "x",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 64
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "64"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "y",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 100
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "100"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "width",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 64
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "64"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "height",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 24
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "24"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "text",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "path",
+                                            "value": "grid.selected"
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "grid.selected"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "color",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "text",
+                                            "value": "#284052"
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "TEXT { #284052 }"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "span": {
+                                    "line": 44,
+                                    "column": 10
+                                  },
+                                  "raw": "Element/text(x: 64, y: 100, width: 64, height: 24, text: grid.selected, color: TEXT { #284052 })"
+                                },
+                                {
+                                  "kind": {
+                                    "kind": "call",
+                                    "path": "Element/text",
+                                    "args": [
+                                      {
+                                        "name": "x",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 142
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "142"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "y",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 100
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "100"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "width",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 780
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "780"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "height",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 24
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "24"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "text",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "path",
+                                            "value": "grid.selected_expression"
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "grid.selected_expression"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "color",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "text",
+                                            "value": "#233240"
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "TEXT { #233240 }"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "span": {
+                                    "line": 44,
+                                    "column": 10
+                                  },
+                                  "raw": "Element/text(x: 142, y: 100, width: 780, height: 24, text: grid.selected_expression, color: TEXT { #233240 })"
+                                },
+                                {
+                                  "kind": {
+                                    "kind": "call",
+                                    "path": "Element/grid",
+                                    "args": [
+                                      {
+                                        "name": "element",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "path",
+                                            "value": "store.sources.viewport"
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "store.sources.viewport"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "x",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 48
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "48"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "y",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 160
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "160"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "width",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 904
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "904"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "height",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "number",
+                                            "value": 620
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "620"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "rows",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "path",
+                                            "value": "rows"
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "rows"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "columns",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "path",
+                                            "value": "columns"
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "columns"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "expressions",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "path",
+                                            "value": "expressions"
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "expressions"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      },
+                                      {
+                                        "name": "cells",
+                                        "value": {
+                                          "kind": {
+                                            "kind": "pipeline",
+                                            "input": {
+                                              "kind": {
+                                                "kind": "path",
+                                                "value": "grid"
+                                              },
+                                              "span": {
+                                                "line": 44,
+                                                "column": 10
+                                              },
+                                              "raw": "grid"
+                                            },
+                                            "stages": [
+                                              {
+                                                "kind": {
+                                                  "kind": "call",
+                                                  "path": "List/map",
+                                                  "args": [
+                                                    {
+                                                      "name": "new",
+                                                      "value": {
+                                                        "kind": {
+                                                          "kind": "pipeline",
+                                                          "input": {
+                                                            "kind": {
+                                                              "kind": "path",
+                                                              "value": "row"
+                                                            },
+                                                            "span": {
+                                                              "line": 44,
+                                                              "column": 10
+                                                            },
+                                                            "raw": "row"
+                                                          },
+                                                          "stages": [
+                                                            {
+                                                              "kind": {
+                                                                "kind": "call",
+                                                                "path": "List/map",
+                                                                "args": [
+                                                                  {
+                                                                    "name": "new",
+                                                                    "value": {
+                                                                      "kind": {
+                                                                        "kind": "call",
+                                                                        "path": "Element/panel",
+                                                                        "args": [
+                                                                          {
+                                                                            "name": "children",
+                                                                            "value": {
+                                                                              "kind": {
+                                                                                "kind": "list",
+                                                                                "items": [
+                                                                                  {
+                                                                                    "kind": {
+                                                                                      "kind": "call",
+                                                                                      "path": "Element/label",
+                                                                                      "args": [
+                                                                                        {
+                                                                                          "name": "element",
+                                                                                          "value": {
+                                                                                            "kind": {
+                                                                                              "kind": "path",
+                                                                                              "value": "cell.sources.display"
+                                                                                            },
+                                                                                            "span": {
+                                                                                              "line": 44,
+                                                                                              "column": 10
+                                                                                            },
+                                                                                            "raw": "cell.sources.display"
+                                                                                          },
+                                                                                          "span": {
+                                                                                            "line": 44,
+                                                                                            "column": 10
+                                                                                          }
+                                                                                        }
+                                                                                      ]
+                                                                                    },
+                                                                                    "span": {
+                                                                                      "line": 44,
+                                                                                      "column": 10
+                                                                                    },
+                                                                                    "raw": "Element/label(element: cell.sources.display)"
+                                                                                  },
+                                                                                  {
+                                                                                    "kind": {
+                                                                                      "kind": "call",
+                                                                                      "path": "Element/text_input",
+                                                                                      "args": [
+                                                                                        {
+                                                                                          "name": "element",
+                                                                                          "value": {
+                                                                                            "kind": {
+                                                                                              "kind": "path",
+                                                                                              "value": "cell.sources.editor"
+                                                                                            },
+                                                                                            "span": {
+                                                                                              "line": 44,
+                                                                                              "column": 10
+                                                                                            },
+                                                                                            "raw": "cell.sources.editor"
+                                                                                          },
+                                                                                          "span": {
+                                                                                            "line": 44,
+                                                                                            "column": 10
+                                                                                          }
+                                                                                        }
+                                                                                      ]
+                                                                                    },
+                                                                                    "span": {
+                                                                                      "line": 44,
+                                                                                      "column": 10
+                                                                                    },
+                                                                                    "raw": "Element/text_input(element: cell.sources.editor)"
+                                                                                  }
+                                                                                ]
+                                                                              },
+                                                                              "span": {
+                                                                                "line": 44,
+                                                                                "column": 10
+                                                                              },
+                                                                              "raw": "LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}"
+                                                                            },
+                                                                            "span": {
+                                                                              "line": 44,
+                                                                              "column": 10
+                                                                            }
+                                                                          }
+                                                                        ]
+                                                                      },
+                                                                      "span": {
+                                                                        "line": 44,
+                                                                        "column": 10
+                                                                      },
+                                                                      "raw": "Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)"
+                                                                    },
+                                                                    "span": {
+                                                                      "line": 44,
+                                                                      "column": 10
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              },
+                                                              "span": {
+                                                                "line": 44,
+                                                                "column": 10
+                                                              },
+                                                              "raw": "List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)"
+                                                            }
+                                                          ]
+                                                        },
+                                                        "span": {
+                                                          "line": 44,
+                                                          "column": 10
+                                                        },
+                                                        "raw": "row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)"
+                                                      },
+                                                      "span": {
+                                                        "line": 44,
+                                                        "column": 10
+                                                      }
+                                                    }
+                                                  ]
+                                                },
+                                                "span": {
+                                                  "line": 44,
+                                                  "column": 10
+                                                },
+                                                "raw": "List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)"
+                                              }
+                                            ]
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)"
+                                        },
+                                        "span": {
+                                          "line": 44,
+                                          "column": 10
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "span": {
+                                    "line": 44,
+                                    "column": 10
+                                  },
+                                  "raw": "Element/grid(\nelement: store.sources.viewport\nx: 48\ny: 160\nwidth: 904\nheight: 620\nrows: rows\ncolumns: columns\nexpressions: expressions\ncells: grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)"
                                 }
                               ]
                             },
@@ -804,7 +1549,7 @@
                               "line": 44,
                               "column": 10
                             },
-                            "raw": "grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)"
+                            "raw": "LIST {\nElement/rect(x: 0, y: 0, width: 1000, height: 1000, color: TEXT { #f8f9fa })\nElement/text(x: 48, y: 34, width: 240, height: 32, scale: 2, text: TEXT { Cells }, color: TEXT { #1f2e3c })\nElement/rect(x: 48, y: 82, width: 904, height: 50, color: TEXT { #ffffff })\nElement/text(x: 64, y: 100, width: 64, height: 24, text: grid.selected, color: TEXT { #284052 })\nElement/text(x: 142, y: 100, width: 780, height: 24, text: grid.selected_expression, color: TEXT { #233240 })\nElement/grid(\nelement: store.sources.viewport\nx: 48\ny: 160\nwidth: 904\nheight: 620\nrows: rows\ncolumns: columns\nexpressions: expressions\ncells: grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)\n}"
                           },
                           "span": {
                             "line": 44,
@@ -817,7 +1562,7 @@
                       "line": 44,
                       "column": 10
                     },
-                    "raw": "Element/grid(\nelement: store.sources.viewport\ncells: grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)"
+                    "raw": "Element/panel(\nchildren: LIST {\nElement/rect(x: 0, y: 0, width: 1000, height: 1000, color: TEXT { #f8f9fa })\nElement/text(x: 48, y: 34, width: 240, height: 32, scale: 2, text: TEXT { Cells }, color: TEXT { #1f2e3c })\nElement/rect(x: 48, y: 82, width: 904, height: 50, color: TEXT { #ffffff })\nElement/text(x: 64, y: 100, width: 64, height: 24, text: grid.selected, color: TEXT { #284052 })\nElement/text(x: 142, y: 100, width: 780, height: 24, text: grid.selected_expression, color: TEXT { #233240 })\nElement/grid(\nelement: store.sources.viewport\nx: 48\ny: 160\nwidth: 904\nheight: 620\nrows: rows\ncolumns: columns\nexpressions: expressions\ncells: grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)\n}\n)"
                   },
                   "span": {
                     "line": 44,
@@ -830,7 +1575,7 @@
               "line": 44,
               "column": 10
             },
-            "raw": "Document/new(\nroot: Element/grid(\nelement: store.sources.viewport\ncells: grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)\n)"
+            "raw": "Document/new(\nroot: Element/panel(\nchildren: LIST {\nElement/rect(x: 0, y: 0, width: 1000, height: 1000, color: TEXT { #f8f9fa })\nElement/text(x: 48, y: 34, width: 240, height: 32, scale: 2, text: TEXT { Cells }, color: TEXT { #1f2e3c })\nElement/rect(x: 48, y: 82, width: 904, height: 50, color: TEXT { #ffffff })\nElement/text(x: 64, y: 100, width: 64, height: 24, text: grid.selected, color: TEXT { #284052 })\nElement/text(x: 142, y: 100, width: 780, height: 24, text: grid.selected_expression, color: TEXT { #233240 })\nElement/grid(\nelement: store.sources.viewport\nx: 48\ny: 160\nwidth: 904\nheight: 620\nrows: rows\ncolumns: columns\nexpressions: expressions\ncells: grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)\n}\n)\n)"
           },
           "span": {
             "line": 44,
@@ -1122,114 +1867,233 @@
         }
       },
       {
-        "text": "Element/grid(",
+        "text": "Element/panel(",
         "span": {
           "line": 47,
           "column": 13
         }
       },
       {
-        "text": "element: store.sources.viewport",
+        "text": "children:",
         "span": {
           "line": 48,
           "column": 17
         }
       },
       {
-        "text": "cells:",
+        "text": "LIST {",
         "span": {
           "line": 49,
-          "column": 17
-        }
-      },
-      {
-        "text": "grid |> List/map(row, new:",
-        "span": {
-          "line": 50,
           "column": 21
         }
       },
       {
-        "text": "row |> List/map(cell, new:",
+        "text": "Element/rect(x: 0, y: 0, width: 1000, height: 1000, color: TEXT { #f8f9fa })",
+        "span": {
+          "line": 50,
+          "column": 25
+        }
+      },
+      {
+        "text": "Element/text(x: 48, y: 34, width: 240, height: 32, scale: 2, text: TEXT { Cells }, color: TEXT { #1f2e3c })",
         "span": {
           "line": 51,
           "column": 25
         }
       },
       {
-        "text": "Element/panel(",
+        "text": "Element/rect(x: 48, y: 82, width: 904, height: 50, color: TEXT { #ffffff })",
         "span": {
           "line": 52,
+          "column": 25
+        }
+      },
+      {
+        "text": "Element/text(x: 64, y: 100, width: 64, height: 24, text: grid.selected, color: TEXT { #284052 })",
+        "span": {
+          "line": 53,
+          "column": 25
+        }
+      },
+      {
+        "text": "Element/text(x: 142, y: 100, width: 780, height: 24, text: grid.selected_expression, color: TEXT { #233240 })",
+        "span": {
+          "line": 54,
+          "column": 25
+        }
+      },
+      {
+        "text": "Element/grid(",
+        "span": {
+          "line": 55,
+          "column": 25
+        }
+      },
+      {
+        "text": "element: store.sources.viewport",
+        "span": {
+          "line": 56,
           "column": 29
         }
       },
       {
-        "text": "children:",
-        "span": {
-          "line": 53,
-          "column": 33
-        }
-      },
-      {
-        "text": "LIST {",
-        "span": {
-          "line": 54,
-          "column": 37
-        }
-      },
-      {
-        "text": "Element/label(element: cell.sources.display)",
-        "span": {
-          "line": 55,
-          "column": 41
-        }
-      },
-      {
-        "text": "Element/text_input(element: cell.sources.editor)",
-        "span": {
-          "line": 56,
-          "column": 41
-        }
-      },
-      {
-        "text": "}",
+        "text": "x: 48",
         "span": {
           "line": 57,
-          "column": 37
+          "column": 29
         }
       },
       {
-        "text": ")",
+        "text": "y: 160",
         "span": {
           "line": 58,
           "column": 29
         }
       },
       {
-        "text": ")",
+        "text": "width: 904",
         "span": {
           "line": 59,
-          "column": 25
+          "column": 29
+        }
+      },
+      {
+        "text": "height: 620",
+        "span": {
+          "line": 60,
+          "column": 29
+        }
+      },
+      {
+        "text": "rows: rows",
+        "span": {
+          "line": 61,
+          "column": 29
+        }
+      },
+      {
+        "text": "columns: columns",
+        "span": {
+          "line": 62,
+          "column": 29
+        }
+      },
+      {
+        "text": "expressions: expressions",
+        "span": {
+          "line": 63,
+          "column": 29
+        }
+      },
+      {
+        "text": "cells:",
+        "span": {
+          "line": 64,
+          "column": 29
+        }
+      },
+      {
+        "text": "grid |> List/map(row, new:",
+        "span": {
+          "line": 65,
+          "column": 33
+        }
+      },
+      {
+        "text": "row |> List/map(cell, new:",
+        "span": {
+          "line": 66,
+          "column": 37
+        }
+      },
+      {
+        "text": "Element/panel(",
+        "span": {
+          "line": 67,
+          "column": 41
+        }
+      },
+      {
+        "text": "children:",
+        "span": {
+          "line": 68,
+          "column": 45
+        }
+      },
+      {
+        "text": "LIST {",
+        "span": {
+          "line": 69,
+          "column": 49
+        }
+      },
+      {
+        "text": "Element/label(element: cell.sources.display)",
+        "span": {
+          "line": 70,
+          "column": 53
+        }
+      },
+      {
+        "text": "Element/text_input(element: cell.sources.editor)",
+        "span": {
+          "line": 71,
+          "column": 53
+        }
+      },
+      {
+        "text": "}",
+        "span": {
+          "line": 72,
+          "column": 49
         }
       },
       {
         "text": ")",
         "span": {
-          "line": 60,
+          "line": 73,
+          "column": 41
+        }
+      },
+      {
+        "text": ")",
+        "span": {
+          "line": 74,
+          "column": 37
+        }
+      },
+      {
+        "text": ")",
+        "span": {
+          "line": 75,
+          "column": 33
+        }
+      },
+      {
+        "text": ")",
+        "span": {
+          "line": 76,
+          "column": 25
+        }
+      },
+      {
+        "text": "}",
+        "span": {
+          "line": 77,
           "column": 21
         }
       },
       {
         "text": ")",
         "span": {
-          "line": 61,
+          "line": 78,
           "column": 13
         }
       },
       {
         "text": ")",
         "span": {
-          "line": 62,
+          "line": 79,
           "column": 5
         }
       }
@@ -1528,30 +2392,103 @@
             },
             "children": [
               {
-                "key": "element",
-                "value": "store.sources.viewport",
+                "key": "children",
+                "value": null,
                 "span": {
                   "line": 48,
                   "column": 17
                 },
-                "children": []
-              },
-              {
-                "key": "cells",
-                "value": null,
-                "span": {
-                  "line": 49,
-                  "column": 17
-                },
                 "children": [
                   {
-                    "key": "children",
-                    "value": null,
+                    "key": "element",
+                    "value": "store.sources.viewport",
                     "span": {
-                      "line": 53,
-                      "column": 33
+                      "line": 56,
+                      "column": 29
                     },
                     "children": []
+                  },
+                  {
+                    "key": "x",
+                    "value": "48",
+                    "span": {
+                      "line": 57,
+                      "column": 29
+                    },
+                    "children": []
+                  },
+                  {
+                    "key": "y",
+                    "value": "160",
+                    "span": {
+                      "line": 58,
+                      "column": 29
+                    },
+                    "children": []
+                  },
+                  {
+                    "key": "width",
+                    "value": "904",
+                    "span": {
+                      "line": 59,
+                      "column": 29
+                    },
+                    "children": []
+                  },
+                  {
+                    "key": "height",
+                    "value": "620",
+                    "span": {
+                      "line": 60,
+                      "column": 29
+                    },
+                    "children": []
+                  },
+                  {
+                    "key": "rows",
+                    "value": "rows",
+                    "span": {
+                      "line": 61,
+                      "column": 29
+                    },
+                    "children": []
+                  },
+                  {
+                    "key": "columns",
+                    "value": "columns",
+                    "span": {
+                      "line": 62,
+                      "column": 29
+                    },
+                    "children": []
+                  },
+                  {
+                    "key": "expressions",
+                    "value": "expressions",
+                    "span": {
+                      "line": 63,
+                      "column": 29
+                    },
+                    "children": []
+                  },
+                  {
+                    "key": "cells",
+                    "value": null,
+                    "span": {
+                      "line": 64,
+                      "column": 29
+                    },
+                    "children": [
+                      {
+                        "key": "children",
+                        "value": null,
+                        "span": {
+                          "line": 68,
+                          "column": 45
+                        },
+                        "children": []
+                      }
+                    ]
                   }
                 ]
               }
@@ -1764,26 +2701,376 @@
         ]
       },
       {
-        "path": "Element/grid",
+        "path": "Element/panel",
         "span": {
           "line": 47,
           "column": 13
         },
         "args": [
           {
-            "name": "element",
-            "value": "store.sources.viewport",
+            "name": "children",
+            "value": "LIST",
             "span": {
               "line": 47,
               "column": 3
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/rect",
+        "span": {
+          "line": 50,
+          "column": 25
+        },
+        "args": [
+          {
+            "name": "x",
+            "value": "0",
+            "span": {
+              "line": 50,
+              "column": 2
+            }
+          },
+          {
+            "name": "y",
+            "value": "0",
+            "span": {
+              "line": 50,
+              "column": 8
+            }
+          },
+          {
+            "name": "width",
+            "value": "1000",
+            "span": {
+              "line": 50,
+              "column": 14
+            }
+          },
+          {
+            "name": "height",
+            "value": "1000",
+            "span": {
+              "line": 50,
+              "column": 27
+            }
+          },
+          {
+            "name": "color",
+            "value": "TEXT",
+            "span": {
+              "line": 50,
+              "column": 41
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/text",
+        "span": {
+          "line": 51,
+          "column": 25
+        },
+        "args": [
+          {
+            "name": "x",
+            "value": "48",
+            "span": {
+              "line": 51,
+              "column": 2
+            }
+          },
+          {
+            "name": "y",
+            "value": "34",
+            "span": {
+              "line": 51,
+              "column": 9
+            }
+          },
+          {
+            "name": "width",
+            "value": "240",
+            "span": {
+              "line": 51,
+              "column": 16
+            }
+          },
+          {
+            "name": "height",
+            "value": "32",
+            "span": {
+              "line": 51,
+              "column": 28
+            }
+          },
+          {
+            "name": "scale",
+            "value": "2",
+            "span": {
+              "line": 51,
+              "column": 40
+            }
+          },
+          {
+            "name": "text",
+            "value": "TEXT",
+            "span": {
+              "line": 51,
+              "column": 50
+            }
+          },
+          {
+            "name": "color",
+            "value": "TEXT",
+            "span": {
+              "line": 51,
+              "column": 72
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/rect",
+        "span": {
+          "line": 52,
+          "column": 25
+        },
+        "args": [
+          {
+            "name": "x",
+            "value": "48",
+            "span": {
+              "line": 52,
+              "column": 2
+            }
+          },
+          {
+            "name": "y",
+            "value": "82",
+            "span": {
+              "line": 52,
+              "column": 9
+            }
+          },
+          {
+            "name": "width",
+            "value": "904",
+            "span": {
+              "line": 52,
+              "column": 16
+            }
+          },
+          {
+            "name": "height",
+            "value": "50",
+            "span": {
+              "line": 52,
+              "column": 28
+            }
+          },
+          {
+            "name": "color",
+            "value": "TEXT",
+            "span": {
+              "line": 52,
+              "column": 40
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/text",
+        "span": {
+          "line": 53,
+          "column": 25
+        },
+        "args": [
+          {
+            "name": "x",
+            "value": "64",
+            "span": {
+              "line": 53,
+              "column": 2
+            }
+          },
+          {
+            "name": "y",
+            "value": "100",
+            "span": {
+              "line": 53,
+              "column": 9
+            }
+          },
+          {
+            "name": "width",
+            "value": "64",
+            "span": {
+              "line": 53,
+              "column": 17
+            }
+          },
+          {
+            "name": "height",
+            "value": "24",
+            "span": {
+              "line": 53,
+              "column": 28
+            }
+          },
+          {
+            "name": "text",
+            "value": "grid.selected",
+            "span": {
+              "line": 53,
+              "column": 40
+            }
+          },
+          {
+            "name": "color",
+            "value": "TEXT",
+            "span": {
+              "line": 53,
+              "column": 61
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/text",
+        "span": {
+          "line": 54,
+          "column": 25
+        },
+        "args": [
+          {
+            "name": "x",
+            "value": "142",
+            "span": {
+              "line": 54,
+              "column": 2
+            }
+          },
+          {
+            "name": "y",
+            "value": "100",
+            "span": {
+              "line": 54,
+              "column": 10
+            }
+          },
+          {
+            "name": "width",
+            "value": "780",
+            "span": {
+              "line": 54,
+              "column": 18
+            }
+          },
+          {
+            "name": "height",
+            "value": "24",
+            "span": {
+              "line": 54,
+              "column": 30
+            }
+          },
+          {
+            "name": "text",
+            "value": "grid.selected_expression",
+            "span": {
+              "line": 54,
+              "column": 42
+            }
+          },
+          {
+            "name": "color",
+            "value": "TEXT",
+            "span": {
+              "line": 54,
+              "column": 74
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/grid",
+        "span": {
+          "line": 55,
+          "column": 25
+        },
+        "args": [
+          {
+            "name": "element",
+            "value": "store.sources.viewport",
+            "span": {
+              "line": 55,
+              "column": 3
+            }
+          },
+          {
+            "name": "x",
+            "value": "48",
+            "span": {
+              "line": 55,
+              "column": 35
+            }
+          },
+          {
+            "name": "y",
+            "value": "160",
+            "span": {
+              "line": 55,
+              "column": 41
+            }
+          },
+          {
+            "name": "width",
+            "value": "904",
+            "span": {
+              "line": 55,
+              "column": 48
+            }
+          },
+          {
+            "name": "height",
+            "value": "620",
+            "span": {
+              "line": 55,
+              "column": 59
+            }
+          },
+          {
+            "name": "rows",
+            "value": "rows",
+            "span": {
+              "line": 55,
+              "column": 71
+            }
+          },
+          {
+            "name": "columns",
+            "value": "columns",
+            "span": {
+              "line": 55,
+              "column": 82
+            }
+          },
+          {
+            "name": "expressions",
+            "value": "expressions",
+            "span": {
+              "line": 55,
+              "column": 99
             }
           },
           {
             "name": "cells",
             "value": "grid",
             "span": {
-              "line": 47,
-              "column": 35
+              "line": 55,
+              "column": 124
             }
           }
         ]
@@ -1791,15 +3078,15 @@
       {
         "path": "List/map",
         "span": {
-          "line": 50,
-          "column": 29
+          "line": 65,
+          "column": 41
         },
         "args": [
           {
             "name": "new",
             "value": "row",
             "span": {
-              "line": 50,
+              "line": 65,
               "column": 7
             }
           }
@@ -1808,15 +3095,15 @@
       {
         "path": "List/map",
         "span": {
-          "line": 51,
-          "column": 32
+          "line": 66,
+          "column": 44
         },
         "args": [
           {
             "name": "new",
             "value": "Element",
             "span": {
-              "line": 51,
+              "line": 66,
               "column": 8
             }
           }
@@ -1825,15 +3112,15 @@
       {
         "path": "Element/panel",
         "span": {
-          "line": 52,
-          "column": 29
+          "line": 67,
+          "column": 41
         },
         "args": [
           {
             "name": "children",
             "value": "LIST",
             "span": {
-              "line": 52,
+              "line": 67,
               "column": 3
             }
           }
@@ -1842,15 +3129,15 @@
       {
         "path": "Element/label",
         "span": {
-          "line": 55,
-          "column": 41
+          "line": 70,
+          "column": 53
         },
         "args": [
           {
             "name": "element",
             "value": "cell.sources.display",
             "span": {
-              "line": 55,
+              "line": 70,
               "column": 2
             }
           }
@@ -1859,22 +3146,65 @@
       {
         "path": "Element/text_input",
         "span": {
-          "line": 56,
-          "column": 41
+          "line": 71,
+          "column": 53
         },
         "args": [
           {
             "name": "element",
             "value": "cell.sources.editor",
             "span": {
-              "line": 56,
+              "line": 71,
               "column": 2
             }
           }
         ]
       }
     ],
-    "text_literals": [],
+    "text_literals": [
+      {
+        "value": "#f8f9fa",
+        "span": {
+          "line": 50,
+          "column": 60
+        }
+      },
+      {
+        "value": "Cells",
+        "span": {
+          "line": 51,
+          "column": 68
+        }
+      },
+      {
+        "value": "#1f2e3c",
+        "span": {
+          "line": 51,
+          "column": 91
+        }
+      },
+      {
+        "value": "#ffffff",
+        "span": {
+          "line": 52,
+          "column": 59
+        }
+      },
+      {
+        "value": "#284052",
+        "span": {
+          "line": 53,
+          "column": 80
+        }
+      },
+      {
+        "value": "#233240",
+        "span": {
+          "line": 54,
+          "column": 93
+        }
+      }
+    ],
     "state_steps": [],
     "map_bindings": [
       {
@@ -1897,7 +3227,7 @@
         "variable": "row",
         "collection": "grid",
         "span": {
-          "line": 50,
+          "line": 65,
           "column": 18
         }
       },
@@ -1905,7 +3235,7 @@
         "variable": "cell",
         "collection": "row",
         "span": {
-          "line": 51,
+          "line": 66,
           "column": 17
         }
       }
@@ -2524,186 +3854,118 @@
               "value": {
                 "kind": {
                   "kind": "host_call",
-                  "path": "Element/grid",
+                  "path": "Element/panel",
                   "args": [
                     {
-                      "name": "element",
+                      "name": "children",
                       "value": {
                         "kind": {
-                          "kind": "path",
-                          "value": "store.sources.viewport"
-                        },
-                        "span": {
-                          "line": 44,
-                          "column": 10
-                        },
-                        "raw": "store.sources.viewport"
-                      },
-                      "span": {
-                        "line": 44,
-                        "column": 10
-                      }
-                    },
-                    {
-                      "name": "cells",
-                      "value": {
-                        "kind": {
-                          "kind": "pipeline",
-                          "input": {
-                            "kind": {
-                              "kind": "path",
-                              "value": "grid"
-                            },
-                            "span": {
-                              "line": 44,
-                              "column": 10
-                            },
-                            "raw": "grid"
-                          },
-                          "stages": [
+                          "kind": "list",
+                          "items": [
                             {
                               "kind": {
-                                "kind": "list_call",
-                                "op": "map",
+                                "kind": "host_call",
+                                "path": "Element/rect",
                                 "args": [
                                   {
-                                    "name": "new",
+                                    "name": "x",
                                     "value": {
                                       "kind": {
-                                        "kind": "pipeline",
-                                        "input": {
-                                          "kind": {
-                                            "kind": "path",
-                                            "value": "row"
-                                          },
-                                          "span": {
-                                            "line": 44,
-                                            "column": 10
-                                          },
-                                          "raw": "row"
-                                        },
-                                        "stages": [
-                                          {
-                                            "kind": {
-                                              "kind": "list_call",
-                                              "op": "map",
-                                              "args": [
-                                                {
-                                                  "name": "new",
-                                                  "value": {
-                                                    "kind": {
-                                                      "kind": "host_call",
-                                                      "path": "Element/panel",
-                                                      "args": [
-                                                        {
-                                                          "name": "children",
-                                                          "value": {
-                                                            "kind": {
-                                                              "kind": "list",
-                                                              "items": [
-                                                                {
-                                                                  "kind": {
-                                                                    "kind": "host_call",
-                                                                    "path": "Element/label",
-                                                                    "args": [
-                                                                      {
-                                                                        "name": "element",
-                                                                        "value": {
-                                                                          "kind": {
-                                                                            "kind": "path",
-                                                                            "value": "cell.sources.display"
-                                                                          },
-                                                                          "span": {
-                                                                            "line": 44,
-                                                                            "column": 10
-                                                                          },
-                                                                          "raw": "cell.sources.display"
-                                                                        },
-                                                                        "span": {
-                                                                          "line": 44,
-                                                                          "column": 10
-                                                                        }
-                                                                      }
-                                                                    ]
-                                                                  },
-                                                                  "span": {
-                                                                    "line": 44,
-                                                                    "column": 10
-                                                                  },
-                                                                  "raw": "Element/label(element: cell.sources.display)"
-                                                                },
-                                                                {
-                                                                  "kind": {
-                                                                    "kind": "host_call",
-                                                                    "path": "Element/text_input",
-                                                                    "args": [
-                                                                      {
-                                                                        "name": "element",
-                                                                        "value": {
-                                                                          "kind": {
-                                                                            "kind": "path",
-                                                                            "value": "cell.sources.editor"
-                                                                          },
-                                                                          "span": {
-                                                                            "line": 44,
-                                                                            "column": 10
-                                                                          },
-                                                                          "raw": "cell.sources.editor"
-                                                                        },
-                                                                        "span": {
-                                                                          "line": 44,
-                                                                          "column": 10
-                                                                        }
-                                                                      }
-                                                                    ]
-                                                                  },
-                                                                  "span": {
-                                                                    "line": 44,
-                                                                    "column": 10
-                                                                  },
-                                                                  "raw": "Element/text_input(element: cell.sources.editor)"
-                                                                }
-                                                              ]
-                                                            },
-                                                            "span": {
-                                                              "line": 44,
-                                                              "column": 10
-                                                            },
-                                                            "raw": "LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}"
-                                                          },
-                                                          "span": {
-                                                            "line": 44,
-                                                            "column": 10
-                                                          }
-                                                        }
-                                                      ]
-                                                    },
-                                                    "span": {
-                                                      "line": 44,
-                                                      "column": 10
-                                                    },
-                                                    "raw": "Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)"
-                                                  },
-                                                  "span": {
-                                                    "line": 44,
-                                                    "column": 10
-                                                  }
-                                                }
-                                              ]
-                                            },
-                                            "span": {
-                                              "line": 44,
-                                              "column": 10
-                                            },
-                                            "raw": "List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)"
-                                          }
-                                        ]
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 0
+                                        }
                                       },
                                       "span": {
                                         "line": 44,
                                         "column": 10
                                       },
-                                      "raw": "row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)"
+                                      "raw": "0"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "y",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 0
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "0"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "width",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 1000
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "1000"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "height",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 1000
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "1000"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "color",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "text",
+                                          "value": "#f8f9fa"
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "TEXT { #f8f9fa }"
                                     },
                                     "span": {
                                       "line": 44,
@@ -2716,7 +3978,913 @@
                                 "line": 44,
                                 "column": 10
                               },
-                              "raw": "List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)"
+                              "raw": "Element/rect(x: 0, y: 0, width: 1000, height: 1000, color: TEXT { #f8f9fa })"
+                            },
+                            {
+                              "kind": {
+                                "kind": "host_call",
+                                "path": "Element/text",
+                                "args": [
+                                  {
+                                    "name": "x",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 48
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "48"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "y",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 34
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "34"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "width",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 240
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "240"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "height",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 32
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "32"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "scale",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 2
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "2"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "text",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "text",
+                                          "value": "Cells"
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "TEXT { Cells }"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "color",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "text",
+                                          "value": "#1f2e3c"
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "TEXT { #1f2e3c }"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  }
+                                ]
+                              },
+                              "span": {
+                                "line": 44,
+                                "column": 10
+                              },
+                              "raw": "Element/text(x: 48, y: 34, width: 240, height: 32, scale: 2, text: TEXT { Cells }, color: TEXT { #1f2e3c })"
+                            },
+                            {
+                              "kind": {
+                                "kind": "host_call",
+                                "path": "Element/rect",
+                                "args": [
+                                  {
+                                    "name": "x",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 48
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "48"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "y",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 82
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "82"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "width",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 904
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "904"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "height",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 50
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "50"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "color",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "text",
+                                          "value": "#ffffff"
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "TEXT { #ffffff }"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  }
+                                ]
+                              },
+                              "span": {
+                                "line": 44,
+                                "column": 10
+                              },
+                              "raw": "Element/rect(x: 48, y: 82, width: 904, height: 50, color: TEXT { #ffffff })"
+                            },
+                            {
+                              "kind": {
+                                "kind": "host_call",
+                                "path": "Element/text",
+                                "args": [
+                                  {
+                                    "name": "x",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 64
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "64"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "y",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 100
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "100"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "width",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 64
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "64"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "height",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 24
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "24"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "text",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "path",
+                                        "value": "grid.selected"
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "grid.selected"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "color",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "text",
+                                          "value": "#284052"
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "TEXT { #284052 }"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  }
+                                ]
+                              },
+                              "span": {
+                                "line": 44,
+                                "column": 10
+                              },
+                              "raw": "Element/text(x: 64, y: 100, width: 64, height: 24, text: grid.selected, color: TEXT { #284052 })"
+                            },
+                            {
+                              "kind": {
+                                "kind": "host_call",
+                                "path": "Element/text",
+                                "args": [
+                                  {
+                                    "name": "x",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 142
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "142"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "y",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 100
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "100"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "width",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 780
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "780"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "height",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 24
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "24"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "text",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "path",
+                                        "value": "grid.selected_expression"
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "grid.selected_expression"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "color",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "text",
+                                          "value": "#233240"
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "TEXT { #233240 }"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  }
+                                ]
+                              },
+                              "span": {
+                                "line": 44,
+                                "column": 10
+                              },
+                              "raw": "Element/text(x: 142, y: 100, width: 780, height: 24, text: grid.selected_expression, color: TEXT { #233240 })"
+                            },
+                            {
+                              "kind": {
+                                "kind": "host_call",
+                                "path": "Element/grid",
+                                "args": [
+                                  {
+                                    "name": "element",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "path",
+                                        "value": "store.sources.viewport"
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "store.sources.viewport"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "x",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 48
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "48"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "y",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 160
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "160"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "width",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 904
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "904"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "height",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "literal",
+                                        "literal": {
+                                          "kind": "number",
+                                          "value": 620
+                                        }
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "620"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "rows",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "path",
+                                        "value": "rows"
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "rows"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "columns",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "path",
+                                        "value": "columns"
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "columns"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "expressions",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "path",
+                                        "value": "expressions"
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "expressions"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  },
+                                  {
+                                    "name": "cells",
+                                    "value": {
+                                      "kind": {
+                                        "kind": "pipeline",
+                                        "input": {
+                                          "kind": {
+                                            "kind": "path",
+                                            "value": "grid"
+                                          },
+                                          "span": {
+                                            "line": 44,
+                                            "column": 10
+                                          },
+                                          "raw": "grid"
+                                        },
+                                        "stages": [
+                                          {
+                                            "kind": {
+                                              "kind": "list_call",
+                                              "op": "map",
+                                              "args": [
+                                                {
+                                                  "name": "new",
+                                                  "value": {
+                                                    "kind": {
+                                                      "kind": "pipeline",
+                                                      "input": {
+                                                        "kind": {
+                                                          "kind": "path",
+                                                          "value": "row"
+                                                        },
+                                                        "span": {
+                                                          "line": 44,
+                                                          "column": 10
+                                                        },
+                                                        "raw": "row"
+                                                      },
+                                                      "stages": [
+                                                        {
+                                                          "kind": {
+                                                            "kind": "list_call",
+                                                            "op": "map",
+                                                            "args": [
+                                                              {
+                                                                "name": "new",
+                                                                "value": {
+                                                                  "kind": {
+                                                                    "kind": "host_call",
+                                                                    "path": "Element/panel",
+                                                                    "args": [
+                                                                      {
+                                                                        "name": "children",
+                                                                        "value": {
+                                                                          "kind": {
+                                                                            "kind": "list",
+                                                                            "items": [
+                                                                              {
+                                                                                "kind": {
+                                                                                  "kind": "host_call",
+                                                                                  "path": "Element/label",
+                                                                                  "args": [
+                                                                                    {
+                                                                                      "name": "element",
+                                                                                      "value": {
+                                                                                        "kind": {
+                                                                                          "kind": "path",
+                                                                                          "value": "cell.sources.display"
+                                                                                        },
+                                                                                        "span": {
+                                                                                          "line": 44,
+                                                                                          "column": 10
+                                                                                        },
+                                                                                        "raw": "cell.sources.display"
+                                                                                      },
+                                                                                      "span": {
+                                                                                        "line": 44,
+                                                                                        "column": 10
+                                                                                      }
+                                                                                    }
+                                                                                  ]
+                                                                                },
+                                                                                "span": {
+                                                                                  "line": 44,
+                                                                                  "column": 10
+                                                                                },
+                                                                                "raw": "Element/label(element: cell.sources.display)"
+                                                                              },
+                                                                              {
+                                                                                "kind": {
+                                                                                  "kind": "host_call",
+                                                                                  "path": "Element/text_input",
+                                                                                  "args": [
+                                                                                    {
+                                                                                      "name": "element",
+                                                                                      "value": {
+                                                                                        "kind": {
+                                                                                          "kind": "path",
+                                                                                          "value": "cell.sources.editor"
+                                                                                        },
+                                                                                        "span": {
+                                                                                          "line": 44,
+                                                                                          "column": 10
+                                                                                        },
+                                                                                        "raw": "cell.sources.editor"
+                                                                                      },
+                                                                                      "span": {
+                                                                                        "line": 44,
+                                                                                        "column": 10
+                                                                                      }
+                                                                                    }
+                                                                                  ]
+                                                                                },
+                                                                                "span": {
+                                                                                  "line": 44,
+                                                                                  "column": 10
+                                                                                },
+                                                                                "raw": "Element/text_input(element: cell.sources.editor)"
+                                                                              }
+                                                                            ]
+                                                                          },
+                                                                          "span": {
+                                                                            "line": 44,
+                                                                            "column": 10
+                                                                          },
+                                                                          "raw": "LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}"
+                                                                        },
+                                                                        "span": {
+                                                                          "line": 44,
+                                                                          "column": 10
+                                                                        }
+                                                                      }
+                                                                    ]
+                                                                  },
+                                                                  "span": {
+                                                                    "line": 44,
+                                                                    "column": 10
+                                                                  },
+                                                                  "raw": "Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)"
+                                                                },
+                                                                "span": {
+                                                                  "line": 44,
+                                                                  "column": 10
+                                                                }
+                                                              }
+                                                            ]
+                                                          },
+                                                          "span": {
+                                                            "line": 44,
+                                                            "column": 10
+                                                          },
+                                                          "raw": "List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)"
+                                                        }
+                                                      ]
+                                                    },
+                                                    "span": {
+                                                      "line": 44,
+                                                      "column": 10
+                                                    },
+                                                    "raw": "row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)"
+                                                  },
+                                                  "span": {
+                                                    "line": 44,
+                                                    "column": 10
+                                                  }
+                                                }
+                                              ]
+                                            },
+                                            "span": {
+                                              "line": 44,
+                                              "column": 10
+                                            },
+                                            "raw": "List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)"
+                                          }
+                                        ]
+                                      },
+                                      "span": {
+                                        "line": 44,
+                                        "column": 10
+                                      },
+                                      "raw": "grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)"
+                                    },
+                                    "span": {
+                                      "line": 44,
+                                      "column": 10
+                                    }
+                                  }
+                                ]
+                              },
+                              "span": {
+                                "line": 44,
+                                "column": 10
+                              },
+                              "raw": "Element/grid(\nelement: store.sources.viewport\nx: 48\ny: 160\nwidth: 904\nheight: 620\nrows: rows\ncolumns: columns\nexpressions: expressions\ncells: grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)"
                             }
                           ]
                         },
@@ -2724,7 +4892,7 @@
                           "line": 44,
                           "column": 10
                         },
-                        "raw": "grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)"
+                        "raw": "LIST {\nElement/rect(x: 0, y: 0, width: 1000, height: 1000, color: TEXT { #f8f9fa })\nElement/text(x: 48, y: 34, width: 240, height: 32, scale: 2, text: TEXT { Cells }, color: TEXT { #1f2e3c })\nElement/rect(x: 48, y: 82, width: 904, height: 50, color: TEXT { #ffffff })\nElement/text(x: 64, y: 100, width: 64, height: 24, text: grid.selected, color: TEXT { #284052 })\nElement/text(x: 142, y: 100, width: 780, height: 24, text: grid.selected_expression, color: TEXT { #233240 })\nElement/grid(\nelement: store.sources.viewport\nx: 48\ny: 160\nwidth: 904\nheight: 620\nrows: rows\ncolumns: columns\nexpressions: expressions\ncells: grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)\n}"
                       },
                       "span": {
                         "line": 44,
@@ -2737,7 +4905,7 @@
                   "line": 44,
                   "column": 10
                 },
-                "raw": "Element/grid(\nelement: store.sources.viewport\ncells: grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)"
+                "raw": "Element/panel(\nchildren: LIST {\nElement/rect(x: 0, y: 0, width: 1000, height: 1000, color: TEXT { #f8f9fa })\nElement/text(x: 48, y: 34, width: 240, height: 32, scale: 2, text: TEXT { Cells }, color: TEXT { #1f2e3c })\nElement/rect(x: 48, y: 82, width: 904, height: 50, color: TEXT { #ffffff })\nElement/text(x: 64, y: 100, width: 64, height: 24, text: grid.selected, color: TEXT { #284052 })\nElement/text(x: 142, y: 100, width: 780, height: 24, text: grid.selected_expression, color: TEXT { #233240 })\nElement/grid(\nelement: store.sources.viewport\nx: 48\ny: 160\nwidth: 904\nheight: 620\nrows: rows\ncolumns: columns\nexpressions: expressions\ncells: grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)\n}\n)"
               },
               "span": {
                 "line": 44,
@@ -2750,7 +4918,7 @@
           "line": 44,
           "column": 10
         },
-        "raw": "Document/new(\nroot: Element/grid(\nelement: store.sources.viewport\ncells: grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)\n)"
+        "raw": "Document/new(\nroot: Element/panel(\nchildren: LIST {\nElement/rect(x: 0, y: 0, width: 1000, height: 1000, color: TEXT { #f8f9fa })\nElement/text(x: 48, y: 34, width: 240, height: 32, scale: 2, text: TEXT { Cells }, color: TEXT { #1f2e3c })\nElement/rect(x: 48, y: 82, width: 904, height: 50, color: TEXT { #ffffff })\nElement/text(x: 64, y: 100, width: 64, height: 24, text: grid.selected, color: TEXT { #284052 })\nElement/text(x: 142, y: 100, width: 780, height: 24, text: grid.selected_expression, color: TEXT { #233240 })\nElement/grid(\nelement: store.sources.viewport\nx: 48\ny: 160\nwidth: 904\nheight: 620\nrows: rows\ncolumns: columns\nexpressions: expressions\ncells: grid |> List/map(row, new: row |> List/map(cell, new: Element/panel(\nchildren: LIST {\nElement/label(element: cell.sources.display)\nElement/text_input(element: cell.sources.editor)\n}\n)\n)\n)\n)\n}\n)\n)"
       },
       "span": {
         "line": 44,
@@ -2852,7 +5020,47 @@
     },
     {
       "from": "document",
+      "to": "grid.selected",
+      "span": {
+        "line": 44,
+        "column": 10
+      }
+    },
+    {
+      "from": "document",
+      "to": "grid.selected_expression",
+      "span": {
+        "line": 44,
+        "column": 10
+      }
+    },
+    {
+      "from": "document",
       "to": "store.sources.viewport",
+      "span": {
+        "line": 44,
+        "column": 10
+      }
+    },
+    {
+      "from": "document",
+      "to": "rows",
+      "span": {
+        "line": 44,
+        "column": 10
+      }
+    },
+    {
+      "from": "document",
+      "to": "columns",
+      "span": {
+        "line": 44,
+        "column": 10
+      }
+    },
+    {
+      "from": "document",
+      "to": "expressions",
       "span": {
         "line": 44,
         "column": 10

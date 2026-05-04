@@ -47,7 +47,9 @@ document:
             Element/panel(
                 children:
                     LIST {
+                        Element/rect(x: 0, y: 0, width: 1000, height: 1000, color: TEXT { #f8f9fa })
                         Element/text(x: 48, y: 34, width: 240, height: 32, scale: 2, text: TEXT { Cells }, color: TEXT { #1f2e3c })
+                        Element/rect(x: 48, y: 82, width: 904, height: 50, color: TEXT { #ffffff })
                         Element/text(x: 64, y: 100, width: 64, height: 24, text: grid.selected, color: TEXT { #284052 })
                         Element/text(x: 142, y: 100, width: 780, height: 24, text: grid.selected_expression, color: TEXT { #233240 })
                         Element/grid(
@@ -56,6 +58,9 @@ document:
                             y: 160
                             width: 904
                             height: 620
+                            rows: rows
+                            columns: columns
+                            expressions: expressions
                             cells:
                                 grid |> List/map(row, new:
                                     row |> List/map(cell, new:

@@ -11,7 +11,7 @@ pub fn generate_manifest(example_name: &str, source_path: &Path, output_path: &P
     Ok(())
 }
 
-pub fn generate_program_spec(
+pub fn generate_program_metadata(
     example_name: &str,
     source_path: &Path,
     output_path: &Path,

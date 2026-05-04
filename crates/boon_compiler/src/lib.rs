@@ -1091,20 +1091,19 @@ fn resolve_source_base(sources: &SourceInventory, path: &str) -> Option<String> 
     {
         return Some(path.to_string());
     }
-    path.strip_prefix("item.")
-        .or_else(|| path.strip_prefix("sources."))
-        .and_then(|suffix| {
-            let suffix = format!(".{suffix}.");
-            sources
-                .entries
-                .iter()
-                .filter(|entry| entry.path.contains("[*]"))
-                .find_map(|entry| {
-                    entry
-                        .path
-                        .find(&suffix)
-                        .map(|idx| entry.path[..idx + suffix.len() - 1].to_string())
-                })
+    let suffix = path
+        .strip_prefix("sources.")
+        .or_else(|| path.split_once('.').map(|(_, suffix)| suffix))?;
+    let suffix = format!(".{suffix}.");
+    sources
+        .entries
+        .iter()
+        .filter(|entry| entry.path.contains("[*]"))
+        .find_map(|entry| {
+            entry
+                .path
+                .find(&suffix)
+                .map(|idx| entry.path[..idx + suffix.len() - 1].to_string())
         })
 }
 
@@ -1207,7 +1206,11 @@ fn expression_surface_from_hir(
     hir: &HirModule,
     sources: &SourceInventory,
 ) -> Option<IrExpressionSurface> {
-    let expressions = hir_record(hir, "expressions")?;
+    let document = hir_record(hir, "document")?;
+    let grid_args = find_host_call_args(document.value.as_ref()?, "Element/grid")?;
+    let expressions = named_arg(grid_args, "expressions")
+        .and_then(path_expr)
+        .and_then(|path| hir_record(hir, path))?;
     let functions = hir_child_record(expressions, "functions")
         .map(|record| {
             record
@@ -1230,10 +1233,71 @@ fn expression_surface_from_hir(
         .map(|family| dynamic_family_root(family))?;
     Some(IrExpressionSurface {
         root,
-        rows: static_range_end(hir, "rows").unwrap_or(100),
-        columns: static_range_end(hir, "columns").unwrap_or(26),
+        rows: named_arg(grid_args, "rows")
+            .and_then(path_expr)
+            .and_then(|path| static_range_end(hir, path))
+            .unwrap_or(100),
+        columns: named_arg(grid_args, "columns")
+            .and_then(path_expr)
+            .and_then(|path| static_range_end(hir, path))
+            .unwrap_or(26),
         functions,
     })
+}
+
+fn find_host_call_args<'a>(expr: &'a HirExpr, path: &str) -> Option<&'a [HirCallArg]> {
+    match &expr.kind {
+        HirExprKind::HostCall {
+            path: call_path,
+            args,
+        }
+        | HirExprKind::FunctionCall {
+            path: call_path,
+            args,
+        } if call_path == path => Some(args),
+        HirExprKind::HostCall { args, .. } | HirExprKind::FunctionCall { args, .. } => args
+            .iter()
+            .find_map(|arg| find_host_call_args(&arg.value, path)),
+        HirExprKind::List { items } => items
+            .iter()
+            .find_map(|item| find_host_call_args(item, path)),
+        HirExprKind::Record { entries } => entries.iter().find_map(|entry| {
+            entry
+                .value
+                .as_ref()
+                .and_then(|value| find_host_call_args(value, path))
+        }),
+        HirExprKind::Pipeline { input, stages } => find_host_call_args(input, path).or_else(|| {
+            stages
+                .iter()
+                .find_map(|stage| find_host_call_args(stage, path))
+        }),
+        HirExprKind::ListCall { args, .. } => args
+            .iter()
+            .find_map(|arg| find_host_call_args(&arg.value, path)),
+        HirExprKind::Block { bindings } => bindings
+            .iter()
+            .find_map(|binding| find_host_call_args(&binding.value, path)),
+        HirExprKind::Binary { left, right, .. } => {
+            find_host_call_args(left, path).or_else(|| find_host_call_args(right, path))
+        }
+        HirExprKind::When { arms } | HirExprKind::While { arms } => arms
+            .iter()
+            .find_map(|arm| find_host_call_args(&arm.value, path)),
+        HirExprKind::Then { body } | HirExprKind::Hold { body, .. } => {
+            find_host_call_args(body, path)
+        }
+        HirExprKind::Latest { branches } => branches
+            .iter()
+            .find_map(|branch| find_host_call_args(branch, path)),
+        HirExprKind::Source
+        | HirExprKind::Literal { .. }
+        | HirExprKind::Path { .. }
+        | HirExprKind::Tag { .. }
+        | HirExprKind::Passed
+        | HirExprKind::Skip
+        | HirExprKind::Unsupported { .. } => None,
+    }
 }
 
 fn static_range_end(hir: &HirModule, record_name: &str) -> Option<usize> {
@@ -1666,9 +1730,6 @@ fn push_selector_handlers_from_hir_record(
     sources: &SourceInventory,
     record: &HirRecord,
 ) {
-    if record.key != "view" {
-        return;
-    }
     let Some(selectors) = hir_child_record(record, "selectors") else {
         return;
     };

@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail};
 use boon_codegen_rust::{
     generate_app_ir_snapshot, generate_executable_ir_snapshot, generate_hir_snapshot,
-    generate_manifest, generate_program_spec,
+    generate_manifest, generate_program_metadata,
 };
 use boon_examples::list_examples;
 use boon_verify::{
@@ -313,7 +313,8 @@ fn generate() -> Result<()> {
             .join("examples")
             .join(name)
             .join("expected.program.json");
-        generate_program_spec(name, &src, &out).with_context(|| format!("generating {name}"))?;
+        generate_program_metadata(name, &src, &out)
+            .with_context(|| format!("generating {name}"))?;
         let out = root.join("examples").join(name).join("expected.hir.json");
         generate_hir_snapshot(name, &src, &out).with_context(|| format!("generating {name}"))?;
         let out = root

@@ -325,6 +325,9 @@ document:
         root:
             Element/grid(
                 element: store.sources.viewport
+                rows: rows
+                columns: columns
+                expressions: expressions
                 cells:
                     grid |> List/map(row, new:
                         row |> List/map(cell, new:
@@ -363,6 +366,71 @@ document:
     assert!(
         !app.snapshot().values.contains_key("cells.B1"),
         "ad hoc grid state must use the source-owned root, not the maintained cells example root"
+    );
+}
+
+#[test]
+fn ad_hoc_physics_example_uses_generic_geometry_runtime() {
+    let source = r#"
+store:
+    sources:
+        tick:
+            event:
+                frame: SOURCE
+
+physics:
+    body_x:
+        0 |> HOLD body_x {
+            store.sources.tick.event.frame |> THEN { body_x + 5 }
+        }
+    hit_count:
+        0 |> HOLD hit_count {
+            store.sources.tick.event.frame
+            |> THEN {
+                Geometry/intersects(ax: physics.body_x + 5, ay: 10, aw: 10, ah: 10, bx: 8, by: 10, bw: 10, bh: 10)
+                |> WHEN { True => hit_count + 1 False => hit_count }
+            }
+        }
+
+document:
+    Document/new(
+        root:
+            Element/panel(
+                children:
+                    LIST {
+                        Element/label(element: store.sources.tick)
+                        Element/text(text: physics.body_x)
+                        Element/text(text: physics.hit_count)
+                        Element/rect(x: physics.body_x, y: 10, width: 10, height: 10, color: TEXT { #ffffff })
+                        Element/rect(x: 8, y: 10, width: 10, height: 10, color: TEXT { #55d4e6 })
+                    }
+            )
+    )
+"#;
+    let mut app = CompiledApp::new(
+        compile_source("ad_hoc_physics_probe", source).expect("ad hoc physics source compiles"),
+    );
+
+    app.dispatch_batch(SourceBatch {
+        state_updates: Vec::new(),
+        events: vec![emission(
+            "store.sources.tick.event.frame",
+            SourceValue::EmptyRecord,
+        )],
+    })
+    .expect("ad hoc physics frame dispatch succeeds");
+
+    assert_eq!(
+        app.snapshot().values.get("physics.body_x"),
+        Some(&serde_json::json!(5))
+    );
+    assert_eq!(
+        app.snapshot().values.get("physics.hit_count"),
+        Some(&serde_json::json!(1))
+    );
+    assert!(
+        !app.snapshot().values.contains_key("kinematics.body_x"),
+        "ad hoc physics state must use the source-owned root, not a maintained game family"
     );
 }
 
@@ -578,6 +646,103 @@ document:
     assert_eq!(
         app.snapshot().values.get("store.items_count"),
         Some(&serde_json::json!(0))
+    );
+}
+
+#[test]
+fn ad_hoc_selector_record_filters_dynamic_rows_without_view_name() {
+    let source = r#"
+store:
+    sources:
+        filter_open:
+            event:
+                press: SOURCE
+        filter_done:
+            event:
+                press: SOURCE
+
+FUNCTION row(title, done) {
+    [
+        sources:
+            remove_button:
+                event:
+                    press: SOURCE
+        title: title
+        done: done
+    ]
+}
+
+items:
+    LIST {
+        row(title: TEXT { Open item }, done: False)
+        row(title: TEXT { Done item }, done: True)
+    }
+
+filters:
+    selectors:
+        filter_open:
+            predicate:
+                field: done
+                equals: False
+        filter_done:
+            predicate:
+                field: done
+                equals: True
+
+document:
+    Document/new(
+        root:
+            Element/panel(
+                children:
+                    LIST {
+                        Element/button(element: store.sources.filter_open)
+                        Element/button(element: store.sources.filter_done)
+                        items |> List/map(item, new:
+                            Element/panel(
+                                children:
+                                    LIST {
+                                        Element/button(element: item.sources.remove_button)
+                                    }
+                            )
+                        )
+                    }
+            )
+    )
+"#;
+    let compiled =
+        compile_source("ad_hoc_selector_probe", source).expect("ad hoc selector source compiles");
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&compiled.app_ir).unwrap()
+    );
+    let mut app = CompiledApp::new(compiled);
+    println!("{:#?}", app.snapshot().values);
+
+    assert_eq!(
+        app.snapshot().values.get("filters.selector"),
+        Some(&serde_json::json!("filter_open"))
+    );
+    assert_eq!(
+        app.snapshot().values.get("store.visible_items_ids"),
+        Some(&serde_json::json!([1]))
+    );
+
+    app.dispatch_batch(SourceBatch {
+        state_updates: Vec::new(),
+        events: vec![emission(
+            "store.sources.filter_done.event.press",
+            SourceValue::EmptyRecord,
+        )],
+    })
+    .expect("generic selector dispatch succeeds");
+
+    assert_eq!(
+        app.snapshot().values.get("filters.selector"),
+        Some(&serde_json::json!("filter_done"))
+    );
+    assert_eq!(
+        app.snapshot().values.get("store.visible_items_ids"),
+        Some(&serde_json::json!([2]))
     );
 }
 

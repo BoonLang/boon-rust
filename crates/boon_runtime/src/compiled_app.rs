@@ -34,9 +34,8 @@ pub struct CompiledApp {
     source_state: BTreeMap<String, SourceValue>,
     generic_state: BTreeMap<String, i64>,
     tag_state: BTreeMap<String, String>,
-    expression_book: ExpressionBook,
-    focused_owner: String,
-    editing_owner: Option<String>,
+    expression_book: Option<ExpressionBook>,
+    owner_selection: BTreeMap<String, DynamicOwnerSelection>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -70,18 +69,18 @@ struct CollectionSourceWiring {
 }
 
 #[derive(Clone, Debug, Default)]
-struct CollectionView {
-    selectors: Vec<CollectionViewSelector>,
+struct RecordFilterSet {
+    selectors: Vec<RecordFilterSelector>,
 }
 
 #[derive(Clone, Debug)]
-struct CollectionViewSelector {
+struct RecordFilterSelector {
     id: String,
-    predicate: CollectionViewPredicate,
+    predicate: RecordFilterPredicate,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-enum CollectionViewPredicate {
+enum RecordFilterPredicate {
     #[default]
     All,
     FieldBoolEquals {
@@ -98,6 +97,12 @@ struct IndexedSourceWiring {
     editor_text: Option<String>,
     editor_key: Option<String>,
     viewport_key: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct DynamicOwnerSelection {
+    active_owner: String,
+    text_edit_owner: Option<String>,
 }
 
 impl RuntimeWiring {
@@ -135,13 +140,12 @@ impl RuntimeWiring {
                 action_state.get_or_insert(binding);
             }
         }
-        let list = CollectionSourceWiring::from_app_ir(inventory, app_ir);
+        let list =
+            CollectionSourceWiring::from_app_ir(inventory, app_ir, app_ir.render_tree.as_ref());
         let indexed = app_ir
             .render_tree
             .as_ref()
-            .is_some_and(|tree| render_node_has_kind(tree, &boon_compiler::IrRenderKind::Grid))
-            .then(|| IndexedSourceWiring::from_inventory(inventory))
-            .flatten();
+            .and_then(|tree| IndexedSourceWiring::from_render_tree(tree, inventory));
         Self {
             action_state,
             clock_state,
@@ -152,8 +156,12 @@ impl RuntimeWiring {
 }
 
 impl CollectionSourceWiring {
-    fn from_app_ir(inventory: &SourceInventory, app_ir: &AppIr) -> Option<Self> {
-        if !app_ir.event_handlers.iter().any(|handler| {
+    fn from_app_ir(
+        inventory: &SourceInventory,
+        app_ir: &AppIr,
+        render_tree: Option<&boon_compiler::IrRenderNode>,
+    ) -> Option<Self> {
+        let has_collection_effect = app_ir.event_handlers.iter().any(|handler| {
             handler.effects.iter().any(|effect| {
                 matches!(
                     effect,
@@ -164,15 +172,22 @@ impl CollectionSourceWiring {
                         | IrEffect::CollectionRemoveWhere { .. }
                 )
             })
-        }) {
-            return None;
-        }
-        let dynamic_family =
-            first_dynamic_family(inventory, "Element/checkbox(element.event.click)")
-                .or_else(|| first_dynamic_family(inventory, "Element/text_input(element.text)"));
+        });
+        let mapped_node = render_tree
+            .and_then(|tree| find_render_node_kind(tree, &boon_compiler::IrRenderKind::ListMap));
+        let mapped_text_base = mapped_node.and_then(|node| {
+            first_source_path_for_kind(node, &boon_compiler::IrRenderKind::TextInput)
+        });
+        let mapped_action_base = mapped_node.and_then(first_dynamic_source_path);
+        let dynamic_family = mapped_text_base
+            .as_deref()
+            .or(mapped_action_base.as_deref())
+            .and_then(dynamic_family_from_source_base)
+            .map(str::to_string);
         let root = dynamic_family
             .as_deref()
             .map(dynamic_family_root)
+            .or_else(|| mapped_node.and_then(|node| node.collection_path.clone()))
             .or_else(|| first_collection_effect_path(app_ir))
             .or_else(|| {
                 app_ir
@@ -180,6 +195,14 @@ impl CollectionSourceWiring {
                     .first()
                     .map(|list| list.path.clone())
             })?;
+        if !has_collection_effect
+            && !app_ir
+                .collection_states
+                .iter()
+                .any(|collection| collection.path == root)
+        {
+            return None;
+        }
         let entry_text = app_ir.event_handlers.iter().find_map(|handler| {
             handler.effects.iter().find_map(|effect| match effect {
                 IrEffect::CollectionAppendRecord { fields, .. } => {
@@ -226,10 +249,12 @@ impl CollectionSourceWiring {
         let input_base = entry_text
             .as_deref()
             .and_then(source_base_from_path)
-            .or_else(|| static_base_for_producer(inventory, "Element/text_input(element.text)"));
-        let dynamic_text_base = dynamic_family.as_deref().and_then(|family| {
-            dynamic_base_for_producer(inventory, family, "Element/text_input(element.text)")
-        });
+            .or_else(|| {
+                render_tree.and_then(|tree| {
+                    first_static_source_path_for_kind(tree, &boon_compiler::IrRenderKind::TextInput)
+                })
+            });
+        let dynamic_text_base = mapped_text_base;
         let family = dynamic_family.unwrap_or_else(|| format!("{root}[*]"));
         let edit_focus_field = dynamic_text_base.as_ref().and_then(|base| {
             base.strip_prefix(&format!("{family}."))
@@ -278,31 +303,41 @@ impl CollectionSourceWiring {
 }
 
 impl IndexedSourceWiring {
-    fn from_inventory(inventory: &SourceInventory) -> Option<Self> {
-        let family =
-            first_dynamic_family(inventory, "Element/text_input(element.text)").or_else(|| {
-                first_dynamic_family(inventory, "Element/label(element.event.double_click)")
-            })?;
-        let root = dynamic_family_root(&family);
-        let editor_base =
-            dynamic_base_for_producer(inventory, &family, "Element/text_input(element.text)");
+    fn from_render_tree(
+        tree: &boon_compiler::IrRenderNode,
+        inventory: &SourceInventory,
+    ) -> Option<Self> {
+        let grid = find_render_node_kind(tree, &boon_compiler::IrRenderKind::Grid)?;
+        let editor_base = first_source_path_for_kind(grid, &boon_compiler::IrRenderKind::TextInput);
+        let display_base = first_source_path_for_kind(grid, &boon_compiler::IrRenderKind::Label);
+        let family = editor_base
+            .as_deref()
+            .or(display_base.as_deref())
+            .and_then(dynamic_family_from_source_base)?;
+        let root = dynamic_family_root(family);
         Some(Self {
-            family: family.clone(),
+            family: family.to_string(),
             root,
-            display_double_click: dynamic_path_for_producer(
-                inventory,
-                &family,
-                "Element/label(element.event.double_click)",
-            ),
+            display_double_click: display_base
+                .as_ref()
+                .and_then(|base| existing_path(inventory, &format!("{base}.event.double_click"))),
             editor_text: editor_base.as_ref().map(|base| format!("{base}.text")),
             editor_key: editor_base
                 .as_ref()
                 .and_then(|base| existing_path(inventory, &format!("{base}.event.key_down.key"))),
-            viewport_key: inventory
-                .entries
-                .iter()
-                .find(|entry| entry.path.ends_with(".event.key_down.key") && is_static(entry))
-                .map(|entry| entry.path.clone()),
+            viewport_key: grid
+                .source_path
+                .as_ref()
+                .and_then(|base| existing_path(inventory, &format!("{base}.event.key_down.key")))
+                .or_else(|| {
+                    inventory
+                        .entries
+                        .iter()
+                        .find(|entry| {
+                            entry.path.ends_with(".event.key_down.key") && is_static(entry)
+                        })
+                        .map(|entry| entry.path.clone())
+                }),
         })
     }
 }
@@ -324,22 +359,6 @@ fn existing_path(inventory: &SourceInventory, path: &str) -> Option<String> {
         .iter()
         .any(|entry| entry.path == path)
         .then(|| path.to_string())
-}
-
-fn static_paths_for_producer(inventory: &SourceInventory, producer: &str) -> Vec<String> {
-    inventory
-        .entries
-        .iter()
-        .filter(|entry| is_static(entry) && entry.producer == producer)
-        .map(|entry| entry.path.clone())
-        .collect()
-}
-
-fn static_base_for_producer(inventory: &SourceInventory, producer: &str) -> Option<String> {
-    static_paths_for_producer(inventory, producer)
-        .into_iter()
-        .next()
-        .and_then(|path| source_base_from_path(&path))
 }
 
 fn selfless_eval_exec_number(expr: &ExecExpr) -> Result<i64> {
@@ -376,40 +395,6 @@ fn first_collection_effect_path(app_ir: &AppIr) -> Option<String> {
             _ => None,
         })
     })
-}
-
-fn first_dynamic_family(inventory: &SourceInventory, producer: &str) -> Option<String> {
-    inventory
-        .entries
-        .iter()
-        .find(|entry| !is_static(entry) && entry.producer == producer)
-        .and_then(|entry| {
-            entry
-                .path
-                .split_once(".sources.")
-                .map(|(family, _)| family.to_string())
-        })
-}
-
-fn dynamic_path_for_producer(
-    inventory: &SourceInventory,
-    family: &str,
-    producer: &str,
-) -> Option<String> {
-    inventory
-        .entries
-        .iter()
-        .find(|entry| entry.path.starts_with(family) && entry.producer == producer)
-        .map(|entry| entry.path.clone())
-}
-
-fn dynamic_base_for_producer(
-    inventory: &SourceInventory,
-    family: &str,
-    producer: &str,
-) -> Option<String> {
-    dynamic_path_for_producer(inventory, family, producer)
-        .and_then(|path| source_base_from_path(&path))
 }
 
 fn source_base_from_path(path: &str) -> Option<String> {
@@ -465,20 +450,20 @@ fn generic_source_label(path: &str) -> String {
         .replace('_', " ")
 }
 
-fn collection_view_from_app_ir(app_ir: &AppIr) -> Option<CollectionView> {
+fn record_filter_set_from_app_ir(app_ir: &AppIr) -> Option<RecordFilterSet> {
     let view = app_ir
         .static_records
         .iter()
-        .find(|record| record.path == "view")?;
-    Some(CollectionView {
+        .find(|record| static_record_field(record, "selectors").is_some())?;
+    Some(RecordFilterSet {
         selectors: static_record_field(view, "selectors")
             .map(|selectors| {
                 selectors
                     .iter()
-                    .map(|field| CollectionViewSelector {
+                    .map(|field| RecordFilterSelector {
                         id: field.key.clone(),
                         predicate: static_value_field(&field.value, "predicate")
-                            .map(collection_view_predicate_from_static_value)
+                            .map(record_filter_predicate_from_static_value)
                             .unwrap_or_default(),
                     })
                     .collect()
@@ -548,21 +533,21 @@ fn static_value_record(value: &IrStaticValue) -> Option<&[IrStaticField]> {
     }
 }
 
-fn collection_view_predicate_from_static_value(value: &IrStaticValue) -> CollectionViewPredicate {
+fn record_filter_predicate_from_static_value(value: &IrStaticValue) -> RecordFilterPredicate {
     match value {
-        IrStaticValue::Tag { value } if value == "All" => CollectionViewPredicate::All,
+        IrStaticValue::Tag { value } if value == "All" => RecordFilterPredicate::All,
         IrStaticValue::Record { fields } => {
             let field = static_record_value_field(fields, "field").and_then(static_value_path);
             let equals = static_record_value_field(fields, "equals").and_then(static_value_bool);
             match (field, equals) {
-                (Some(field), Some(value)) => CollectionViewPredicate::FieldBoolEquals {
+                (Some(field), Some(value)) => RecordFilterPredicate::FieldBoolEquals {
                     field: field.to_string(),
                     value,
                 },
-                _ => CollectionViewPredicate::All,
+                _ => RecordFilterPredicate::All,
             }
         }
-        _ => CollectionViewPredicate::All,
+        _ => RecordFilterPredicate::All,
     }
 }
 
@@ -639,22 +624,18 @@ impl RuntimeDynamicValue {
         self.fields.insert(path.to_string(), value);
     }
 
-    fn focus_field(&self, path: &str) -> bool {
-        self.focus.get(path).copied().unwrap_or(false)
-    }
-
     fn set_focus_field(&mut self, path: &str, value: bool) {
         self.focus.insert(path.to_string(), value);
     }
 }
 
-fn collection_view_predicate_matches(
-    predicate: &CollectionViewPredicate,
+fn record_filter_predicate_matches(
+    predicate: &RecordFilterPredicate,
     record: &RuntimeDynamicValue,
 ) -> bool {
     match predicate {
-        CollectionViewPredicate::All => true,
-        CollectionViewPredicate::FieldBoolEquals { field, value } => {
+        RecordFilterPredicate::All => true,
+        RecordFilterPredicate::FieldBoolEquals { field, value } => {
             record.bool_field(field) == *value
         }
     }
@@ -706,10 +687,9 @@ impl CompiledApp {
             .first()
             .map(|list| list.initial_entries.clone())
             .unwrap_or_default();
-        let expression_book = app_ir.expression_surface.as_ref().map_or_else(
-            || ExpressionBook::new(1, 1, Vec::<String>::new()),
-            |surface| ExpressionBook::new(surface.rows, surface.columns, surface.functions.clone()),
-        );
+        let expression_book = app_ir.expression_surface.as_ref().map(|surface| {
+            ExpressionBook::new(surface.rows, surface.columns, surface.functions.clone())
+        });
         let mut generic_state = BTreeMap::new();
         for slot in &executable_ir.state_slots {
             if let Ok(value) = selfless_eval_exec_number(&slot.initial) {
@@ -717,8 +697,8 @@ impl CompiledApp {
             }
         }
         let mut tag_state = BTreeMap::new();
-        if let Some(selector_path) = collection_view_selector_state_path(&app_ir) {
-            let initial_selector = collection_view_from_app_ir(&app_ir).map_or_else(
+        if let Some(selector_path) = selector_state_path(&app_ir) {
+            let initial_selector = record_filter_set_from_app_ir(&app_ir).map_or_else(
                 || "all".to_string(),
                 |view| {
                     view.selectors
@@ -729,6 +709,20 @@ impl CompiledApp {
             );
             tag_state.insert(selector_path, initial_selector);
         }
+        let owner_selection = wiring
+            .indexed
+            .as_ref()
+            .map(|indexed| {
+                (
+                    indexed.root.clone(),
+                    DynamicOwnerSelection {
+                        active_owner: coordinate_name(1, 1),
+                        text_edit_owner: None,
+                    },
+                )
+            })
+            .into_iter()
+            .collect();
         let mut app = Self {
             program,
             app_ir,
@@ -751,8 +745,7 @@ impl CompiledApp {
             generic_state,
             tag_state,
             expression_book,
-            focused_owner: "A1".to_string(),
-            editing_owner: None,
+            owner_selection,
         };
         app.next_dynamic_value_id = app.dynamic_values.len() as u64 + 1;
         app.frame_text = app.render_text();
@@ -856,27 +849,70 @@ impl CompiledApp {
             .unwrap_or_default()
     }
 
-    fn focused_position(&self) -> (usize, usize) {
-        self.parse_indexed_owner(&self.focused_owner)
+    fn active_owner_id(&self) -> String {
+        self.wiring
+            .indexed
+            .as_ref()
+            .and_then(|indexed| self.owner_selection.get(&indexed.root))
+            .map(|state| state.active_owner.clone())
+            .unwrap_or_else(|| coordinate_name(1, 1))
+    }
+
+    fn text_edit_owner_id(&self) -> Option<String> {
+        self.wiring
+            .indexed
+            .as_ref()
+            .and_then(|indexed| self.owner_selection.get(&indexed.root))
+            .and_then(|state| state.text_edit_owner.clone())
+    }
+
+    fn active_position(&self) -> (usize, usize) {
+        self.parse_indexed_owner(&self.active_owner_id())
             .unwrap_or((1, 1))
     }
 
-    fn set_focused_owner(&mut self, owner_id: impl Into<String>) -> Result<()> {
+    fn set_active_owner_id(&mut self, owner_id: impl Into<String>) -> Result<()> {
         let owner_id = owner_id.into();
         self.parse_indexed_owner(&owner_id)?;
-        self.focused_owner = owner_id;
+        if let Some(indexed) = &self.wiring.indexed {
+            self.owner_selection
+                .entry(indexed.root.clone())
+                .or_insert_with(|| DynamicOwnerSelection {
+                    active_owner: coordinate_name(1, 1),
+                    text_edit_owner: None,
+                })
+                .active_owner = owner_id;
+        }
         Ok(())
     }
 
-    fn move_focused_owner(&mut self, row_delta: isize, col_delta: isize) {
-        let (row, col) = self.focused_position();
-        let row = row
-            .saturating_add_signed(row_delta)
-            .clamp(1, self.expression_book.rows());
-        let col = col
-            .saturating_add_signed(col_delta)
-            .clamp(1, self.expression_book.columns());
-        self.focused_owner = coordinate_name(row, col);
+    fn set_text_edit_owner_id(&mut self, owner_id: Option<String>) {
+        if let Some(indexed) = &self.wiring.indexed {
+            self.owner_selection
+                .entry(indexed.root.clone())
+                .or_insert_with(|| DynamicOwnerSelection {
+                    active_owner: coordinate_name(1, 1),
+                    text_edit_owner: None,
+                })
+                .text_edit_owner = owner_id;
+        }
+    }
+
+    fn move_active_owner_id(&mut self, row_delta: isize, col_delta: isize) {
+        let (row, col) = self.active_position();
+        let row = row.saturating_add_signed(row_delta).clamp(
+            1,
+            self.expression_book
+                .as_ref()
+                .map_or(1, ExpressionBook::rows),
+        );
+        let col = col.saturating_add_signed(col_delta).clamp(
+            1,
+            self.expression_book
+                .as_ref()
+                .map_or(1, ExpressionBook::columns),
+        );
+        let _ = self.set_active_owner_id(coordinate_name(row, col));
     }
 
     fn static_text_event_matches(&self, path: &str) -> bool {
@@ -1360,8 +1396,8 @@ impl CompiledApp {
         );
     }
 
-    fn list_view(&self) -> Option<CollectionView> {
-        collection_view_from_app_ir(&self.app_ir)
+    fn record_filter_set(&self) -> Option<RecordFilterSet> {
+        record_filter_set_from_app_ir(&self.app_ir)
     }
 
     fn collection_text_field(&self) -> &str {
@@ -1386,7 +1422,7 @@ impl CompiledApp {
             .and_then(CollectionSourceWiring::edit_focus_field)
     }
 
-    fn collection_record_marked(&self, record: &RuntimeDynamicValue) -> bool {
+    fn collection_record_bool_value(&self, record: &RuntimeDynamicValue) -> bool {
         self.collection_bool_field()
             .is_some_and(|field| record.bool_field(field))
     }
@@ -1527,11 +1563,11 @@ impl CompiledApp {
         record: Option<&RuntimeDynamicValue>,
     ) {
         if matches!(node.kind, boon_compiler::IrRenderKind::ListMap) {
-            for record in self.visible_dynamic_values() {
+            for record in self.visible_dynamic_values(node.collection_path.as_deref()) {
                 lines.push(format!(
                     "{} [{}] {}",
                     record.id,
-                    if self.collection_record_marked(record) {
+                    if self.collection_record_bool_value(record) {
                         "x"
                     } else {
                         " "
@@ -1544,11 +1580,6 @@ impl CompiledApp {
             }
             return;
         }
-        if matches!(node.kind, boon_compiler::IrRenderKind::Grid) {
-            self.collect_grid_summary(lines);
-            return;
-        }
-
         if matches!(node.kind, boon_compiler::IrRenderKind::TextInput)
             && let Some(source_path) = node.source_path.as_deref()
         {
@@ -1822,7 +1853,7 @@ impl CompiledApp {
                     bounds.height,
                     [188, 202, 212, 255],
                 );
-                if record.is_some_and(|record| self.collection_record_marked(record)) {
+                if record.is_some_and(|record| self.collection_record_bool_value(record)) {
                     push_text(
                         scene,
                         bounds.x + 24,
@@ -1853,7 +1884,7 @@ impl CompiledApp {
             }
             boon_compiler::IrRenderKind::ListMap => {
                 let mut next_y = y;
-                for record in self.visible_dynamic_values() {
+                for record in self.visible_dynamic_values(node.collection_path.as_deref()) {
                     for child in &node.children {
                         next_y =
                             self.render_generic_node(scene, child, x, next_y, width, Some(record));
@@ -1862,7 +1893,7 @@ impl CompiledApp {
                 next_y
             }
             boon_compiler::IrRenderKind::Grid => {
-                self.render_grid_node(scene);
+                self.render_grid_node(scene, node);
                 y
             }
         }
@@ -1939,7 +1970,7 @@ impl CompiledApp {
             boon_compiler::IrRenderKind::Checkbox => {
                 push_rect(scene, x, y, width.min(64), 64, [255, 255, 255, 255]);
                 push_rect_outline(scene, x, y, width.min(64), 64, [188, 202, 212, 255]);
-                if self.collection_record_marked(record) {
+                if self.collection_record_bool_value(record) {
                     push_text(scene, x + 24, y + 24, 1, "x", [68, 146, 126, 255]);
                 }
                 if let Some(source_path) = node
@@ -2106,9 +2137,9 @@ impl CompiledApp {
     fn expression_surface_text(&self, path: &str) -> Option<String> {
         let root = &self.app_ir.expression_surface.as_ref()?.root;
         if path == format!("{root}.selected") {
-            return Some(self.focused_owner.clone());
+            return Some(self.active_owner_id());
         }
-        let (focused_row, focused_col) = self.focused_position();
+        let (focused_row, focused_col) = self.active_position();
         if path == format!("{root}.selected_expression") {
             return Some(self.slot_text(focused_row, focused_col).to_string());
         }
@@ -2227,31 +2258,50 @@ impl CompiledApp {
         }
     }
 
-    fn render_grid_node(&self, scene: &mut FrameScene) {
-        push_rect(scene, 0, 0, 1000, 1000, [248, 249, 250, 255]);
-        let (focused_row, focused_col) = self.focused_position();
-        push_text(scene, 48, 34, 2, &self.program.title, [31, 46, 60, 255]);
-        push_rect(scene, 48, 82, 904, 50, [255, 255, 255, 255]);
-        push_rect_outline(scene, 48, 82, 904, 50, [188, 202, 212, 255]);
-        push_text(scene, 64, 100, 1, &self.focused_owner, [40, 64, 82, 255]);
-        push_text(
-            scene,
-            142,
-            100,
-            1,
-            self.slot_text(focused_row, focused_col),
-            [35, 50, 64, 255],
-        );
-        let origin_x = 48;
-        let origin_y = 160;
+    fn render_grid_node(&self, scene: &mut FrameScene, node: &boon_compiler::IrRenderNode) {
+        let Some(book) = self.expression_book.as_ref() else {
+            return;
+        };
+        let bounds = self
+            .eval_render_bounds(node.bounds.as_ref())
+            .unwrap_or(RenderBounds {
+                x: 48,
+                y: 160,
+                width: 904,
+                height: 620,
+            });
+        let (focused_row, focused_col) = self.active_position();
+        let origin_x = bounds.x;
+        let origin_y = bounds.y;
         let row_h = 38;
         let col_w = 92;
-        let visible_cols = self.expression_book.columns().min(9) as u32;
-        let visible_rows = self.expression_book.rows().min(15) as u32;
-        push_rect(scene, origin_x, origin_y, 904, 40, [229, 235, 241, 255]);
-        push_rect(scene, origin_x, origin_y, 52, 760, [229, 235, 241, 255]);
+        let header_w = 52;
+        let header_h = 40;
+        let visible_cols =
+            book.columns()
+                .min(((bounds.width.saturating_sub(header_w)) / col_w) as usize) as u32;
+        let visible_rows = book
+            .rows()
+            .min(((bounds.height.saturating_sub(header_h)) / row_h) as usize)
+            as u32;
+        push_rect(
+            scene,
+            origin_x,
+            origin_y,
+            bounds.width,
+            header_h,
+            [229, 235, 241, 255],
+        );
+        push_rect(
+            scene,
+            origin_x,
+            origin_y,
+            header_w,
+            bounds.height,
+            [229, 235, 241, 255],
+        );
         for col in 1..=visible_cols {
-            let x = origin_x + 52 + (col - 1) * col_w;
+            let x = origin_x + header_w + (col - 1) * col_w;
             push_rect_outline(scene, x, origin_y, col_w, 40, [196, 208, 216, 255]);
             push_text(
                 scene,
@@ -2263,8 +2313,8 @@ impl CompiledApp {
             );
         }
         for row in 1..=visible_rows {
-            let y = origin_y + 40 + (row - 1) * row_h;
-            push_rect_outline(scene, origin_x, y, 52, row_h, [196, 208, 216, 255]);
+            let y = origin_y + header_h + (row - 1) * row_h;
+            push_rect_outline(scene, origin_x, y, header_w, row_h, [196, 208, 216, 255]);
             push_text(
                 scene,
                 origin_x + 18,
@@ -2274,7 +2324,7 @@ impl CompiledApp {
                 [62, 80, 96, 255],
             );
             for col in 1..=visible_cols {
-                let x = origin_x + 52 + (col - 1) * col_w;
+                let x = origin_x + header_w + (col - 1) * col_w;
                 let selected_slot = focused_row == row as usize && focused_col == col as usize;
                 push_rect(
                     scene,
@@ -2336,58 +2386,52 @@ impl CompiledApp {
         }
     }
 
-    fn visible_dynamic_values(&self) -> impl Iterator<Item = &RuntimeDynamicValue> {
+    fn visible_dynamic_values<'a>(
+        &'a self,
+        collection_path: Option<&'a str>,
+    ) -> impl Iterator<Item = &'a RuntimeDynamicValue> {
         let predicate = self
-            .list_view()
-            .and_then(|view| {
-                let selected = collection_view_selector_state_path(&self.app_ir)
-                    .and_then(|path| self.tag_state.get(&path).cloned());
-                view.selectors
-                    .into_iter()
-                    .find(|selector| selected.as_ref().is_some_and(|id| selector.id == *id))
-                    .map(|selector| selector.predicate)
+            .record_root()
+            .filter(|root| collection_path.is_none_or(|path| path == *root))
+            .and_then(|_| {
+                self.record_filter_set().and_then(|view| {
+                    let selected = selector_state_path(&self.app_ir)
+                        .and_then(|path| self.tag_state.get(&path).cloned());
+                    view.selectors
+                        .into_iter()
+                        .find(|selector| selected.as_ref().is_some_and(|id| selector.id == *id))
+                        .map(|selector| selector.predicate)
+                })
             })
             .unwrap_or_default();
         self.dynamic_values
             .iter()
-            .filter(move |record| collection_view_predicate_matches(&predicate, record))
-    }
-
-    fn collect_grid_summary(&self, lines: &mut Vec<String>) {
-        let (focused_row, focused_col) = self.focused_position();
-        lines.extend([
-            format!("selected: {}", self.focused_owner),
-            format!("expression: {}", self.slot_text(focused_row, focused_col)),
-            format!("value: {}", self.slot_value(focused_row, focused_col)),
-            "columns: A B C D E F ... Z".to_string(),
-        ]);
-        for row in 1..=self.expression_book.rows().min(5) {
-            lines.push(format!(
-                "row {row}: A={} | B={} | C={}",
-                self.slot_value(row, 1.min(self.expression_book.columns())),
-                self.slot_value(row, 2.min(self.expression_book.columns())),
-                self.slot_value(row, 3.min(self.expression_book.columns()))
-            ));
-        }
-        lines.push(format!(
-            "row {} and column {} reachable",
-            self.expression_book.rows(),
-            column_name(self.expression_book.columns())
-        ));
+            .filter(move |record| record_filter_predicate_matches(&predicate, record))
     }
 
     fn slot_value(&self, row: usize, col: usize) -> &str {
-        self.expression_book.value(row, col)
+        self.expression_book
+            .as_ref()
+            .map(|book| book.value(row, col))
+            .unwrap_or_default()
     }
 
     fn slot_text(&self, row: usize, col: usize) -> &str {
-        self.expression_book.text(row, col)
+        self.expression_book
+            .as_ref()
+            .map(|book| book.text(row, col))
+            .unwrap_or_default()
     }
 
     fn parse_indexed_owner(&self, owner_id: &str) -> Result<(usize, usize)> {
-        self.expression_book.parse_owner(owner_id).ok_or_else(|| {
-            anyhow::anyhow!("dynamic owner_id `{owner_id}` is outside compiled expression surface")
-        })
+        self.expression_book
+            .as_ref()
+            .and_then(|book| book.parse_owner(owner_id))
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "dynamic owner_id `{owner_id}` is outside compiled expression surface"
+                )
+            })
     }
 
     fn validate_batch(&self, batch: &SourceBatch) -> Result<()> {
@@ -2539,9 +2583,11 @@ impl BoonApp for CompiledApp {
                 let owner_id = update
                     .owner_id
                     .clone()
-                    .unwrap_or_else(|| self.focused_owner.clone());
+                    .unwrap_or_else(|| self.active_owner_id());
                 let (row, col) = self.parse_indexed_owner(&owner_id)?;
-                self.expression_book.set_text(row, col, value);
+                if let Some(book) = &mut self.expression_book {
+                    book.set_text(row, col, value);
+                }
             }
         }
 
@@ -2609,9 +2655,9 @@ impl BoonApp for CompiledApp {
                 let owner_id = event
                     .owner_id
                     .clone()
-                    .unwrap_or_else(|| self.focused_owner.clone());
-                self.set_focused_owner(owner_id.clone())?;
-                self.editing_owner = Some(owner_id);
+                    .unwrap_or_else(|| self.active_owner_id());
+                self.set_active_owner_id(owner_id.clone())?;
+                self.set_text_edit_owner_id(Some(owner_id));
                 results.push(self.emit_frame_owned(self.indexed_change_paths(), metrics));
             } else if self
                 .wiring
@@ -2621,7 +2667,7 @@ impl BoonApp for CompiledApp {
                 .is_some_and(|path| event.path == *path)
             {
                 if matches!(event.value, SourceValue::Tag(ref key) if key == "Enter") {
-                    self.editing_owner = None;
+                    self.set_text_edit_owner_id(None);
                 }
                 results.push(self.emit_frame_owned(self.indexed_change_paths(), metrics));
             } else if self
@@ -2633,10 +2679,10 @@ impl BoonApp for CompiledApp {
             {
                 if let SourceValue::Tag(key) = &event.value {
                     match key.as_str() {
-                        "ArrowUp" => self.move_focused_owner(-1, 0),
-                        "ArrowDown" => self.move_focused_owner(1, 0),
-                        "ArrowLeft" => self.move_focused_owner(0, -1),
-                        "ArrowRight" => self.move_focused_owner(0, 1),
+                        "ArrowUp" => self.move_active_owner_id(-1, 0),
+                        "ArrowDown" => self.move_active_owner_id(1, 0),
+                        "ArrowLeft" => self.move_active_owner_id(0, -1),
+                        "ArrowRight" => self.move_active_owner_id(0, 1),
                         _ => {}
                     }
                 }
@@ -2716,7 +2762,7 @@ impl BoonApp for CompiledApp {
             values.insert(
                 format!("store.visible_{}_ids", sequence.root),
                 json!(
-                    self.visible_dynamic_values()
+                    self.visible_dynamic_values(Some(sequence.root.as_str()))
                         .map(|record| record.id)
                         .collect::<Vec<_>>()
                 ),
@@ -2725,32 +2771,24 @@ impl BoonApp for CompiledApp {
                 values.insert(path.clone(), json!(value));
             }
             for record in &self.dynamic_values {
-                values.insert(
-                    format!("store.{}[{}].content_text", sequence.root, record.id),
-                    json!(record.text_field(self.collection_text_field())),
-                );
-                values.insert(
-                    format!("store.{}[{}].mark", sequence.root, record.id),
-                    json!(self.collection_record_marked(record)),
-                );
-                values.insert(
-                    format!("store.{}[{}].edit_focus", sequence.root, record.id),
-                    json!(
-                        self.collection_edit_focus_field()
-                            .is_some_and(|field| record.focus_field(field))
-                    ),
-                );
+                for (field, value) in &record.fields {
+                    values.insert(
+                        format!("store.{}[{}].{field}", sequence.root, record.id),
+                        value.clone(),
+                    );
+                }
+                for (field, focused) in &record.focus {
+                    values.insert(
+                        format!("store.{}[{}].{field}.focused", sequence.root, record.id),
+                        json!(focused),
+                    );
+                }
             }
         }
-        let grid_root = self
-            .wiring
-            .indexed
-            .as_ref()
-            .map(|grid| grid.root.as_str())
-            .unwrap_or("grid");
-        if self.wiring.indexed.is_some() {
-            for row in 1..=self.expression_book.rows() {
-                for col in 1..=self.expression_book.columns() {
+        if let (Some(indexed), Some(book)) = (&self.wiring.indexed, &self.expression_book) {
+            let grid_root = indexed.root.as_str();
+            for row in 1..=book.rows() {
+                for col in 1..=book.columns() {
                     let coordinate = format!("{}{}", column_name(col), row);
                     values.insert(
                         format!("{grid_root}.{coordinate}"),
@@ -2762,18 +2800,24 @@ impl BoonApp for CompiledApp {
                     );
                 }
             }
+            let (focused_row, focused_col) = self.active_position();
+            values.insert(
+                format!("{grid_root}.selected_expression"),
+                json!(self.slot_text(focused_row, focused_col)),
+            );
+            values.insert(
+                format!("{grid_root}.selected_value"),
+                json!(self.slot_value(focused_row, focused_col)),
+            );
+            values.insert(
+                format!("{grid_root}.selected"),
+                json!(self.active_owner_id()),
+            );
+            values.insert(
+                format!("{grid_root}.edit_focus"),
+                json!(self.text_edit_owner_id()),
+            );
         }
-        let (focused_row, focused_col) = self.focused_position();
-        values.insert(
-            format!("{grid_root}.selected_expression"),
-            json!(self.slot_text(focused_row, focused_col)),
-        );
-        values.insert(
-            format!("{grid_root}.selected_value"),
-            json!(self.slot_value(focused_row, focused_col)),
-        );
-        values.insert(format!("{grid_root}.selected"), json!(self.focused_owner));
-        values.insert(format!("{grid_root}.edit_focus"), json!(self.editing_owner));
         AppSnapshot {
             values,
             frame_text: self.frame_text.clone(),
@@ -2836,7 +2880,7 @@ fn attach_owner(mut target: HitTarget, owner_id: impl Into<String>, generation: 
     target
 }
 
-fn collection_view_selector_state_path(app_ir: &AppIr) -> Option<String> {
+fn selector_state_path(app_ir: &AppIr) -> Option<String> {
     app_ir.event_handlers.iter().find_map(|handler| {
         handler.effects.iter().find_map(|effect| match effect {
             IrEffect::SetTagState { state_path, .. } => Some(state_path.clone()),
@@ -2845,15 +2889,59 @@ fn collection_view_selector_state_path(app_ir: &AppIr) -> Option<String> {
     })
 }
 
-fn render_node_has_kind(
+fn find_render_node_kind<'a>(
+    node: &'a boon_compiler::IrRenderNode,
+    kind: &boon_compiler::IrRenderKind,
+) -> Option<&'a boon_compiler::IrRenderNode> {
+    if &node.kind == kind {
+        return Some(node);
+    }
+    node.children
+        .iter()
+        .find_map(|child| find_render_node_kind(child, kind))
+}
+
+fn first_source_path_for_kind(
     node: &boon_compiler::IrRenderNode,
     kind: &boon_compiler::IrRenderKind,
-) -> bool {
-    &node.kind == kind
-        || node
-            .children
-            .iter()
-            .any(|child| render_node_has_kind(child, kind))
+) -> Option<String> {
+    if &node.kind == kind
+        && let Some(path) = &node.source_path
+    {
+        return Some(path.clone());
+    }
+    node.children
+        .iter()
+        .find_map(|child| first_source_path_for_kind(child, kind))
+}
+
+fn first_static_source_path_for_kind(
+    node: &boon_compiler::IrRenderNode,
+    kind: &boon_compiler::IrRenderKind,
+) -> Option<String> {
+    if &node.kind == kind
+        && let Some(path) = &node.source_path
+        && dynamic_family_from_source_base(path).is_none()
+    {
+        return Some(path.clone());
+    }
+    node.children
+        .iter()
+        .find_map(|child| first_static_source_path_for_kind(child, kind))
+}
+
+fn first_dynamic_source_path(node: &boon_compiler::IrRenderNode) -> Option<String> {
+    if let Some(path) = &node.source_path
+        && dynamic_family_from_source_base(path).is_some()
+    {
+        return Some(path.clone());
+    }
+    node.children.iter().find_map(first_dynamic_source_path)
+}
+
+fn dynamic_family_from_source_base(path: &str) -> Option<&str> {
+    let (family, _) = path.split_once(".sources.")?;
+    family.contains("[*]").then_some(family)
 }
 
 fn render_tree_has_explicit_layout(node: &boon_compiler::IrRenderNode) -> bool {
