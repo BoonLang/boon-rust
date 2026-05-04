@@ -513,11 +513,36 @@ fn boon_powered_forbidden_needles() -> Vec<(&'static str, &'static str)> {
         ("non-generic dynamic owner fallback", "items[*]"),
         ("non-generic dense render patch", "SetGridCell"),
         ("non-generic dense owner label", "grid_cell"),
+        ("non-generic indexed state", "focused_slot"),
+        ("non-generic indexed state", "editing_slot"),
+        ("non-generic indexed wiring", "DenseSourceWiring"),
+        ("non-generic indexed renderer", "render_dense_node"),
+        ("non-generic indexed text", "collect_dense_summary"),
+        (
+            "runtime static expression recognizer",
+            "grid_dimensions_from_static_records",
+        ),
+        (
+            "runtime static expression recognizer",
+            "std_function_names_from_static_records",
+        ),
+        (
+            "runtime static expression recognizer",
+            "collect_std_function_names",
+        ),
         ("non-generic sequence state", "primary_text"),
         ("non-generic sequence state", "flagged_"),
         ("non-generic sequence state", "unflagged_"),
+        ("non-generic sequence state", "marked_{root}_count"),
+        ("non-generic sequence state", "unmarked_{root}_count"),
         ("non-generic sequence state", ".flag"),
         ("non-generic sequence action", "dynamic_flag"),
+        (
+            "non-generic sequence view predicate",
+            "CollectionViewVisibility",
+        ),
+        ("non-generic sequence view predicate", "Unmarked"),
+        ("non-generic sequence view predicate", "Marked"),
         ("non-generic view passthrough", "view_text"),
         ("non-generic old view key", "action_label"),
         ("non-generic old view key", "input_placeholder"),
@@ -898,19 +923,19 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
             category: "dense grid family runtime",
             path: "crates/boon_runtime/src/compiled_app.rs",
             needle: "DenseGridState",
-            resolution: "route cell formulas through generic state and dependency graph semantics",
+            resolution: "route cell expressions through generic state and dependency graph semantics",
         },
         GenericityProbe {
             category: "dense grid family runtime",
             path: "crates/boon_runtime/src/compiled_app.rs",
             needle: "GridRuntimeState",
-            resolution: "route cell formulas through generic state and dependency graph semantics",
+            resolution: "route cell expressions through generic state and dependency graph semantics",
         },
         GenericityProbe {
             category: "dense grid family runtime",
             path: "crates/boon_runtime/src/compiled_app.rs",
             needle: "GridModelState",
-            resolution: "route cell formulas through generic state and dependency graph semantics instead of a fixed grid runtime model",
+            resolution: "route cell expressions through generic state and dependency graph semantics instead of a fixed grid runtime model",
         },
         GenericityProbe {
             category: "dense grid family runtime",
@@ -1959,7 +1984,7 @@ pub fn scenario_for_example(name: &str) -> Scenario {
             .key_down("viewport", "ArrowDown")
             .key_down("viewport", "ArrowRight")
             .type_text("Z100 editor", "edge")
-            .expect_error_rejected("invalid and cyclic formulas are visible errors")
+            .expect_error_rejected("invalid and cyclic expressions are visible errors")
             .timing("cells_edit_a1_30")
             .timing("cells_edit_a2_dependents_30")
             .timing("cells_viewport_z100_30")
@@ -4947,7 +4972,7 @@ fn run_cells_native_playground_scenarios(name: &str) -> Result<NativePlaygroundI
         vec![
             "sidebar selection used".to_string(),
             "grid cells clicked".to_string(),
-            "cell text and formulas typed character-by-character".to_string(),
+            "cell text and expressions typed character-by-character".to_string(),
             "expression bar exposes selected expression".to_string(),
             "dependent expressions recompute after source cell update".to_string(),
         ],
@@ -5164,7 +5189,7 @@ fn todomvc_playground_add_toggle_filter_clear(name: &str) -> Result<NativePlaygr
         &first_id,
     )?;
     expect(
-        state.snapshot()?.values.get("store.marked_todos_count"),
+        state.snapshot()?.values.get("store.completed_todos_count"),
         json!(1),
         "TodoMVC completed count after playground checkbox",
     )?;
@@ -5773,9 +5798,9 @@ fn run_native_scripted_scenario(
                 ),
             )?;
             expect(
-                app.snapshot().values.get("store.marked_todos_count"),
+                app.snapshot().values.get("store.completed_todos_count"),
                 json!(3),
-                "store.marked_todos_count",
+                "store.completed_todos_count",
             )?;
             dispatch!(
                 "click todo item checkbox",
@@ -5787,9 +5812,9 @@ fn run_native_scripted_scenario(
                 ),
             )?;
             expect(
-                app.snapshot().values.get("store.marked_todos_count"),
+                app.snapshot().values.get("store.completed_todos_count"),
                 json!(2),
-                "store.marked_todos_count after item toggle",
+                "store.completed_todos_count after item toggle",
             )?;
             if name == "todo_mvc" {
                 for filter in ["completed", "active", "all"] {
@@ -5829,9 +5854,9 @@ fn run_native_scripted_scenario(
                 "store.todos_count after clear completed",
             )?;
             expect(
-                app.snapshot().values.get("store.marked_todos_count"),
+                app.snapshot().values.get("store.completed_todos_count"),
                 json!(0),
-                "store.marked_todos_count after clear completed",
+                "store.completed_todos_count after clear completed",
             )?;
         }
         "cells" => {
@@ -6076,9 +6101,9 @@ fn run_core_scenario(
                 ),
             )?;
             expect(
-                app.snapshot().values.get("store.marked_todos_count"),
+                app.snapshot().values.get("store.completed_todos_count"),
                 json!(3),
-                "store.marked_todos_count",
+                "store.completed_todos_count",
             )?;
             backend.dispatch(
                 app,
@@ -6090,9 +6115,9 @@ fn run_core_scenario(
                 ),
             )?;
             expect(
-                app.snapshot().values.get("store.marked_todos_count"),
+                app.snapshot().values.get("store.completed_todos_count"),
                 json!(2),
-                "store.marked_todos_count after item toggle",
+                "store.completed_todos_count after item toggle",
             )?;
             if name == "todo_mvc" {
                 for filter in ["completed", "active", "all"] {
@@ -6132,9 +6157,9 @@ fn run_core_scenario(
                 "store.todos_count after clear completed",
             )?;
             expect(
-                app.snapshot().values.get("store.marked_todos_count"),
+                app.snapshot().values.get("store.completed_todos_count"),
                 json!(0),
-                "store.marked_todos_count after clear completed",
+                "store.completed_todos_count after clear completed",
             )?;
         }
         "cells" => {
@@ -6446,9 +6471,9 @@ fn run_core_scenario_wgpu(
                 ),
             )?;
             expect(
-                app.snapshot().values.get("store.marked_todos_count"),
+                app.snapshot().values.get("store.completed_todos_count"),
                 json!(3),
-                "store.marked_todos_count",
+                "store.completed_todos_count",
             )?;
             backend.dispatch_frame_ready(
                 app,
@@ -6460,9 +6485,9 @@ fn run_core_scenario_wgpu(
                 ),
             )?;
             expect(
-                app.snapshot().values.get("store.marked_todos_count"),
+                app.snapshot().values.get("store.completed_todos_count"),
                 json!(2),
-                "store.marked_todos_count after item toggle",
+                "store.completed_todos_count after item toggle",
             )?;
             if name == "todo_mvc" {
                 for filter in ["completed", "active", "all"] {
@@ -6502,9 +6527,9 @@ fn run_core_scenario_wgpu(
                 "store.todos_count after clear completed",
             )?;
             expect(
-                app.snapshot().values.get("store.marked_todos_count"),
+                app.snapshot().values.get("store.completed_todos_count"),
                 json!(0),
-                "store.marked_todos_count after clear completed",
+                "store.completed_todos_count after clear completed",
             )?;
         }
         "cells" => {

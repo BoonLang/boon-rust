@@ -5,15 +5,15 @@ use crate::{
 use anyhow::{Context, Result, bail};
 use boon_compiler::{
     AppIr, ExecEffect, ExecExpr, ExecutableIr, IrAppMetadata, IrCollectionPredicate,
-    IrCollectionValueExpr, IrEffect, IrPredicate, IrRenderBounds, IrRenderNumber, IrStaticField,
-    IrStaticRecord, IrStaticValue, IrValueExpr,
+    IrCollectionValueExpr, IrDerivedExpr, IrEffect, IrPredicate, IrRenderBounds, IrRenderNumber,
+    IrStaticField, IrStaticRecord, IrStaticValue, IrValueExpr,
 };
 use boon_render_ir::{
     DrawCommand, FrameScene, HitTarget, HitTargetAction, HostPatch, NodeId, NodeKind,
 };
 use boon_shape::Shape;
 use boon_source::{SourceEntry, SourceOwner};
-use boon_stdlib::FormulaBook;
+use boon_stdlib::ExpressionBook;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
@@ -34,9 +34,9 @@ pub struct CompiledApp {
     source_state: BTreeMap<String, SourceValue>,
     generic_state: BTreeMap<String, i64>,
     tag_state: BTreeMap<String, String>,
-    formula_book: FormulaBook,
-    focused_slot: (usize, usize),
-    editing_slot: Option<(usize, usize)>,
+    expression_book: ExpressionBook,
+    focused_owner: String,
+    editing_owner: Option<String>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -44,7 +44,7 @@ struct RuntimeWiring {
     action_state: Option<StateEventBinding>,
     clock_state: Option<StateEventBinding>,
     list: Option<CollectionSourceWiring>,
-    dense: Option<DenseSourceWiring>,
+    indexed: Option<IndexedSourceWiring>,
 }
 
 #[derive(Clone, Debug)]
@@ -77,19 +77,21 @@ struct CollectionView {
 #[derive(Clone, Debug)]
 struct CollectionViewSelector {
     id: String,
-    visibility: CollectionViewVisibility,
+    predicate: CollectionViewPredicate,
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-enum CollectionViewVisibility {
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+enum CollectionViewPredicate {
     #[default]
     All,
-    Unmarked,
-    Marked,
+    FieldBoolEquals {
+        field: String,
+        value: bool,
+    },
 }
 
 #[derive(Clone, Debug)]
-struct DenseSourceWiring {
+struct IndexedSourceWiring {
     family: String,
     root: String,
     display_double_click: Option<String>,
@@ -134,17 +136,17 @@ impl RuntimeWiring {
             }
         }
         let list = CollectionSourceWiring::from_app_ir(inventory, app_ir);
-        let dense = app_ir
+        let indexed = app_ir
             .render_tree
             .as_ref()
             .is_some_and(|tree| render_node_has_kind(tree, &boon_compiler::IrRenderKind::Grid))
-            .then(|| DenseSourceWiring::from_inventory(inventory))
+            .then(|| IndexedSourceWiring::from_inventory(inventory))
             .flatten();
         Self {
             action_state,
             clock_state,
             list,
-            dense,
+            indexed,
         }
     }
 }
@@ -275,7 +277,7 @@ impl CollectionSourceWiring {
     }
 }
 
-impl DenseSourceWiring {
+impl IndexedSourceWiring {
     fn from_inventory(inventory: &SourceInventory) -> Option<Self> {
         let family =
             first_dynamic_family(inventory, "Element/text_input(element.text)").or_else(|| {
@@ -475,9 +477,8 @@ fn collection_view_from_app_ir(app_ir: &AppIr) -> Option<CollectionView> {
                     .iter()
                     .map(|field| CollectionViewSelector {
                         id: field.key.clone(),
-                        visibility: static_value_field(&field.value, "visibility")
-                            .and_then(static_value_tag)
-                            .and_then(collection_view_visibility_from_tag)
+                        predicate: static_value_field(&field.value, "predicate")
+                            .map(collection_view_predicate_from_static_value)
                             .unwrap_or_default(),
                     })
                     .collect()
@@ -547,18 +548,34 @@ fn static_value_record(value: &IrStaticValue) -> Option<&[IrStaticField]> {
     }
 }
 
-fn static_value_tag(value: &IrStaticValue) -> Option<&str> {
+fn collection_view_predicate_from_static_value(value: &IrStaticValue) -> CollectionViewPredicate {
     match value {
-        IrStaticValue::Tag { value } => Some(value.as_str()),
+        IrStaticValue::Tag { value } if value == "All" => CollectionViewPredicate::All,
+        IrStaticValue::Record { fields } => {
+            let field = static_record_value_field(fields, "field").and_then(static_value_path);
+            let equals = static_record_value_field(fields, "equals").and_then(static_value_bool);
+            match (field, equals) {
+                (Some(field), Some(value)) => CollectionViewPredicate::FieldBoolEquals {
+                    field: field.to_string(),
+                    value,
+                },
+                _ => CollectionViewPredicate::All,
+            }
+        }
+        _ => CollectionViewPredicate::All,
+    }
+}
+
+fn static_value_path(value: &IrStaticValue) -> Option<&str> {
+    match value {
+        IrStaticValue::Path { value } => Some(value.as_str()),
         _ => None,
     }
 }
 
-fn collection_view_visibility_from_tag(value: &str) -> Option<CollectionViewVisibility> {
+fn static_value_bool(value: &IrStaticValue) -> Option<bool> {
     match value {
-        "All" => Some(CollectionViewVisibility::All),
-        "Unmarked" => Some(CollectionViewVisibility::Unmarked),
-        "Marked" => Some(CollectionViewVisibility::Marked),
+        IrStaticValue::Bool { value } => Some(*value),
         _ => None,
     }
 }
@@ -631,6 +648,29 @@ impl RuntimeDynamicValue {
     }
 }
 
+fn collection_view_predicate_matches(
+    predicate: &CollectionViewPredicate,
+    record: &RuntimeDynamicValue,
+) -> bool {
+    match predicate {
+        CollectionViewPredicate::All => true,
+        CollectionViewPredicate::FieldBoolEquals { field, value } => {
+            record.bool_field(field) == *value
+        }
+    }
+}
+
+fn collection_predicate_matches(
+    predicate: &IrCollectionPredicate,
+    record: &RuntimeDynamicValue,
+) -> bool {
+    match predicate {
+        IrCollectionPredicate::FieldBoolEquals { field, value } => {
+            record.bool_field(field) == *value
+        }
+    }
+}
+
 fn literal_value_to_json(value: &IrStaticValue) -> Value {
     match value {
         IrStaticValue::Text { value } => json!(value),
@@ -654,65 +694,6 @@ fn literal_value_to_json(value: &IrStaticValue) -> Value {
     }
 }
 
-fn grid_dimensions_from_static_records(app_ir: &AppIr) -> (usize, usize) {
-    let rows = top_static_range_end(app_ir, "rows").unwrap_or(100);
-    let columns = top_static_range_end(app_ir, "columns").unwrap_or(26);
-    (rows, columns)
-}
-
-fn top_static_range_end(app_ir: &AppIr, path: &str) -> Option<usize> {
-    let record = app_ir
-        .static_records
-        .iter()
-        .find(|record| record.path == path)?;
-    match &record.fields.first()?.value {
-        IrStaticValue::Range { to, .. } => usize::try_from(*to).ok().filter(|value| *value > 0),
-        _ => None,
-    }
-}
-
-fn std_function_names_from_static_records(app_ir: &AppIr) -> Vec<String> {
-    let mut names = BTreeSet::new();
-    for record in &app_ir.static_records {
-        collect_std_function_names(&record.fields, &mut names);
-    }
-    names.into_iter().collect()
-}
-
-fn collect_std_function_names(fields: &[IrStaticField], names: &mut BTreeSet<String>) {
-    for field in fields {
-        match &field.value {
-            IrStaticValue::Path { value } if value.starts_with("Math/") => {
-                names.insert(field.key.clone());
-            }
-            IrStaticValue::Record { fields } => collect_std_function_names(fields, names),
-            IrStaticValue::List { items } => {
-                for item in items {
-                    collect_std_function_names_from_value(item, names);
-                }
-            }
-            _ => {}
-        }
-    }
-}
-
-fn collect_std_function_names_from_value(value: &IrStaticValue, names: &mut BTreeSet<String>) {
-    match value {
-        IrStaticValue::Record { fields } => collect_std_function_names(fields, names),
-        IrStaticValue::List { items } => {
-            for item in items {
-                collect_std_function_names_from_value(item, names);
-            }
-        }
-        IrStaticValue::Text { .. }
-        | IrStaticValue::Number { .. }
-        | IrStaticValue::Bool { .. }
-        | IrStaticValue::Tag { .. }
-        | IrStaticValue::Path { .. }
-        | IrStaticValue::Range { .. } => {}
-    }
-}
-
 impl CompiledApp {
     pub fn new(compiled: boon_compiler::CompiledModule) -> Self {
         let inventory = compiled.sources;
@@ -725,11 +706,9 @@ impl CompiledApp {
             .first()
             .map(|list| list.initial_entries.clone())
             .unwrap_or_default();
-        let (grid_rows, grid_columns) = grid_dimensions_from_static_records(&app_ir);
-        let formula_book = FormulaBook::new(
-            grid_rows,
-            grid_columns,
-            std_function_names_from_static_records(&app_ir),
+        let expression_book = app_ir.expression_surface.as_ref().map_or_else(
+            || ExpressionBook::new(1, 1, Vec::<String>::new()),
+            |surface| ExpressionBook::new(surface.rows, surface.columns, surface.functions.clone()),
         );
         let mut generic_state = BTreeMap::new();
         for slot in &executable_ir.state_slots {
@@ -771,9 +750,9 @@ impl CompiledApp {
             source_state: BTreeMap::new(),
             generic_state,
             tag_state,
-            formula_book,
-            focused_slot: (1, 1),
-            editing_slot: None,
+            expression_book,
+            focused_owner: "A1".to_string(),
+            editing_owner: None,
         };
         app.next_dynamic_value_id = app.dynamic_values.len() as u64 + 1;
         app.frame_text = app.render_text();
@@ -842,11 +821,14 @@ impl CompiledApp {
         let Some(root) = self.record_root() else {
             return Vec::new();
         };
-        vec![
-            format!("store.{root}_count"),
-            format!("store.marked_{root}_count"),
-            format!("store.unmarked_{root}_count"),
-        ]
+        let mut paths = vec![format!("store.{root}_count")];
+        paths.extend(
+            self.app_ir
+                .derived_values
+                .iter()
+                .map(|value| format!("store.{}", value.path)),
+        );
+        unique_paths(paths)
     }
 
     fn record_input_change_paths(&self) -> Vec<String> {
@@ -858,41 +840,43 @@ impl CompiledApp {
             .collect()
     }
 
-    fn dense_change_paths(&self) -> Vec<String> {
+    fn indexed_change_paths(&self) -> Vec<String> {
         self.wiring
-            .dense
+            .indexed
             .as_ref()
             .map(|grid| vec![grid.root.clone()])
             .unwrap_or_default()
     }
 
-    fn dense_selection_change_paths(&self) -> Vec<String> {
+    fn indexed_selection_change_paths(&self) -> Vec<String> {
         self.wiring
-            .dense
+            .indexed
             .as_ref()
             .map(|grid| vec![format!("{}.selected", grid.root)])
             .unwrap_or_default()
     }
 
-    fn set_focused_slot(&mut self, row: usize, col: usize) {
-        self.focused_slot = (
-            row.clamp(1, self.formula_book.rows()),
-            col.clamp(1, self.formula_book.columns()),
-        );
+    fn focused_position(&self) -> (usize, usize) {
+        self.parse_indexed_owner(&self.focused_owner)
+            .unwrap_or((1, 1))
     }
 
-    fn move_focused_slot(&mut self, row_delta: isize, col_delta: isize) {
-        let row = self
-            .focused_slot
-            .0
+    fn set_focused_owner(&mut self, owner_id: impl Into<String>) -> Result<()> {
+        let owner_id = owner_id.into();
+        self.parse_indexed_owner(&owner_id)?;
+        self.focused_owner = owner_id;
+        Ok(())
+    }
+
+    fn move_focused_owner(&mut self, row_delta: isize, col_delta: isize) {
+        let (row, col) = self.focused_position();
+        let row = row
             .saturating_add_signed(row_delta)
-            .clamp(1, self.formula_book.rows());
-        let col = self
-            .focused_slot
-            .1
+            .clamp(1, self.expression_book.rows());
+        let col = col
             .saturating_add_signed(col_delta)
-            .clamp(1, self.formula_book.columns());
-        self.focused_slot = (row, col);
+            .clamp(1, self.expression_book.columns());
+        self.focused_owner = coordinate_name(row, col);
     }
 
     fn static_text_event_matches(&self, path: &str) -> bool {
@@ -1355,12 +1339,8 @@ impl CompiledApp {
             return false;
         }
         let before = self.dynamic_values.len();
-        match predicate {
-            IrCollectionPredicate::FieldBoolEquals { field, value } => {
-                self.dynamic_values
-                    .retain(|record| record.bool_field(field) != *value);
-            }
-        }
+        self.dynamic_values
+            .retain(|record| !collection_predicate_matches(predicate, record));
         self.dynamic_values.len() != before
     }
 
@@ -1409,6 +1389,78 @@ impl CompiledApp {
     fn collection_record_marked(&self, record: &RuntimeDynamicValue) -> bool {
         self.collection_bool_field()
             .is_some_and(|field| record.bool_field(field))
+    }
+
+    fn eval_derived_value(
+        &self,
+        expr: &IrDerivedExpr,
+        memo: &mut BTreeMap<String, Value>,
+    ) -> Value {
+        match expr {
+            IrDerivedExpr::CollectionCount { collection_path } => {
+                json!(self.collection_count(collection_path) as i64)
+            }
+            IrDerivedExpr::CollectionCountWhere {
+                collection_path,
+                predicate,
+            } => json!(self.collection_count_where(collection_path, predicate) as i64),
+            IrDerivedExpr::Subtract { left, right } => {
+                let left = self.eval_derived_number(left, memo);
+                let right = self.eval_derived_number(right, memo);
+                json!(left - right)
+            }
+            IrDerivedExpr::Equal { left, right } => {
+                let left = self.eval_derived_number(left, memo);
+                let right = self.eval_derived_number(right, memo);
+                json!(left == right)
+            }
+        }
+    }
+
+    fn eval_derived_number(&self, path: &str, memo: &mut BTreeMap<String, Value>) -> i64 {
+        self.derived_value_by_path(path, memo)
+            .and_then(|value| value.as_i64())
+            .unwrap_or_default()
+    }
+
+    fn derived_value_by_path(
+        &self,
+        path: &str,
+        memo: &mut BTreeMap<String, Value>,
+    ) -> Option<Value> {
+        if let Some(value) = memo.get(path) {
+            return Some(value.clone());
+        }
+        let derived = self
+            .app_ir
+            .derived_values
+            .iter()
+            .find(|value| value.path == path)?;
+        let value = self.eval_derived_value(&derived.expr, memo);
+        memo.insert(path.to_string(), value.clone());
+        Some(value)
+    }
+
+    fn collection_count(&self, collection_path: &str) -> usize {
+        if self.record_root() == Some(collection_path) {
+            self.dynamic_values.len()
+        } else {
+            0
+        }
+    }
+
+    fn collection_count_where(
+        &self,
+        collection_path: &str,
+        predicate: &IrCollectionPredicate,
+    ) -> usize {
+        if self.record_root() != Some(collection_path) {
+            return 0;
+        }
+        self.dynamic_values
+            .iter()
+            .filter(|record| collection_predicate_matches(predicate, record))
+            .count()
     }
 
     fn action_value(&self) -> Option<i64> {
@@ -1493,7 +1545,7 @@ impl CompiledApp {
             return;
         }
         if matches!(node.kind, boon_compiler::IrRenderKind::Grid) {
-            self.collect_dense_summary(lines);
+            self.collect_grid_summary(lines);
             return;
         }
 
@@ -1810,7 +1862,7 @@ impl CompiledApp {
                 next_y
             }
             boon_compiler::IrRenderKind::Grid => {
-                self.render_dense_node(scene);
+                self.render_grid_node(scene);
                 y
             }
         }
@@ -2042,12 +2094,34 @@ impl CompiledApp {
         self.generic_state
             .get(path)
             .map(i64::to_string)
+            .or_else(|| self.expression_surface_text(path))
             .or_else(|| match self.source_state.get(path) {
                 Some(SourceValue::Text(value)) => Some(value.clone()),
                 Some(SourceValue::Number(value)) => Some(value.to_string()),
                 Some(SourceValue::Tag(value)) => Some(value.clone()),
                 Some(SourceValue::EmptyRecord) | None => None,
             })
+    }
+
+    fn expression_surface_text(&self, path: &str) -> Option<String> {
+        let root = &self.app_ir.expression_surface.as_ref()?.root;
+        if path == format!("{root}.selected") {
+            return Some(self.focused_owner.clone());
+        }
+        let (focused_row, focused_col) = self.focused_position();
+        if path == format!("{root}.selected_expression") {
+            return Some(self.slot_text(focused_row, focused_col).to_string());
+        }
+        if path == format!("{root}.selected_value") {
+            return Some(self.slot_value(focused_row, focused_col).to_string());
+        }
+        let suffix = path.strip_prefix(&format!("{root}."))?;
+        if let Some(owner_id) = suffix.strip_suffix(".expression") {
+            let (row, col) = self.parse_indexed_owner(owner_id).ok()?;
+            return Some(self.slot_text(row, col).to_string());
+        }
+        let (row, col) = self.parse_indexed_owner(suffix).ok()?;
+        Some(self.slot_value(row, col).to_string())
     }
 
     fn primary_event_source(&self, base: &str) -> Option<String> {
@@ -2153,31 +2227,27 @@ impl CompiledApp {
         }
     }
 
-    fn render_dense_node(&self, scene: &mut FrameScene) {
+    fn render_grid_node(&self, scene: &mut FrameScene) {
         push_rect(scene, 0, 0, 1000, 1000, [248, 249, 250, 255]);
-        let selected = format!(
-            "{}{}",
-            column_name(self.focused_slot.1),
-            self.focused_slot.0
-        );
+        let (focused_row, focused_col) = self.focused_position();
         push_text(scene, 48, 34, 2, &self.program.title, [31, 46, 60, 255]);
         push_rect(scene, 48, 82, 904, 50, [255, 255, 255, 255]);
         push_rect_outline(scene, 48, 82, 904, 50, [188, 202, 212, 255]);
-        push_text(scene, 64, 100, 1, &selected, [40, 64, 82, 255]);
+        push_text(scene, 64, 100, 1, &self.focused_owner, [40, 64, 82, 255]);
         push_text(
             scene,
             142,
             100,
             1,
-            self.slot_text(self.focused_slot.0, self.focused_slot.1),
+            self.slot_text(focused_row, focused_col),
             [35, 50, 64, 255],
         );
         let origin_x = 48;
         let origin_y = 160;
         let row_h = 38;
         let col_w = 92;
-        let visible_cols = self.formula_book.columns().min(9) as u32;
-        let visible_rows = self.formula_book.rows().min(15) as u32;
+        let visible_cols = self.expression_book.columns().min(9) as u32;
+        let visible_rows = self.expression_book.rows().min(15) as u32;
         push_rect(scene, origin_x, origin_y, 904, 40, [229, 235, 241, 255]);
         push_rect(scene, origin_x, origin_y, 52, 760, [229, 235, 241, 255]);
         for col in 1..=visible_cols {
@@ -2205,7 +2275,7 @@ impl CompiledApp {
             );
             for col in 1..=visible_cols {
                 let x = origin_x + 52 + (col - 1) * col_w;
-                let selected_slot = self.focused_slot == (row as usize, col as usize);
+                let selected_slot = focused_row == row as usize && focused_col == col as usize;
                 push_rect(
                     scene,
                     x,
@@ -2230,7 +2300,7 @@ impl CompiledApp {
                         [214, 222, 228, 255]
                     },
                 );
-                if let Some(grid) = &self.wiring.dense {
+                if let Some(grid) = &self.wiring.indexed {
                     let owner_id = format!("{}{}", column_name(col as usize), row);
                     if let Some(path) = grid.display_double_click.as_deref() {
                         scene.hit_targets.push(attach_owner(
@@ -2267,7 +2337,7 @@ impl CompiledApp {
     }
 
     fn visible_dynamic_values(&self) -> impl Iterator<Item = &RuntimeDynamicValue> {
-        let visibility = self
+        let predicate = self
             .list_view()
             .and_then(|view| {
                 let selected = collection_view_selector_state_path(&self.app_ir)
@@ -2275,62 +2345,49 @@ impl CompiledApp {
                 view.selectors
                     .into_iter()
                     .find(|selector| selected.as_ref().is_some_and(|id| selector.id == *id))
-                    .map(|selector| selector.visibility)
+                    .map(|selector| selector.predicate)
             })
             .unwrap_or_default();
         self.dynamic_values
             .iter()
-            .filter(move |record| match visibility {
-                CollectionViewVisibility::All => true,
-                CollectionViewVisibility::Unmarked => !self.collection_record_marked(record),
-                CollectionViewVisibility::Marked => self.collection_record_marked(record),
-            })
+            .filter(move |record| collection_view_predicate_matches(&predicate, record))
     }
 
-    fn collect_dense_summary(&self, lines: &mut Vec<String>) {
+    fn collect_grid_summary(&self, lines: &mut Vec<String>) {
+        let (focused_row, focused_col) = self.focused_position();
         lines.extend([
-            format!(
-                "selected: {}{}",
-                column_name(self.focused_slot.1),
-                self.focused_slot.0
-            ),
-            format!(
-                "expression: {}",
-                self.slot_text(self.focused_slot.0, self.focused_slot.1)
-            ),
-            format!(
-                "value: {}",
-                self.slot_value(self.focused_slot.0, self.focused_slot.1)
-            ),
+            format!("selected: {}", self.focused_owner),
+            format!("expression: {}", self.slot_text(focused_row, focused_col)),
+            format!("value: {}", self.slot_value(focused_row, focused_col)),
             "columns: A B C D E F ... Z".to_string(),
         ]);
-        for row in 1..=self.formula_book.rows().min(5) {
+        for row in 1..=self.expression_book.rows().min(5) {
             lines.push(format!(
                 "row {row}: A={} | B={} | C={}",
-                self.slot_value(row, 1.min(self.formula_book.columns())),
-                self.slot_value(row, 2.min(self.formula_book.columns())),
-                self.slot_value(row, 3.min(self.formula_book.columns()))
+                self.slot_value(row, 1.min(self.expression_book.columns())),
+                self.slot_value(row, 2.min(self.expression_book.columns())),
+                self.slot_value(row, 3.min(self.expression_book.columns()))
             ));
         }
         lines.push(format!(
             "row {} and column {} reachable",
-            self.formula_book.rows(),
-            column_name(self.formula_book.columns())
+            self.expression_book.rows(),
+            column_name(self.expression_book.columns())
         ));
     }
 
     fn slot_value(&self, row: usize, col: usize) -> &str {
-        self.formula_book.value(row, col)
+        self.expression_book.value(row, col)
     }
 
     fn slot_text(&self, row: usize, col: usize) -> &str {
-        self.formula_book.text(row, col)
+        self.expression_book.text(row, col)
     }
 
-    fn parse_dense_owner(&self, owner_id: &str) -> Result<(usize, usize)> {
-        self.formula_book
-            .parse_owner(owner_id)
-            .ok_or_else(|| anyhow::anyhow!("grid owner_id `{owner_id}` is outside compiled grid"))
+    fn parse_indexed_owner(&self, owner_id: &str) -> Result<(usize, usize)> {
+        self.expression_book.parse_owner(owner_id).ok_or_else(|| {
+            anyhow::anyhow!("dynamic owner_id `{owner_id}` is outside compiled expression surface")
+        })
     }
 
     fn validate_batch(&self, batch: &SourceBatch) -> Result<()> {
@@ -2396,13 +2453,13 @@ impl CompiledApp {
                     anyhow::anyhow!("dynamic dynamic value owner `{owner_id}` is not live")
                 });
         }
-        if let Some(grid) = &self.wiring.dense
+        if let Some(grid) = &self.wiring.indexed
             && path.starts_with(&grid.family)
         {
-            self.parse_dense_owner(owner_id)?;
+            self.parse_indexed_owner(owner_id)?;
             return Ok(0);
         }
-        bail!("dynamic SOURCE `{path}` has no owner generation grid")
+        bail!("dynamic SOURCE `{path}` has no owner generation indexed family")
     }
 }
 
@@ -2473,19 +2530,18 @@ impl BoonApp for CompiledApp {
                 }
             } else if self
                 .wiring
-                .dense
+                .indexed
                 .as_ref()
                 .and_then(|grid| grid.editor_text.as_ref())
                 .is_some_and(|path| update.path == *path)
                 && let SourceValue::Text(value) = update.value
             {
-                let (row, col) = update
+                let owner_id = update
                     .owner_id
-                    .as_deref()
-                    .map(|owner_id| self.parse_dense_owner(owner_id))
-                    .transpose()?
-                    .unwrap_or(self.focused_slot);
-                self.formula_book.set_text(row, col, value);
+                    .clone()
+                    .unwrap_or_else(|| self.focused_owner.clone());
+                let (row, col) = self.parse_indexed_owner(&owner_id)?;
+                self.expression_book.set_text(row, col, value);
             }
         }
 
@@ -2545,48 +2601,46 @@ impl BoonApp for CompiledApp {
                 results.push(self.emit_frame_owned(self.record_change_paths(), metrics));
             } else if self
                 .wiring
-                .dense
+                .indexed
                 .as_ref()
                 .and_then(|grid| grid.display_double_click.as_ref())
                 .is_some_and(|path| event.path == *path)
             {
-                let (row, col) = event
+                let owner_id = event
                     .owner_id
-                    .as_deref()
-                    .map(|owner_id| self.parse_dense_owner(owner_id))
-                    .transpose()?
-                    .unwrap_or(self.focused_slot);
-                self.set_focused_slot(row, col);
-                self.editing_slot = Some((row, col));
-                results.push(self.emit_frame_owned(self.dense_change_paths(), metrics));
+                    .clone()
+                    .unwrap_or_else(|| self.focused_owner.clone());
+                self.set_focused_owner(owner_id.clone())?;
+                self.editing_owner = Some(owner_id);
+                results.push(self.emit_frame_owned(self.indexed_change_paths(), metrics));
             } else if self
                 .wiring
-                .dense
+                .indexed
                 .as_ref()
                 .and_then(|grid| grid.editor_key.as_ref())
                 .is_some_and(|path| event.path == *path)
             {
                 if matches!(event.value, SourceValue::Tag(ref key) if key == "Enter") {
-                    self.editing_slot = None;
+                    self.editing_owner = None;
                 }
-                results.push(self.emit_frame_owned(self.dense_change_paths(), metrics));
+                results.push(self.emit_frame_owned(self.indexed_change_paths(), metrics));
             } else if self
                 .wiring
-                .dense
+                .indexed
                 .as_ref()
                 .and_then(|grid| grid.viewport_key.as_ref())
                 .is_some_and(|path| event.path == *path)
             {
                 if let SourceValue::Tag(key) = &event.value {
                     match key.as_str() {
-                        "ArrowUp" => self.move_focused_slot(-1, 0),
-                        "ArrowDown" => self.move_focused_slot(1, 0),
-                        "ArrowLeft" => self.move_focused_slot(0, -1),
-                        "ArrowRight" => self.move_focused_slot(0, 1),
+                        "ArrowUp" => self.move_focused_owner(-1, 0),
+                        "ArrowDown" => self.move_focused_owner(1, 0),
+                        "ArrowLeft" => self.move_focused_owner(0, -1),
+                        "ArrowRight" => self.move_focused_owner(0, 1),
                         _ => {}
                     }
                 }
-                results.push(self.emit_frame_owned(self.dense_selection_change_paths(), metrics));
+                results.push(self.emit_frame_owned(self.indexed_selection_change_paths(), metrics));
             }
         }
         if results.is_empty() && !changed_paths.is_empty() {
@@ -2615,11 +2669,6 @@ impl BoonApp for CompiledApp {
     }
 
     fn snapshot(&self) -> AppSnapshot {
-        let mark = self
-            .dynamic_values
-            .iter()
-            .filter(|record| self.collection_record_marked(record))
-            .count() as i64;
         let mut values = BTreeMap::new();
         for (path, value) in &self.generic_state {
             values.insert(path.clone(), json!(value));
@@ -2632,11 +2681,12 @@ impl BoonApp for CompiledApp {
                 format!("store.{root}_count"),
                 json!(self.dynamic_values.len() as i64),
             );
-            values.insert(format!("store.marked_{root}_count"), json!(mark));
-            values.insert(
-                format!("store.unmarked_{root}_count"),
-                json!(self.dynamic_values.len() as i64 - mark),
-            );
+        }
+        let mut derived_memo = BTreeMap::new();
+        for derived in &self.app_ir.derived_values {
+            let value = self.eval_derived_value(&derived.expr, &mut derived_memo);
+            derived_memo.insert(derived.path.clone(), value.clone());
+            values.insert(format!("store.{}", derived.path), value);
         }
         if let Some(value) = self.clock_value() {
             values.insert("clock_value".to_string(), json!(value));
@@ -2694,13 +2744,13 @@ impl BoonApp for CompiledApp {
         }
         let grid_root = self
             .wiring
-            .dense
+            .indexed
             .as_ref()
             .map(|grid| grid.root.as_str())
             .unwrap_or("grid");
-        if self.wiring.dense.is_some() {
-            for row in 1..=self.formula_book.rows() {
-                for col in 1..=self.formula_book.columns() {
+        if self.wiring.indexed.is_some() {
+            for row in 1..=self.expression_book.rows() {
+                for col in 1..=self.expression_book.columns() {
                     let coordinate = format!("{}{}", column_name(col), row);
                     values.insert(
                         format!("{grid_root}.{coordinate}"),
@@ -2713,29 +2763,17 @@ impl BoonApp for CompiledApp {
                 }
             }
         }
+        let (focused_row, focused_col) = self.focused_position();
         values.insert(
             format!("{grid_root}.selected_expression"),
-            json!(self.slot_text(self.focused_slot.0, self.focused_slot.1)),
+            json!(self.slot_text(focused_row, focused_col)),
         );
         values.insert(
             format!("{grid_root}.selected_value"),
-            json!(self.slot_value(self.focused_slot.0, self.focused_slot.1)),
+            json!(self.slot_value(focused_row, focused_col)),
         );
-        values.insert(
-            format!("{grid_root}.selected"),
-            json!(format!(
-                "{}{}",
-                column_name(self.focused_slot.1),
-                self.focused_slot.0
-            )),
-        );
-        values.insert(
-            format!("{grid_root}.edit_focus"),
-            json!(
-                self.editing_slot
-                    .map(|(row, col)| format!("{}{}", column_name(col), row))
-            ),
-        );
+        values.insert(format!("{grid_root}.selected"), json!(self.focused_owner));
+        values.insert(format!("{grid_root}.edit_focus"), json!(self.editing_owner));
         AppSnapshot {
             values,
             frame_text: self.frame_text.clone(),
@@ -2749,6 +2787,10 @@ impl BoonApp for CompiledApp {
 
 fn column_name(col: usize) -> char {
     (b'A' + (col as u8).saturating_sub(1)) as char
+}
+
+fn coordinate_name(row: usize, col: usize) -> String {
+    format!("{}{}", column_name(col), row)
 }
 
 fn push_rect(scene: &mut FrameScene, x: u32, y: u32, width: u32, height: u32, color: [u8; 4]) {

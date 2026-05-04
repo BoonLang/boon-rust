@@ -1,5 +1,34 @@
 {
   "state_cells": [],
+  "derived_values": [
+    {
+      "path": "todos_count",
+      "expr": {
+        "kind": "collection_count",
+        "collection_path": "todos"
+      }
+    },
+    {
+      "path": "completed_todos_count",
+      "expr": {
+        "kind": "collection_count_where",
+        "collection_path": "todos",
+        "predicate": {
+          "kind": "field_bool_equals",
+          "field": "completed",
+          "value": true
+        }
+      }
+    },
+    {
+      "path": "all_completed",
+      "expr": {
+        "kind": "equal",
+        "left": "todos_count",
+        "right": "completed_todos_count"
+      }
+    }
+  ],
   "collection_states": [
     {
       "path": "todos",

@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 /// formula functions, and cell text; the type does not know about maintained
 /// examples or renderer layout.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct FormulaBook {
+pub struct ExpressionBook {
     rows: usize,
     columns: usize,
     text: Vec<String>,
@@ -16,7 +16,7 @@ pub struct FormulaBook {
     functions: BTreeSet<String>,
 }
 
-impl FormulaBook {
+impl ExpressionBook {
     pub fn new(rows: usize, columns: usize, functions: impl IntoIterator<Item = String>) -> Self {
         let len = rows * columns;
         Self {

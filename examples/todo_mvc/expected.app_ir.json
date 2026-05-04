@@ -1,5 +1,42 @@
 {
   "state_cells": [],
+  "derived_values": [
+    {
+      "path": "todos_count",
+      "expr": {
+        "kind": "collection_count",
+        "collection_path": "todos"
+      }
+    },
+    {
+      "path": "completed_todos_count",
+      "expr": {
+        "kind": "collection_count_where",
+        "collection_path": "todos",
+        "predicate": {
+          "kind": "field_bool_equals",
+          "field": "completed",
+          "value": true
+        }
+      }
+    },
+    {
+      "path": "active_todos_count",
+      "expr": {
+        "kind": "subtract",
+        "left": "todos_count",
+        "right": "completed_todos_count"
+      }
+    },
+    {
+      "path": "all_completed",
+      "expr": {
+        "kind": "equal",
+        "left": "todos_count",
+        "right": "completed_todos_count"
+      }
+    }
+  ],
   "collection_states": [
     {
       "path": "todos",
@@ -86,7 +123,7 @@
                       }
                     },
                     {
-                      "key": "visibility",
+                      "key": "predicate",
                       "value": {
                         "kind": "tag",
                         "value": "All"
@@ -108,10 +145,25 @@
                       }
                     },
                     {
-                      "key": "visibility",
+                      "key": "predicate",
                       "value": {
-                        "kind": "tag",
-                        "value": "Unmarked"
+                        "kind": "record",
+                        "fields": [
+                          {
+                            "key": "field",
+                            "value": {
+                              "kind": "path",
+                              "value": "completed"
+                            }
+                          },
+                          {
+                            "key": "equals",
+                            "value": {
+                              "kind": "bool",
+                              "value": false
+                            }
+                          }
+                        ]
                       }
                     }
                   ]
@@ -130,10 +182,25 @@
                       }
                     },
                     {
-                      "key": "visibility",
+                      "key": "predicate",
                       "value": {
-                        "kind": "tag",
-                        "value": "Marked"
+                        "kind": "record",
+                        "fields": [
+                          {
+                            "key": "field",
+                            "value": {
+                              "kind": "path",
+                              "value": "completed"
+                            }
+                          },
+                          {
+                            "key": "equals",
+                            "value": {
+                              "kind": "bool",
+                              "value": true
+                            }
+                          }
+                        ]
                       }
                     }
                   ]

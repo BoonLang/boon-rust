@@ -1,5 +1,14 @@
 {
   "state_cells": [],
+  "expression_surface": {
+    "root": "cells",
+    "rows": 100,
+    "columns": 26,
+    "functions": [
+      "add",
+      "sum"
+    ]
+  },
   "static_records": [
     {
       "path": "cells",
@@ -79,7 +88,7 @@
       ]
     },
     {
-      "path": "formulas",
+      "path": "expressions",
       "fields": [
         {
           "key": "functions",

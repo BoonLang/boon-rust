@@ -176,7 +176,7 @@ fn dynamic_sources_require_live_owner_generation() {
     })
     .expect("live dynamic owner generation succeeds");
     assert_eq!(
-        app.snapshot().values.get("store.marked_todos_count"),
+        app.snapshot().values.get("store.completed_todos_count"),
         Some(&serde_json::json!(1))
     );
 }
@@ -304,7 +304,7 @@ rows:
 columns:
     List/range(from: 1, to: 3)
 
-formulas:
+expressions:
     functions:
         add: Math/add
         sum: Math/sum
@@ -424,7 +424,7 @@ fn todo_list_controls_run_through_generic_list_ir() {
     })
     .expect("dynamic checkbox event succeeds");
     assert_eq!(
-        app.snapshot().values.get("store.marked_todos_count"),
+        app.snapshot().values.get("store.completed_todos_count"),
         Some(&serde_json::json!(1))
     );
 
@@ -465,7 +465,7 @@ fn todo_list_controls_run_through_generic_list_ir() {
     })
     .expect("toggle-all event succeeds");
     assert_eq!(
-        app.snapshot().values.get("store.marked_todos_count"),
+        app.snapshot().values.get("store.completed_todos_count"),
         Some(&serde_json::json!(1))
     );
 
@@ -634,7 +634,7 @@ fn behavior_changes_when_source_formula_function_is_removed() {
     assert_eq!(
         app.snapshot().values.get("cells.B1"),
         Some(&serde_json::json!("#ERR")),
-        "removing Math/sum from Boon source must disable sum formulas"
+        "removing Math/sum from Boon source must disable sum expressions"
     );
 }
 

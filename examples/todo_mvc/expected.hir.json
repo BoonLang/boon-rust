@@ -1607,7 +1607,7 @@
                       "children": []
                     },
                     {
-                      "key": "visibility",
+                      "key": "predicate",
                       "value": {
                         "kind": {
                           "kind": "tag",
@@ -1615,7 +1615,7 @@
                         },
                         "span": {
                           "line": 89,
-                          "column": 24
+                          "column": 23
                         },
                         "raw": "All"
                       },
@@ -1655,23 +1655,52 @@
                       "children": []
                     },
                     {
-                      "key": "visibility",
-                      "value": {
-                        "kind": {
-                          "kind": "tag",
-                          "value": "Unmarked"
-                        },
-                        "span": {
-                          "line": 92,
-                          "column": 24
-                        },
-                        "raw": "Unmarked"
-                      },
+                      "key": "predicate",
+                      "value": null,
                       "span": {
                         "line": 92,
                         "column": 13
                       },
-                      "children": []
+                      "children": [
+                        {
+                          "key": "field",
+                          "value": {
+                            "kind": {
+                              "kind": "path",
+                              "value": "completed"
+                            },
+                            "span": {
+                              "line": 93,
+                              "column": 23
+                            },
+                            "raw": "completed"
+                          },
+                          "span": {
+                            "line": 93,
+                            "column": 17
+                          },
+                          "children": []
+                        },
+                        {
+                          "key": "equals",
+                          "value": {
+                            "kind": {
+                              "kind": "bool",
+                              "value": false
+                            },
+                            "span": {
+                              "line": 94,
+                              "column": 24
+                            },
+                            "raw": "False"
+                          },
+                          "span": {
+                            "line": 94,
+                            "column": 17
+                          },
+                          "children": []
+                        }
+                      ]
                     }
                   ]
                 },
@@ -1679,7 +1708,7 @@
                   "key": "filter_completed",
                   "value": null,
                   "span": {
-                    "line": 93,
+                    "line": 95,
                     "column": 9
                   },
                   "children": [
@@ -1691,35 +1720,64 @@
                           "value": "Completed"
                         },
                         "span": {
-                          "line": 94,
+                          "line": 96,
                           "column": 19
                         },
                         "raw": "TEXT { Completed }"
                       },
                       "span": {
-                        "line": 94,
+                        "line": 96,
                         "column": 13
                       },
                       "children": []
                     },
                     {
-                      "key": "visibility",
-                      "value": {
-                        "kind": {
-                          "kind": "tag",
-                          "value": "Marked"
-                        },
-                        "span": {
-                          "line": 95,
-                          "column": 24
-                        },
-                        "raw": "Marked"
-                      },
+                      "key": "predicate",
+                      "value": null,
                       "span": {
-                        "line": 95,
+                        "line": 97,
                         "column": 13
                       },
-                      "children": []
+                      "children": [
+                        {
+                          "key": "field",
+                          "value": {
+                            "kind": {
+                              "kind": "path",
+                              "value": "completed"
+                            },
+                            "span": {
+                              "line": 98,
+                              "column": 23
+                            },
+                            "raw": "completed"
+                          },
+                          "span": {
+                            "line": 98,
+                            "column": 17
+                          },
+                          "children": []
+                        },
+                        {
+                          "key": "equals",
+                          "value": {
+                            "kind": {
+                              "kind": "bool",
+                              "value": true
+                            },
+                            "span": {
+                              "line": 99,
+                              "column": 24
+                            },
+                            "raw": "True"
+                          },
+                          "span": {
+                            "line": 99,
+                            "column": 17
+                          },
+                          "children": []
+                        }
+                      ]
                     }
                   ]
                 }
@@ -1729,7 +1787,7 @@
               "key": "actions",
               "value": null,
               "span": {
-                "line": 96,
+                "line": 100,
                 "column": 5
               },
               "children": [
@@ -1737,7 +1795,7 @@
                   "key": "mass_mark",
                   "value": null,
                   "span": {
-                    "line": 97,
+                    "line": 101,
                     "column": 9
                   },
                   "children": [
@@ -1749,13 +1807,13 @@
                           "value": "toggle_all_checkbox"
                         },
                         "span": {
-                          "line": 98,
+                          "line": 102,
                           "column": 20
                         },
                         "raw": "toggle_all_checkbox"
                       },
                       "span": {
-                        "line": 98,
+                        "line": 102,
                         "column": 13
                       },
                       "children": []
@@ -1766,7 +1824,7 @@
                   "key": "remove_marked",
                   "value": null,
                   "span": {
-                    "line": 99,
+                    "line": 103,
                     "column": 9
                   },
                   "children": [
@@ -1778,13 +1836,13 @@
                           "value": "clear_completed_button"
                         },
                         "span": {
-                          "line": 100,
+                          "line": 104,
                           "column": 20
                         },
                         "raw": "clear_completed_button"
                       },
                       "span": {
-                        "line": 100,
+                        "line": 104,
                         "column": 13
                       },
                       "children": []
@@ -1797,13 +1855,13 @@
                           "value": "Clear completed"
                         },
                         "span": {
-                          "line": 101,
+                          "line": 105,
                           "column": 19
                         },
                         "raw": "TEXT { Clear completed }"
                       },
                       "span": {
-                        "line": 101,
+                        "line": 105,
                         "column": 13
                       },
                       "children": []
@@ -1816,7 +1874,7 @@
               "key": "auxiliary",
               "value": null,
               "span": {
-                "line": 102,
+                "line": 106,
                 "column": 5
               },
               "children": [
@@ -1828,13 +1886,13 @@
                       "value": "Double-click to edit an item"
                     },
                     "span": {
-                      "line": 103,
+                      "line": 107,
                       "column": 14
                     },
                     "raw": "TEXT { Double-click to edit an item }"
                   },
                   "span": {
-                    "line": 103,
+                    "line": 107,
                     "column": 9
                   },
                   "children": []
@@ -1847,13 +1905,13 @@
                       "value": "Created by Boon"
                     },
                     "span": {
-                      "line": 104,
+                      "line": 108,
                       "column": 16
                     },
                     "raw": "TEXT { Created by Boon }"
                   },
                   "span": {
-                    "line": 104,
+                    "line": 108,
                     "column": 9
                   },
                   "children": []
@@ -1866,13 +1924,13 @@
                       "value": "Part of the classic app examples"
                     },
                     "span": {
-                      "line": 105,
+                      "line": 109,
                       "column": 14
                     },
                     "raw": "TEXT { Part of the classic app examples }"
                   },
                   "span": {
-                    "line": 105,
+                    "line": 109,
                     "column": 9
                   },
                   "children": []
@@ -1915,20 +1973,20 @@
                                             "value": "store.sources.new_todo_input"
                                           },
                                           "span": {
-                                            "line": 107,
+                                            "line": 111,
                                             "column": 10
                                           },
                                           "raw": "store.sources.new_todo_input"
                                         },
                                         "span": {
-                                          "line": 107,
+                                          "line": 111,
                                           "column": 10
                                         }
                                       }
                                     ]
                                   },
                                   "span": {
-                                    "line": 107,
+                                    "line": 111,
                                     "column": 10
                                   },
                                   "raw": "Element/text_input(element: store.sources.new_todo_input)"
@@ -1946,20 +2004,20 @@
                                             "value": "store.sources.toggle_all_checkbox"
                                           },
                                           "span": {
-                                            "line": 107,
+                                            "line": 111,
                                             "column": 10
                                           },
                                           "raw": "store.sources.toggle_all_checkbox"
                                         },
                                         "span": {
-                                          "line": 107,
+                                          "line": 111,
                                           "column": 10
                                         }
                                       }
                                     ]
                                   },
                                   "span": {
-                                    "line": 107,
+                                    "line": 111,
                                     "column": 10
                                   },
                                   "raw": "Element/checkbox(element: store.sources.toggle_all_checkbox)"
@@ -1977,20 +2035,20 @@
                                             "value": "store.sources.clear_completed_button"
                                           },
                                           "span": {
-                                            "line": 107,
+                                            "line": 111,
                                             "column": 10
                                           },
                                           "raw": "store.sources.clear_completed_button"
                                         },
                                         "span": {
-                                          "line": 107,
+                                          "line": 111,
                                           "column": 10
                                         }
                                       }
                                     ]
                                   },
                                   "span": {
-                                    "line": 107,
+                                    "line": 111,
                                     "column": 10
                                   },
                                   "raw": "Element/button(element: store.sources.clear_completed_button)"
@@ -2008,20 +2066,20 @@
                                             "value": "store.sources.filter_all"
                                           },
                                           "span": {
-                                            "line": 107,
+                                            "line": 111,
                                             "column": 10
                                           },
                                           "raw": "store.sources.filter_all"
                                         },
                                         "span": {
-                                          "line": 107,
+                                          "line": 111,
                                           "column": 10
                                         }
                                       }
                                     ]
                                   },
                                   "span": {
-                                    "line": 107,
+                                    "line": 111,
                                     "column": 10
                                   },
                                   "raw": "Element/button(element: store.sources.filter_all)"
@@ -2039,20 +2097,20 @@
                                             "value": "store.sources.filter_active"
                                           },
                                           "span": {
-                                            "line": 107,
+                                            "line": 111,
                                             "column": 10
                                           },
                                           "raw": "store.sources.filter_active"
                                         },
                                         "span": {
-                                          "line": 107,
+                                          "line": 111,
                                           "column": 10
                                         }
                                       }
                                     ]
                                   },
                                   "span": {
-                                    "line": 107,
+                                    "line": 111,
                                     "column": 10
                                   },
                                   "raw": "Element/button(element: store.sources.filter_active)"
@@ -2070,20 +2128,20 @@
                                             "value": "store.sources.filter_completed"
                                           },
                                           "span": {
-                                            "line": 107,
+                                            "line": 111,
                                             "column": 10
                                           },
                                           "raw": "store.sources.filter_completed"
                                         },
                                         "span": {
-                                          "line": 107,
+                                          "line": 111,
                                           "column": 10
                                         }
                                       }
                                     ]
                                   },
                                   "span": {
-                                    "line": 107,
+                                    "line": 111,
                                     "column": 10
                                   },
                                   "raw": "Element/button(element: store.sources.filter_completed)"
@@ -2097,7 +2155,7 @@
                                         "value": "todos"
                                       },
                                       "span": {
-                                        "line": 107,
+                                        "line": 111,
                                         "column": 10
                                       },
                                       "raw": "todos"
@@ -2134,20 +2192,20 @@
                                                                         "value": "item.sources.checkbox"
                                                                       },
                                                                       "span": {
-                                                                        "line": 107,
+                                                                        "line": 111,
                                                                         "column": 10
                                                                       },
                                                                       "raw": "item.sources.checkbox"
                                                                     },
                                                                     "span": {
-                                                                      "line": 107,
+                                                                      "line": 111,
                                                                       "column": 10
                                                                     }
                                                                   }
                                                                 ]
                                                               },
                                                               "span": {
-                                                                "line": 107,
+                                                                "line": 111,
                                                                 "column": 10
                                                               },
                                                               "raw": "Element/checkbox(element: item.sources.checkbox)"
@@ -2165,20 +2223,20 @@
                                                                         "value": "item.sources.remove_button"
                                                                       },
                                                                       "span": {
-                                                                        "line": 107,
+                                                                        "line": 111,
                                                                         "column": 10
                                                                       },
                                                                       "raw": "item.sources.remove_button"
                                                                     },
                                                                     "span": {
-                                                                      "line": 107,
+                                                                      "line": 111,
                                                                       "column": 10
                                                                     }
                                                                   }
                                                                 ]
                                                               },
                                                               "span": {
-                                                                "line": 107,
+                                                                "line": 111,
                                                                 "column": 10
                                                               },
                                                               "raw": "Element/button(element: item.sources.remove_button)"
@@ -2196,20 +2254,20 @@
                                                                         "value": "item.sources.edit_input"
                                                                       },
                                                                       "span": {
-                                                                        "line": 107,
+                                                                        "line": 111,
                                                                         "column": 10
                                                                       },
                                                                       "raw": "item.sources.edit_input"
                                                                     },
                                                                     "span": {
-                                                                      "line": 107,
+                                                                      "line": 111,
                                                                       "column": 10
                                                                     }
                                                                   }
                                                                 ]
                                                               },
                                                               "span": {
-                                                                "line": 107,
+                                                                "line": 111,
                                                                 "column": 10
                                                               },
                                                               "raw": "Element/text_input(element: item.sources.edit_input)"
@@ -2217,33 +2275,33 @@
                                                           ]
                                                         },
                                                         "span": {
-                                                          "line": 107,
+                                                          "line": 111,
                                                           "column": 10
                                                         },
                                                         "raw": "LIST {\nElement/checkbox(element: item.sources.checkbox)\nElement/button(element: item.sources.remove_button)\nElement/text_input(element: item.sources.edit_input)\n}"
                                                       },
                                                       "span": {
-                                                        "line": 107,
+                                                        "line": 111,
                                                         "column": 10
                                                       }
                                                     }
                                                   ]
                                                 },
                                                 "span": {
-                                                  "line": 107,
+                                                  "line": 111,
                                                   "column": 10
                                                 },
                                                 "raw": "Element/panel(\nchildren: LIST {\nElement/checkbox(element: item.sources.checkbox)\nElement/button(element: item.sources.remove_button)\nElement/text_input(element: item.sources.edit_input)\n}\n)"
                                               },
                                               "span": {
-                                                "line": 107,
+                                                "line": 111,
                                                 "column": 10
                                               }
                                             }
                                           ]
                                         },
                                         "span": {
-                                          "line": 107,
+                                          "line": 111,
                                           "column": 10
                                         },
                                         "raw": "List/map(item, new: Element/panel(\nchildren: LIST {\nElement/checkbox(element: item.sources.checkbox)\nElement/button(element: item.sources.remove_button)\nElement/text_input(element: item.sources.edit_input)\n}\n)\n)"
@@ -2251,7 +2309,7 @@
                                     ]
                                   },
                                   "span": {
-                                    "line": 107,
+                                    "line": 111,
                                     "column": 10
                                   },
                                   "raw": "todos |> List/map(item, new: Element/panel(\nchildren: LIST {\nElement/checkbox(element: item.sources.checkbox)\nElement/button(element: item.sources.remove_button)\nElement/text_input(element: item.sources.edit_input)\n}\n)\n)"
@@ -2259,39 +2317,39 @@
                               ]
                             },
                             "span": {
-                              "line": 107,
+                              "line": 111,
                               "column": 10
                             },
                             "raw": "LIST {\nElement/text_input(element: store.sources.new_todo_input)\nElement/checkbox(element: store.sources.toggle_all_checkbox)\nElement/button(element: store.sources.clear_completed_button)\nElement/button(element: store.sources.filter_all)\nElement/button(element: store.sources.filter_active)\nElement/button(element: store.sources.filter_completed)\ntodos |> List/map(item, new: Element/panel(\nchildren: LIST {\nElement/checkbox(element: item.sources.checkbox)\nElement/button(element: item.sources.remove_button)\nElement/text_input(element: item.sources.edit_input)\n}\n)\n)\n}"
                           },
                           "span": {
-                            "line": 107,
+                            "line": 111,
                             "column": 10
                           }
                         }
                       ]
                     },
                     "span": {
-                      "line": 107,
+                      "line": 111,
                       "column": 10
                     },
                     "raw": "Element/panel(\nchildren: LIST {\nElement/text_input(element: store.sources.new_todo_input)\nElement/checkbox(element: store.sources.toggle_all_checkbox)\nElement/button(element: store.sources.clear_completed_button)\nElement/button(element: store.sources.filter_all)\nElement/button(element: store.sources.filter_active)\nElement/button(element: store.sources.filter_completed)\ntodos |> List/map(item, new: Element/panel(\nchildren: LIST {\nElement/checkbox(element: item.sources.checkbox)\nElement/button(element: item.sources.remove_button)\nElement/text_input(element: item.sources.edit_input)\n}\n)\n)\n}\n)"
                   },
                   "span": {
-                    "line": 107,
+                    "line": 111,
                     "column": 10
                   }
                 }
               ]
             },
             "span": {
-              "line": 107,
+              "line": 111,
               "column": 10
             },
             "raw": "Document/new(\nroot: Element/panel(\nchildren: LIST {\nElement/text_input(element: store.sources.new_todo_input)\nElement/checkbox(element: store.sources.toggle_all_checkbox)\nElement/button(element: store.sources.clear_completed_button)\nElement/button(element: store.sources.filter_all)\nElement/button(element: store.sources.filter_active)\nElement/button(element: store.sources.filter_completed)\ntodos |> List/map(item, new: Element/panel(\nchildren: LIST {\nElement/checkbox(element: item.sources.checkbox)\nElement/button(element: item.sources.remove_button)\nElement/text_input(element: item.sources.edit_input)\n}\n)\n)\n}\n)\n)"
           },
           "span": {
-            "line": 107,
+            "line": 111,
             "column": 1
           },
           "children": []
@@ -3402,7 +3460,7 @@
         }
       },
       {
-        "text": "visibility: All",
+        "text": "predicate: All",
         "span": {
           "line": 89,
           "column": 13
@@ -3423,275 +3481,303 @@
         }
       },
       {
-        "text": "visibility: Unmarked",
+        "text": "predicate:",
         "span": {
           "line": 92,
           "column": 13
         }
       },
       {
-        "text": "filter_completed:",
+        "text": "field: completed",
         "span": {
           "line": 93,
+          "column": 17
+        }
+      },
+      {
+        "text": "equals: False",
+        "span": {
+          "line": 94,
+          "column": 17
+        }
+      },
+      {
+        "text": "filter_completed:",
+        "span": {
+          "line": 95,
           "column": 9
         }
       },
       {
         "text": "label: TEXT { Completed }",
         "span": {
-          "line": 94,
+          "line": 96,
           "column": 13
         }
       },
       {
-        "text": "visibility: Marked",
+        "text": "predicate:",
         "span": {
-          "line": 95,
+          "line": 97,
           "column": 13
+        }
+      },
+      {
+        "text": "field: completed",
+        "span": {
+          "line": 98,
+          "column": 17
+        }
+      },
+      {
+        "text": "equals: True",
+        "span": {
+          "line": 99,
+          "column": 17
         }
       },
       {
         "text": "actions:",
         "span": {
-          "line": 96,
+          "line": 100,
           "column": 5
         }
       },
       {
         "text": "mass_mark:",
         "span": {
-          "line": 97,
+          "line": 101,
           "column": 9
         }
       },
       {
         "text": "source: toggle_all_checkbox",
         "span": {
-          "line": 98,
+          "line": 102,
           "column": 13
         }
       },
       {
         "text": "remove_marked:",
         "span": {
-          "line": 99,
+          "line": 103,
           "column": 9
         }
       },
       {
         "text": "source: clear_completed_button",
         "span": {
-          "line": 100,
+          "line": 104,
           "column": 13
         }
       },
       {
         "text": "label: TEXT { Clear completed }",
         "span": {
-          "line": 101,
+          "line": 105,
           "column": 13
         }
       },
       {
         "text": "auxiliary:",
         "span": {
-          "line": 102,
+          "line": 106,
           "column": 5
         }
       },
       {
         "text": "hint: TEXT { Double-click to edit an item }",
         "span": {
-          "line": 103,
+          "line": 107,
           "column": 9
         }
       },
       {
         "text": "author: TEXT { Created by Boon }",
         "span": {
-          "line": 104,
+          "line": 108,
           "column": 9
         }
       },
       {
         "text": "note: TEXT { Part of the classic app examples }",
         "span": {
-          "line": 105,
+          "line": 109,
           "column": 9
         }
       },
       {
         "text": "document:",
         "span": {
-          "line": 107,
+          "line": 111,
           "column": 1
         }
       },
       {
         "text": "Document/new(",
         "span": {
-          "line": 108,
+          "line": 112,
           "column": 5
         }
       },
       {
         "text": "root:",
         "span": {
-          "line": 109,
+          "line": 113,
           "column": 9
         }
       },
       {
         "text": "Element/panel(",
         "span": {
-          "line": 110,
+          "line": 114,
           "column": 13
         }
       },
       {
         "text": "children:",
         "span": {
-          "line": 111,
+          "line": 115,
           "column": 17
         }
       },
       {
         "text": "LIST {",
         "span": {
-          "line": 112,
+          "line": 116,
           "column": 21
         }
       },
       {
         "text": "Element/text_input(element: store.sources.new_todo_input)",
         "span": {
-          "line": 113,
+          "line": 117,
           "column": 25
         }
       },
       {
         "text": "Element/checkbox(element: store.sources.toggle_all_checkbox)",
         "span": {
-          "line": 114,
+          "line": 118,
           "column": 25
         }
       },
       {
         "text": "Element/button(element: store.sources.clear_completed_button)",
         "span": {
-          "line": 115,
+          "line": 119,
           "column": 25
         }
       },
       {
         "text": "Element/button(element: store.sources.filter_all)",
         "span": {
-          "line": 116,
+          "line": 120,
           "column": 25
         }
       },
       {
         "text": "Element/button(element: store.sources.filter_active)",
         "span": {
-          "line": 117,
+          "line": 121,
           "column": 25
         }
       },
       {
         "text": "Element/button(element: store.sources.filter_completed)",
         "span": {
-          "line": 118,
+          "line": 122,
           "column": 25
         }
       },
       {
         "text": "todos |> List/map(item, new:",
         "span": {
-          "line": 119,
+          "line": 123,
           "column": 25
         }
       },
       {
         "text": "Element/panel(",
         "span": {
-          "line": 120,
+          "line": 124,
           "column": 29
         }
       },
       {
         "text": "children:",
         "span": {
-          "line": 121,
+          "line": 125,
           "column": 33
         }
       },
       {
         "text": "LIST {",
         "span": {
-          "line": 122,
+          "line": 126,
           "column": 37
         }
       },
       {
         "text": "Element/checkbox(element: item.sources.checkbox)",
         "span": {
-          "line": 123,
+          "line": 127,
           "column": 41
         }
       },
       {
         "text": "Element/button(element: item.sources.remove_button)",
         "span": {
-          "line": 124,
+          "line": 128,
           "column": 41
         }
       },
       {
         "text": "Element/text_input(element: item.sources.edit_input)",
         "span": {
-          "line": 125,
+          "line": 129,
           "column": 41
         }
       },
       {
         "text": "}",
         "span": {
-          "line": 126,
+          "line": 130,
           "column": 37
         }
       },
       {
         "text": ")",
         "span": {
-          "line": 127,
+          "line": 131,
           "column": 29
         }
       },
       {
         "text": ")",
         "span": {
-          "line": 128,
+          "line": 132,
           "column": 25
         }
       },
       {
         "text": "}",
         "span": {
-          "line": 129,
+          "line": 133,
           "column": 21
         }
       },
       {
         "text": ")",
         "span": {
-          "line": 130,
+          "line": 134,
           "column": 13
         }
       },
       {
         "text": ")",
         "span": {
-          "line": 131,
+          "line": 135,
           "column": 5
         }
       }
@@ -4241,7 +4327,7 @@
                     "children": []
                   },
                   {
-                    "key": "visibility",
+                    "key": "predicate",
                     "value": "All",
                     "span": {
                       "line": 89,
@@ -4269,13 +4355,32 @@
                     "children": []
                   },
                   {
-                    "key": "visibility",
-                    "value": "Unmarked",
+                    "key": "predicate",
+                    "value": null,
                     "span": {
                       "line": 92,
                       "column": 13
                     },
-                    "children": []
+                    "children": [
+                      {
+                        "key": "field",
+                        "value": "completed",
+                        "span": {
+                          "line": 93,
+                          "column": 17
+                        },
+                        "children": []
+                      },
+                      {
+                        "key": "equals",
+                        "value": "False",
+                        "span": {
+                          "line": 94,
+                          "column": 17
+                        },
+                        "children": []
+                      }
+                    ]
                   }
                 ]
               },
@@ -4283,7 +4388,7 @@
                 "key": "filter_completed",
                 "value": null,
                 "span": {
-                  "line": 93,
+                  "line": 95,
                   "column": 9
                 },
                 "children": [
@@ -4291,19 +4396,38 @@
                     "key": "label",
                     "value": "TEXT { Completed }",
                     "span": {
-                      "line": 94,
+                      "line": 96,
                       "column": 13
                     },
                     "children": []
                   },
                   {
-                    "key": "visibility",
-                    "value": "Marked",
+                    "key": "predicate",
+                    "value": null,
                     "span": {
-                      "line": 95,
+                      "line": 97,
                       "column": 13
                     },
-                    "children": []
+                    "children": [
+                      {
+                        "key": "field",
+                        "value": "completed",
+                        "span": {
+                          "line": 98,
+                          "column": 17
+                        },
+                        "children": []
+                      },
+                      {
+                        "key": "equals",
+                        "value": "True",
+                        "span": {
+                          "line": 99,
+                          "column": 17
+                        },
+                        "children": []
+                      }
+                    ]
                   }
                 ]
               }
@@ -4313,7 +4437,7 @@
             "key": "actions",
             "value": null,
             "span": {
-              "line": 96,
+              "line": 100,
               "column": 5
             },
             "children": [
@@ -4321,7 +4445,7 @@
                 "key": "mass_mark",
                 "value": null,
                 "span": {
-                  "line": 97,
+                  "line": 101,
                   "column": 9
                 },
                 "children": [
@@ -4329,7 +4453,7 @@
                     "key": "source",
                     "value": "toggle_all_checkbox",
                     "span": {
-                      "line": 98,
+                      "line": 102,
                       "column": 13
                     },
                     "children": []
@@ -4340,7 +4464,7 @@
                 "key": "remove_marked",
                 "value": null,
                 "span": {
-                  "line": 99,
+                  "line": 103,
                   "column": 9
                 },
                 "children": [
@@ -4348,7 +4472,7 @@
                     "key": "source",
                     "value": "clear_completed_button",
                     "span": {
-                      "line": 100,
+                      "line": 104,
                       "column": 13
                     },
                     "children": []
@@ -4357,7 +4481,7 @@
                     "key": "label",
                     "value": "TEXT { Clear completed }",
                     "span": {
-                      "line": 101,
+                      "line": 105,
                       "column": 13
                     },
                     "children": []
@@ -4370,7 +4494,7 @@
             "key": "auxiliary",
             "value": null,
             "span": {
-              "line": 102,
+              "line": 106,
               "column": 5
             },
             "children": [
@@ -4378,7 +4502,7 @@
                 "key": "hint",
                 "value": "TEXT { Double-click to edit an item }",
                 "span": {
-                  "line": 103,
+                  "line": 107,
                   "column": 9
                 },
                 "children": []
@@ -4387,7 +4511,7 @@
                 "key": "author",
                 "value": "TEXT { Created by Boon }",
                 "span": {
-                  "line": 104,
+                  "line": 108,
                   "column": 9
                 },
                 "children": []
@@ -4396,7 +4520,7 @@
                 "key": "note",
                 "value": "TEXT { Part of the classic app examples }",
                 "span": {
-                  "line": 105,
+                  "line": 109,
                   "column": 9
                 },
                 "children": []
@@ -4409,7 +4533,7 @@
         "key": "document",
         "value": null,
         "span": {
-          "line": 107,
+          "line": 111,
           "column": 1
         },
         "children": [
@@ -4417,7 +4541,7 @@
             "key": "root",
             "value": null,
             "span": {
-              "line": 109,
+              "line": 113,
               "column": 9
             },
             "children": [
@@ -4425,7 +4549,7 @@
                 "key": "children",
                 "value": null,
                 "span": {
-                  "line": 111,
+                  "line": 115,
                   "column": 17
                 },
                 "children": [
@@ -4433,7 +4557,7 @@
                     "key": "children",
                     "value": null,
                     "span": {
-                      "line": 121,
+                      "line": 125,
                       "column": 33
                     },
                     "children": []
@@ -4684,7 +4808,7 @@
       {
         "path": "Document/new",
         "span": {
-          "line": 108,
+          "line": 112,
           "column": 5
         },
         "args": [
@@ -4692,7 +4816,7 @@
             "name": "root",
             "value": "Element",
             "span": {
-              "line": 108,
+              "line": 112,
               "column": 3
             }
           }
@@ -4701,7 +4825,7 @@
       {
         "path": "Element/panel",
         "span": {
-          "line": 110,
+          "line": 114,
           "column": 13
         },
         "args": [
@@ -4709,7 +4833,7 @@
             "name": "children",
             "value": "LIST",
             "span": {
-              "line": 110,
+              "line": 114,
               "column": 3
             }
           }
@@ -4718,81 +4842,13 @@
       {
         "path": "Element/text_input",
         "span": {
-          "line": 113,
-          "column": 25
-        },
-        "args": [
-          {
-            "name": "element",
-            "value": "store.sources.new_todo_input",
-            "span": {
-              "line": 113,
-              "column": 2
-            }
-          }
-        ]
-      },
-      {
-        "path": "Element/checkbox",
-        "span": {
-          "line": 114,
-          "column": 25
-        },
-        "args": [
-          {
-            "name": "element",
-            "value": "store.sources.toggle_all_checkbox",
-            "span": {
-              "line": 114,
-              "column": 2
-            }
-          }
-        ]
-      },
-      {
-        "path": "Element/button",
-        "span": {
-          "line": 115,
-          "column": 25
-        },
-        "args": [
-          {
-            "name": "element",
-            "value": "store.sources.clear_completed_button",
-            "span": {
-              "line": 115,
-              "column": 2
-            }
-          }
-        ]
-      },
-      {
-        "path": "Element/button",
-        "span": {
-          "line": 116,
-          "column": 25
-        },
-        "args": [
-          {
-            "name": "element",
-            "value": "store.sources.filter_all",
-            "span": {
-              "line": 116,
-              "column": 2
-            }
-          }
-        ]
-      },
-      {
-        "path": "Element/button",
-        "span": {
           "line": 117,
           "column": 25
         },
         "args": [
           {
             "name": "element",
-            "value": "store.sources.filter_active",
+            "value": "store.sources.new_todo_input",
             "span": {
               "line": 117,
               "column": 2
@@ -4801,7 +4857,7 @@
         ]
       },
       {
-        "path": "Element/button",
+        "path": "Element/checkbox",
         "span": {
           "line": 118,
           "column": 25
@@ -4809,7 +4865,7 @@
         "args": [
           {
             "name": "element",
-            "value": "store.sources.filter_completed",
+            "value": "store.sources.toggle_all_checkbox",
             "span": {
               "line": 118,
               "column": 2
@@ -4818,51 +4874,17 @@
         ]
       },
       {
-        "path": "List/map",
+        "path": "Element/button",
         "span": {
           "line": 119,
-          "column": 34
-        },
-        "args": [
-          {
-            "name": "new",
-            "value": "Element",
-            "span": {
-              "line": 119,
-              "column": 8
-            }
-          }
-        ]
-      },
-      {
-        "path": "Element/panel",
-        "span": {
-          "line": 120,
-          "column": 29
-        },
-        "args": [
-          {
-            "name": "children",
-            "value": "LIST",
-            "span": {
-              "line": 120,
-              "column": 3
-            }
-          }
-        ]
-      },
-      {
-        "path": "Element/checkbox",
-        "span": {
-          "line": 123,
-          "column": 41
+          "column": 25
         },
         "args": [
           {
             "name": "element",
-            "value": "item.sources.checkbox",
+            "value": "store.sources.clear_completed_button",
             "span": {
-              "line": 123,
+              "line": 119,
               "column": 2
             }
           }
@@ -4871,7 +4893,109 @@
       {
         "path": "Element/button",
         "span": {
+          "line": 120,
+          "column": 25
+        },
+        "args": [
+          {
+            "name": "element",
+            "value": "store.sources.filter_all",
+            "span": {
+              "line": 120,
+              "column": 2
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/button",
+        "span": {
+          "line": 121,
+          "column": 25
+        },
+        "args": [
+          {
+            "name": "element",
+            "value": "store.sources.filter_active",
+            "span": {
+              "line": 121,
+              "column": 2
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/button",
+        "span": {
+          "line": 122,
+          "column": 25
+        },
+        "args": [
+          {
+            "name": "element",
+            "value": "store.sources.filter_completed",
+            "span": {
+              "line": 122,
+              "column": 2
+            }
+          }
+        ]
+      },
+      {
+        "path": "List/map",
+        "span": {
+          "line": 123,
+          "column": 34
+        },
+        "args": [
+          {
+            "name": "new",
+            "value": "Element",
+            "span": {
+              "line": 123,
+              "column": 8
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/panel",
+        "span": {
           "line": 124,
+          "column": 29
+        },
+        "args": [
+          {
+            "name": "children",
+            "value": "LIST",
+            "span": {
+              "line": 124,
+              "column": 3
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/checkbox",
+        "span": {
+          "line": 127,
+          "column": 41
+        },
+        "args": [
+          {
+            "name": "element",
+            "value": "item.sources.checkbox",
+            "span": {
+              "line": 127,
+              "column": 2
+            }
+          }
+        ]
+      },
+      {
+        "path": "Element/button",
+        "span": {
+          "line": 128,
           "column": 41
         },
         "args": [
@@ -4879,7 +5003,7 @@
             "name": "element",
             "value": "item.sources.remove_button",
             "span": {
-              "line": 124,
+              "line": 128,
               "column": 2
             }
           }
@@ -4888,7 +5012,7 @@
       {
         "path": "Element/text_input",
         "span": {
-          "line": 125,
+          "line": 129,
           "column": 41
         },
         "args": [
@@ -4896,7 +5020,7 @@
             "name": "element",
             "value": "item.sources.edit_input",
             "span": {
-              "line": 125,
+              "line": 129,
               "column": 2
             }
           }
@@ -4956,35 +5080,35 @@
       {
         "value": "Completed",
         "span": {
-          "line": 94,
+          "line": 96,
           "column": 8
         }
       },
       {
         "value": "Clear completed",
         "span": {
-          "line": 101,
+          "line": 105,
           "column": 8
         }
       },
       {
         "value": "Double-click to edit an item",
         "span": {
-          "line": 103,
+          "line": 107,
           "column": 7
         }
       },
       {
         "value": "Created by Boon",
         "span": {
-          "line": 104,
+          "line": 108,
           "column": 9
         }
       },
       {
         "value": "Part of the classic app examples",
         "span": {
-          "line": 105,
+          "line": 109,
           "column": 7
         }
       }
@@ -4995,7 +5119,7 @@
         "variable": "item",
         "collection": "todos",
         "span": {
-          "line": 119,
+          "line": 123,
           "column": 19
         }
       }
@@ -6638,7 +6762,7 @@
                   "children": []
                 },
                 {
-                  "key": "visibility",
+                  "key": "predicate",
                   "value": {
                     "kind": {
                       "kind": "tag",
@@ -6646,7 +6770,7 @@
                     },
                     "span": {
                       "line": 89,
-                      "column": 24
+                      "column": 23
                     },
                     "raw": "All"
                   },
@@ -6689,23 +6813,55 @@
                   "children": []
                 },
                 {
-                  "key": "visibility",
-                  "value": {
-                    "kind": {
-                      "kind": "tag",
-                      "value": "Unmarked"
-                    },
-                    "span": {
-                      "line": 92,
-                      "column": 24
-                    },
-                    "raw": "Unmarked"
-                  },
+                  "key": "predicate",
+                  "value": null,
                   "span": {
                     "line": 92,
                     "column": 13
                   },
-                  "children": []
+                  "children": [
+                    {
+                      "key": "field",
+                      "value": {
+                        "kind": {
+                          "kind": "path",
+                          "value": "completed"
+                        },
+                        "span": {
+                          "line": 93,
+                          "column": 23
+                        },
+                        "raw": "completed"
+                      },
+                      "span": {
+                        "line": 93,
+                        "column": 17
+                      },
+                      "children": []
+                    },
+                    {
+                      "key": "equals",
+                      "value": {
+                        "kind": {
+                          "kind": "literal",
+                          "literal": {
+                            "kind": "bool",
+                            "value": false
+                          }
+                        },
+                        "span": {
+                          "line": 94,
+                          "column": 24
+                        },
+                        "raw": "False"
+                      },
+                      "span": {
+                        "line": 94,
+                        "column": 17
+                      },
+                      "children": []
+                    }
+                  ]
                 }
               ]
             },
@@ -6713,7 +6869,7 @@
               "key": "filter_completed",
               "value": null,
               "span": {
-                "line": 93,
+                "line": 95,
                 "column": 9
               },
               "children": [
@@ -6728,35 +6884,67 @@
                       }
                     },
                     "span": {
-                      "line": 94,
+                      "line": 96,
                       "column": 19
                     },
                     "raw": "TEXT { Completed }"
                   },
                   "span": {
-                    "line": 94,
+                    "line": 96,
                     "column": 13
                   },
                   "children": []
                 },
                 {
-                  "key": "visibility",
-                  "value": {
-                    "kind": {
-                      "kind": "tag",
-                      "value": "Marked"
-                    },
-                    "span": {
-                      "line": 95,
-                      "column": 24
-                    },
-                    "raw": "Marked"
-                  },
+                  "key": "predicate",
+                  "value": null,
                   "span": {
-                    "line": 95,
+                    "line": 97,
                     "column": 13
                   },
-                  "children": []
+                  "children": [
+                    {
+                      "key": "field",
+                      "value": {
+                        "kind": {
+                          "kind": "path",
+                          "value": "completed"
+                        },
+                        "span": {
+                          "line": 98,
+                          "column": 23
+                        },
+                        "raw": "completed"
+                      },
+                      "span": {
+                        "line": 98,
+                        "column": 17
+                      },
+                      "children": []
+                    },
+                    {
+                      "key": "equals",
+                      "value": {
+                        "kind": {
+                          "kind": "literal",
+                          "literal": {
+                            "kind": "bool",
+                            "value": true
+                          }
+                        },
+                        "span": {
+                          "line": 99,
+                          "column": 24
+                        },
+                        "raw": "True"
+                      },
+                      "span": {
+                        "line": 99,
+                        "column": 17
+                      },
+                      "children": []
+                    }
+                  ]
                 }
               ]
             }
@@ -6766,7 +6954,7 @@
           "key": "actions",
           "value": null,
           "span": {
-            "line": 96,
+            "line": 100,
             "column": 5
           },
           "children": [
@@ -6774,7 +6962,7 @@
               "key": "mass_mark",
               "value": null,
               "span": {
-                "line": 97,
+                "line": 101,
                 "column": 9
               },
               "children": [
@@ -6786,13 +6974,13 @@
                       "value": "toggle_all_checkbox"
                     },
                     "span": {
-                      "line": 98,
+                      "line": 102,
                       "column": 20
                     },
                     "raw": "toggle_all_checkbox"
                   },
                   "span": {
-                    "line": 98,
+                    "line": 102,
                     "column": 13
                   },
                   "children": []
@@ -6803,7 +6991,7 @@
               "key": "remove_marked",
               "value": null,
               "span": {
-                "line": 99,
+                "line": 103,
                 "column": 9
               },
               "children": [
@@ -6815,13 +7003,13 @@
                       "value": "clear_completed_button"
                     },
                     "span": {
-                      "line": 100,
+                      "line": 104,
                       "column": 20
                     },
                     "raw": "clear_completed_button"
                   },
                   "span": {
-                    "line": 100,
+                    "line": 104,
                     "column": 13
                   },
                   "children": []
@@ -6837,13 +7025,13 @@
                       }
                     },
                     "span": {
-                      "line": 101,
+                      "line": 105,
                       "column": 19
                     },
                     "raw": "TEXT { Clear completed }"
                   },
                   "span": {
-                    "line": 101,
+                    "line": 105,
                     "column": 13
                   },
                   "children": []
@@ -6856,7 +7044,7 @@
           "key": "auxiliary",
           "value": null,
           "span": {
-            "line": 102,
+            "line": 106,
             "column": 5
           },
           "children": [
@@ -6871,13 +7059,13 @@
                   }
                 },
                 "span": {
-                  "line": 103,
+                  "line": 107,
                   "column": 14
                 },
                 "raw": "TEXT { Double-click to edit an item }"
               },
               "span": {
-                "line": 103,
+                "line": 107,
                 "column": 9
               },
               "children": []
@@ -6893,13 +7081,13 @@
                   }
                 },
                 "span": {
-                  "line": 104,
+                  "line": 108,
                   "column": 16
                 },
                 "raw": "TEXT { Created by Boon }"
               },
               "span": {
-                "line": 104,
+                "line": 108,
                 "column": 9
               },
               "children": []
@@ -6915,13 +7103,13 @@
                   }
                 },
                 "span": {
-                  "line": 105,
+                  "line": 109,
                   "column": 14
                 },
                 "raw": "TEXT { Part of the classic app examples }"
               },
               "span": {
-                "line": 105,
+                "line": 109,
                 "column": 9
               },
               "children": []
@@ -6964,20 +7152,20 @@
                                         "value": "store.sources.new_todo_input"
                                       },
                                       "span": {
-                                        "line": 107,
+                                        "line": 111,
                                         "column": 10
                                       },
                                       "raw": "store.sources.new_todo_input"
                                     },
                                     "span": {
-                                      "line": 107,
+                                      "line": 111,
                                       "column": 10
                                     }
                                   }
                                 ]
                               },
                               "span": {
-                                "line": 107,
+                                "line": 111,
                                 "column": 10
                               },
                               "raw": "Element/text_input(element: store.sources.new_todo_input)"
@@ -6995,20 +7183,20 @@
                                         "value": "store.sources.toggle_all_checkbox"
                                       },
                                       "span": {
-                                        "line": 107,
+                                        "line": 111,
                                         "column": 10
                                       },
                                       "raw": "store.sources.toggle_all_checkbox"
                                     },
                                     "span": {
-                                      "line": 107,
+                                      "line": 111,
                                       "column": 10
                                     }
                                   }
                                 ]
                               },
                               "span": {
-                                "line": 107,
+                                "line": 111,
                                 "column": 10
                               },
                               "raw": "Element/checkbox(element: store.sources.toggle_all_checkbox)"
@@ -7026,20 +7214,20 @@
                                         "value": "store.sources.clear_completed_button"
                                       },
                                       "span": {
-                                        "line": 107,
+                                        "line": 111,
                                         "column": 10
                                       },
                                       "raw": "store.sources.clear_completed_button"
                                     },
                                     "span": {
-                                      "line": 107,
+                                      "line": 111,
                                       "column": 10
                                     }
                                   }
                                 ]
                               },
                               "span": {
-                                "line": 107,
+                                "line": 111,
                                 "column": 10
                               },
                               "raw": "Element/button(element: store.sources.clear_completed_button)"
@@ -7057,20 +7245,20 @@
                                         "value": "store.sources.filter_all"
                                       },
                                       "span": {
-                                        "line": 107,
+                                        "line": 111,
                                         "column": 10
                                       },
                                       "raw": "store.sources.filter_all"
                                     },
                                     "span": {
-                                      "line": 107,
+                                      "line": 111,
                                       "column": 10
                                     }
                                   }
                                 ]
                               },
                               "span": {
-                                "line": 107,
+                                "line": 111,
                                 "column": 10
                               },
                               "raw": "Element/button(element: store.sources.filter_all)"
@@ -7088,20 +7276,20 @@
                                         "value": "store.sources.filter_active"
                                       },
                                       "span": {
-                                        "line": 107,
+                                        "line": 111,
                                         "column": 10
                                       },
                                       "raw": "store.sources.filter_active"
                                     },
                                     "span": {
-                                      "line": 107,
+                                      "line": 111,
                                       "column": 10
                                     }
                                   }
                                 ]
                               },
                               "span": {
-                                "line": 107,
+                                "line": 111,
                                 "column": 10
                               },
                               "raw": "Element/button(element: store.sources.filter_active)"
@@ -7119,20 +7307,20 @@
                                         "value": "store.sources.filter_completed"
                                       },
                                       "span": {
-                                        "line": 107,
+                                        "line": 111,
                                         "column": 10
                                       },
                                       "raw": "store.sources.filter_completed"
                                     },
                                     "span": {
-                                      "line": 107,
+                                      "line": 111,
                                       "column": 10
                                     }
                                   }
                                 ]
                               },
                               "span": {
-                                "line": 107,
+                                "line": 111,
                                 "column": 10
                               },
                               "raw": "Element/button(element: store.sources.filter_completed)"
@@ -7146,7 +7334,7 @@
                                     "value": "todos"
                                   },
                                   "span": {
-                                    "line": 107,
+                                    "line": 111,
                                     "column": 10
                                   },
                                   "raw": "todos"
@@ -7183,20 +7371,20 @@
                                                                     "value": "item.sources.checkbox"
                                                                   },
                                                                   "span": {
-                                                                    "line": 107,
+                                                                    "line": 111,
                                                                     "column": 10
                                                                   },
                                                                   "raw": "item.sources.checkbox"
                                                                 },
                                                                 "span": {
-                                                                  "line": 107,
+                                                                  "line": 111,
                                                                   "column": 10
                                                                 }
                                                               }
                                                             ]
                                                           },
                                                           "span": {
-                                                            "line": 107,
+                                                            "line": 111,
                                                             "column": 10
                                                           },
                                                           "raw": "Element/checkbox(element: item.sources.checkbox)"
@@ -7214,20 +7402,20 @@
                                                                     "value": "item.sources.remove_button"
                                                                   },
                                                                   "span": {
-                                                                    "line": 107,
+                                                                    "line": 111,
                                                                     "column": 10
                                                                   },
                                                                   "raw": "item.sources.remove_button"
                                                                 },
                                                                 "span": {
-                                                                  "line": 107,
+                                                                  "line": 111,
                                                                   "column": 10
                                                                 }
                                                               }
                                                             ]
                                                           },
                                                           "span": {
-                                                            "line": 107,
+                                                            "line": 111,
                                                             "column": 10
                                                           },
                                                           "raw": "Element/button(element: item.sources.remove_button)"
@@ -7245,20 +7433,20 @@
                                                                     "value": "item.sources.edit_input"
                                                                   },
                                                                   "span": {
-                                                                    "line": 107,
+                                                                    "line": 111,
                                                                     "column": 10
                                                                   },
                                                                   "raw": "item.sources.edit_input"
                                                                 },
                                                                 "span": {
-                                                                  "line": 107,
+                                                                  "line": 111,
                                                                   "column": 10
                                                                 }
                                                               }
                                                             ]
                                                           },
                                                           "span": {
-                                                            "line": 107,
+                                                            "line": 111,
                                                             "column": 10
                                                           },
                                                           "raw": "Element/text_input(element: item.sources.edit_input)"
@@ -7266,33 +7454,33 @@
                                                       ]
                                                     },
                                                     "span": {
-                                                      "line": 107,
+                                                      "line": 111,
                                                       "column": 10
                                                     },
                                                     "raw": "LIST {\nElement/checkbox(element: item.sources.checkbox)\nElement/button(element: item.sources.remove_button)\nElement/text_input(element: item.sources.edit_input)\n}"
                                                   },
                                                   "span": {
-                                                    "line": 107,
+                                                    "line": 111,
                                                     "column": 10
                                                   }
                                                 }
                                               ]
                                             },
                                             "span": {
-                                              "line": 107,
+                                              "line": 111,
                                               "column": 10
                                             },
                                             "raw": "Element/panel(\nchildren: LIST {\nElement/checkbox(element: item.sources.checkbox)\nElement/button(element: item.sources.remove_button)\nElement/text_input(element: item.sources.edit_input)\n}\n)"
                                           },
                                           "span": {
-                                            "line": 107,
+                                            "line": 111,
                                             "column": 10
                                           }
                                         }
                                       ]
                                     },
                                     "span": {
-                                      "line": 107,
+                                      "line": 111,
                                       "column": 10
                                     },
                                     "raw": "List/map(item, new: Element/panel(\nchildren: LIST {\nElement/checkbox(element: item.sources.checkbox)\nElement/button(element: item.sources.remove_button)\nElement/text_input(element: item.sources.edit_input)\n}\n)\n)"
@@ -7300,7 +7488,7 @@
                                 ]
                               },
                               "span": {
-                                "line": 107,
+                                "line": 111,
                                 "column": 10
                               },
                               "raw": "todos |> List/map(item, new: Element/panel(\nchildren: LIST {\nElement/checkbox(element: item.sources.checkbox)\nElement/button(element: item.sources.remove_button)\nElement/text_input(element: item.sources.edit_input)\n}\n)\n)"
@@ -7308,39 +7496,39 @@
                           ]
                         },
                         "span": {
-                          "line": 107,
+                          "line": 111,
                           "column": 10
                         },
                         "raw": "LIST {\nElement/text_input(element: store.sources.new_todo_input)\nElement/checkbox(element: store.sources.toggle_all_checkbox)\nElement/button(element: store.sources.clear_completed_button)\nElement/button(element: store.sources.filter_all)\nElement/button(element: store.sources.filter_active)\nElement/button(element: store.sources.filter_completed)\ntodos |> List/map(item, new: Element/panel(\nchildren: LIST {\nElement/checkbox(element: item.sources.checkbox)\nElement/button(element: item.sources.remove_button)\nElement/text_input(element: item.sources.edit_input)\n}\n)\n)\n}"
                       },
                       "span": {
-                        "line": 107,
+                        "line": 111,
                         "column": 10
                       }
                     }
                   ]
                 },
                 "span": {
-                  "line": 107,
+                  "line": 111,
                   "column": 10
                 },
                 "raw": "Element/panel(\nchildren: LIST {\nElement/text_input(element: store.sources.new_todo_input)\nElement/checkbox(element: store.sources.toggle_all_checkbox)\nElement/button(element: store.sources.clear_completed_button)\nElement/button(element: store.sources.filter_all)\nElement/button(element: store.sources.filter_active)\nElement/button(element: store.sources.filter_completed)\ntodos |> List/map(item, new: Element/panel(\nchildren: LIST {\nElement/checkbox(element: item.sources.checkbox)\nElement/button(element: item.sources.remove_button)\nElement/text_input(element: item.sources.edit_input)\n}\n)\n)\n}\n)"
               },
               "span": {
-                "line": 107,
+                "line": 111,
                 "column": 10
               }
             }
           ]
         },
         "span": {
-          "line": 107,
+          "line": 111,
           "column": 10
         },
         "raw": "Document/new(\nroot: Element/panel(\nchildren: LIST {\nElement/text_input(element: store.sources.new_todo_input)\nElement/checkbox(element: store.sources.toggle_all_checkbox)\nElement/button(element: store.sources.clear_completed_button)\nElement/button(element: store.sources.filter_all)\nElement/button(element: store.sources.filter_active)\nElement/button(element: store.sources.filter_completed)\ntodos |> List/map(item, new: Element/panel(\nchildren: LIST {\nElement/checkbox(element: item.sources.checkbox)\nElement/button(element: item.sources.remove_button)\nElement/text_input(element: item.sources.edit_input)\n}\n)\n)\n}\n)\n)"
       },
       "span": {
-        "line": 107,
+        "line": 111,
         "column": 1
       },
       "children": []
@@ -8056,10 +8244,26 @@
       }
     },
     {
+      "from": "field",
+      "to": "completed",
+      "span": {
+        "line": 93,
+        "column": 23
+      }
+    },
+    {
+      "from": "field",
+      "to": "completed",
+      "span": {
+        "line": 98,
+        "column": 23
+      }
+    },
+    {
       "from": "source",
       "to": "toggle_all_checkbox",
       "span": {
-        "line": 98,
+        "line": 102,
         "column": 20
       }
     },
@@ -8067,7 +8271,7 @@
       "from": "source",
       "to": "clear_completed_button",
       "span": {
-        "line": 100,
+        "line": 104,
         "column": 20
       }
     },
@@ -8075,7 +8279,7 @@
       "from": "document",
       "to": "store.sources.new_todo_input",
       "span": {
-        "line": 107,
+        "line": 111,
         "column": 10
       }
     },
@@ -8083,7 +8287,7 @@
       "from": "document",
       "to": "store.sources.toggle_all_checkbox",
       "span": {
-        "line": 107,
+        "line": 111,
         "column": 10
       }
     },
@@ -8091,7 +8295,7 @@
       "from": "document",
       "to": "store.sources.clear_completed_button",
       "span": {
-        "line": 107,
+        "line": 111,
         "column": 10
       }
     },
@@ -8099,7 +8303,7 @@
       "from": "document",
       "to": "store.sources.filter_all",
       "span": {
-        "line": 107,
+        "line": 111,
         "column": 10
       }
     },
@@ -8107,7 +8311,7 @@
       "from": "document",
       "to": "store.sources.filter_active",
       "span": {
-        "line": 107,
+        "line": 111,
         "column": 10
       }
     },
@@ -8115,7 +8319,7 @@
       "from": "document",
       "to": "store.sources.filter_completed",
       "span": {
-        "line": 107,
+        "line": 111,
         "column": 10
       }
     },
@@ -8123,7 +8327,7 @@
       "from": "document",
       "to": "todos",
       "span": {
-        "line": 107,
+        "line": 111,
         "column": 10
       }
     },
@@ -8131,7 +8335,7 @@
       "from": "document",
       "to": "item.sources.checkbox",
       "span": {
-        "line": 107,
+        "line": 111,
         "column": 10
       }
     },
@@ -8139,7 +8343,7 @@
       "from": "document",
       "to": "item.sources.remove_button",
       "span": {
-        "line": 107,
+        "line": 111,
         "column": 10
       }
     },
@@ -8147,7 +8351,7 @@
       "from": "document",
       "to": "item.sources.edit_input",
       "span": {
-        "line": 107,
+        "line": 111,
         "column": 10
       }
     },

@@ -86,13 +86,17 @@ view:
     selectors:
         filter_all:
             label: TEXT { All }
-            visibility: All
+            predicate: All
         filter_active:
             label: TEXT { Active }
-            visibility: Unmarked
+            predicate:
+                field: completed
+                equals: False
         filter_completed:
             label: TEXT { Completed }
-            visibility: Marked
+            predicate:
+                field: completed
+                equals: True
     actions:
         mass_mark:
             source: toggle_all_checkbox

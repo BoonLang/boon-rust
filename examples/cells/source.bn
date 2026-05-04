@@ -25,7 +25,7 @@ rows:
 columns:
     List/range(from: 1, to: 26)
 
-formulas:
+expressions:
     functions:
         add: Math/add
         sum: Math/sum
@@ -44,19 +44,31 @@ grid:
 document:
     Document/new(
         root:
-            Element/grid(
-                element: store.sources.viewport
-                cells:
-                    grid |> List/map(row, new:
-                        row |> List/map(cell, new:
-                            Element/panel(
-                                children:
-                                    LIST {
-                                        Element/label(element: cell.sources.display)
-                                        Element/text_input(element: cell.sources.editor)
-                                    }
-                            )
+            Element/panel(
+                children:
+                    LIST {
+                        Element/text(x: 48, y: 34, width: 240, height: 32, scale: 2, text: TEXT { Cells }, color: TEXT { #1f2e3c })
+                        Element/text(x: 64, y: 100, width: 64, height: 24, text: grid.selected, color: TEXT { #284052 })
+                        Element/text(x: 142, y: 100, width: 780, height: 24, text: grid.selected_expression, color: TEXT { #233240 })
+                        Element/grid(
+                            element: store.sources.viewport
+                            x: 48
+                            y: 160
+                            width: 904
+                            height: 620
+                            cells:
+                                grid |> List/map(row, new:
+                                    row |> List/map(cell, new:
+                                        Element/panel(
+                                            children:
+                                                LIST {
+                                                    Element/label(element: cell.sources.display)
+                                                    Element/text_input(element: cell.sources.editor)
+                                                }
+                                        )
+                                    )
+                                )
                         )
-                    )
+                    }
             )
     )

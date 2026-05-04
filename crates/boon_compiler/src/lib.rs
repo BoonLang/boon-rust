@@ -42,6 +42,10 @@ pub struct CompiledSourceSpan {
 pub struct AppIr {
     pub state_cells: Vec<IrStateCell>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub derived_values: Vec<IrDerivedValue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expression_surface: Option<IrExpressionSurface>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub collection_states: Vec<IrCollectionState>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub static_records: Vec<IrStaticRecord>,
@@ -140,6 +144,41 @@ pub enum ExecExpr {
 pub struct IrStateCell {
     pub path: String,
     pub initial: IrValueExpr,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct IrDerivedValue {
+    pub path: String,
+    pub expr: IrDerivedExpr,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct IrExpressionSurface {
+    pub root: String,
+    pub rows: usize,
+    pub columns: usize,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub functions: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum IrDerivedExpr {
+    CollectionCount {
+        collection_path: String,
+    },
+    CollectionCountWhere {
+        collection_path: String,
+        predicate: IrCollectionPredicate,
+    },
+    Subtract {
+        left: String,
+        right: String,
+    },
+    Equal {
+        left: String,
+        right: String,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -602,6 +641,7 @@ fn app_ir_from_hir(hir: &HirModule, sources: &SourceInventory) -> AppIr {
             |family| dynamic_family_root(family),
         )
     });
+    ir.expression_surface = expression_surface_from_hir(hir, sources);
 
     for item in &hir.items {
         let HirItem::Record(record) = item else {
@@ -610,6 +650,7 @@ fn app_ir_from_hir(hir: &HirModule, sources: &SourceInventory) -> AppIr {
         if let Some((event_path, initial, step)) = accumulator_from_hir_record(record, sources) {
             push_accumulator_ir(&mut ir, &event_path, &record.key, initial, step);
         }
+        push_derived_value_from_hir_record(&mut ir, record);
         push_collection_state_from_hir_record(&mut ir, hir, record);
         push_static_record_from_hir_record(&mut ir, record);
         push_collection_handlers_from_hir_record(&mut ir, hir, sources, record);
@@ -1082,6 +1123,132 @@ fn push_collection_state_from_hir_record(ir: &mut AppIr, hir: &HirModule, record
         path: record.key.clone(),
         initial_entries: entries,
     });
+}
+
+fn push_derived_value_from_hir_record(ir: &mut AppIr, record: &HirRecord) {
+    let Some(expr) = record.value.as_ref() else {
+        return;
+    };
+    let Some(expr) = derived_expr_from_hir(expr) else {
+        return;
+    };
+    ir.derived_values.push(IrDerivedValue {
+        path: record.key.clone(),
+        expr,
+    });
+}
+
+fn derived_expr_from_hir(expr: &HirExpr) -> Option<IrDerivedExpr> {
+    match &expr.kind {
+        HirExprKind::Pipeline { input, stages } => derived_list_pipeline_expr(input, stages),
+        HirExprKind::Binary { op, left, right } => {
+            let left = path_expr(left)?.to_string();
+            let right = path_expr(right)?.to_string();
+            match op {
+                boon_syntax::AstBinaryOp::Subtract => Some(IrDerivedExpr::Subtract { left, right }),
+                boon_syntax::AstBinaryOp::Equal => Some(IrDerivedExpr::Equal { left, right }),
+                boon_syntax::AstBinaryOp::Add => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn derived_list_pipeline_expr(input: &HirExpr, stages: &[HirExpr]) -> Option<IrDerivedExpr> {
+    let collection_path = path_expr(input)?.to_string();
+    match stages {
+        [stage]
+            if matches!(
+                stage.kind,
+                HirExprKind::ListCall {
+                    op: HirListOp::Count,
+                    ..
+                }
+            ) =>
+        {
+            Some(IrDerivedExpr::CollectionCount { collection_path })
+        }
+        [retain, count]
+            if matches!(
+                count.kind,
+                HirExprKind::ListCall {
+                    op: HirListOp::Count,
+                    ..
+                }
+            ) =>
+        {
+            let HirExprKind::ListCall {
+                op: HirListOp::Retain,
+                args,
+            } = &retain.kind
+            else {
+                return None;
+            };
+            Some(IrDerivedExpr::CollectionCountWhere {
+                collection_path,
+                predicate: retain_predicate_from_args(args)?,
+            })
+        }
+        _ => None,
+    }
+}
+
+fn retain_predicate_from_args(args: &[HirCallArg]) -> Option<IrCollectionPredicate> {
+    let predicate = named_arg(args, "if")?;
+    let value = path_expr(predicate)?;
+    let (_, field) = value.split_once('.')?;
+    Some(IrCollectionPredicate::FieldBoolEquals {
+        field: field.to_string(),
+        value: true,
+    })
+}
+
+fn expression_surface_from_hir(
+    hir: &HirModule,
+    sources: &SourceInventory,
+) -> Option<IrExpressionSurface> {
+    let expressions = hir_record(hir, "expressions")?;
+    let functions = hir_child_record(expressions, "functions")
+        .map(|record| {
+            record
+                .children
+                .iter()
+                .filter_map(|child| match child.value.as_ref().map(|expr| &expr.kind) {
+                    Some(HirExprKind::FunctionCall { path, .. }) if path.starts_with("Math/") => {
+                        Some(child.key.clone())
+                    }
+                    Some(HirExprKind::Path { value }) if value.starts_with("Math/") => {
+                        Some(child.key.clone())
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let root = dynamic_source_families(sources)
+        .first()
+        .map(|family| dynamic_family_root(family))?;
+    Some(IrExpressionSurface {
+        root,
+        rows: static_range_end(hir, "rows").unwrap_or(100),
+        columns: static_range_end(hir, "columns").unwrap_or(26),
+        functions,
+    })
+}
+
+fn static_range_end(hir: &HirModule, record_name: &str) -> Option<usize> {
+    let record = hir_record(hir, record_name)?;
+    let HirExprKind::ListCall {
+        op: HirListOp::Range,
+        args,
+    } = &record.value.as_ref()?.kind
+    else {
+        return None;
+    };
+    named_arg(args, "to")
+        .and_then(number_literal)
+        .and_then(|value| usize::try_from(value).ok())
+        .filter(|value| *value > 0)
 }
 
 fn initial_list_seeds(expr: &HirExpr, hir: &HirModule) -> Option<Vec<IrCollectionSeed>> {

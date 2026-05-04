@@ -370,7 +370,7 @@
         },
         {
           "kind": "record",
-          "key": "formulas",
+          "key": "expressions",
           "value": null,
           "span": {
             "line": 28,
@@ -1003,7 +1003,7 @@
         }
       },
       {
-        "text": "formulas:",
+        "text": "expressions:",
         "span": {
           "line": 28,
           "column": 1
@@ -1437,7 +1437,7 @@
         "children": []
       },
       {
-        "key": "formulas",
+        "key": "expressions",
         "value": null,
         "span": {
           "line": 28,
@@ -2290,7 +2290,7 @@
     },
     {
       "kind": "record",
-      "key": "formulas",
+      "key": "expressions",
       "value": null,
       "span": {
         "line": 28,
