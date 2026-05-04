@@ -640,6 +640,7 @@ dependencies = [
  "boon_render_ir",
  "boon_shape",
  "boon_source",
+ "boon_stdlib",
  "serde",
  "serde_json",
  "slotmap",
@@ -659,6 +660,10 @@ dependencies = [
  "boon_shape",
  "serde",
 ]
+
+[[package]]
+name = "boon_stdlib"
+version = "0.1.0"
 
 [[package]]
 name = "boon_syntax"

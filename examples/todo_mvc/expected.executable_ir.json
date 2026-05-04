@@ -42,7 +42,7 @@
           {
             "id": "list_map_7",
             "kind": "list_map",
-            "list_path": "todos",
+            "collection_path": "todos",
             "children": [
               {
                 "id": "panel_11",

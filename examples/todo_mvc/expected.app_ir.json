@@ -1,16 +1,44 @@
 {
   "state_cells": [],
-  "list_states": [
+  "collection_states": [
     {
       "path": "todos",
       "initial_entries": [
         {
-          "text": "Buy groceries",
-          "mark": false
+          "fields": [
+            {
+              "key": "title",
+              "value": {
+                "kind": "text",
+                "value": "Buy groceries"
+              }
+            },
+            {
+              "key": "completed",
+              "value": {
+                "kind": "bool",
+                "value": false
+              }
+            }
+          ]
         },
         {
-          "text": "Clean room",
-          "mark": false
+          "fields": [
+            {
+              "key": "title",
+              "value": {
+                "kind": "text",
+                "value": "Clean room"
+              }
+            },
+            {
+              "key": "completed",
+              "value": {
+                "kind": "bool",
+                "value": false
+              }
+            }
+          ]
         }
       ]
     }
@@ -186,9 +214,19 @@
       },
       "effects": [
         {
-          "kind": "list_append_text",
-          "list_path": "todos",
+          "kind": "collection_append_text_record",
+          "collection_path": "todos",
           "text_state_path": "store.sources.new_todo_input.text",
+          "text_field": "title",
+          "default_fields": [
+            {
+              "key": "completed",
+              "value": {
+                "kind": "bool",
+                "value": false
+              }
+            }
+          ],
           "trim": true,
           "skip_empty": true
         },
@@ -203,8 +241,8 @@
       "when": null,
       "effects": [
         {
-          "kind": "list_remove_owner",
-          "list_path": "todos"
+          "kind": "collection_remove_owner",
+          "collection_path": "todos"
         }
       ]
     },
@@ -213,8 +251,10 @@
       "when": null,
       "effects": [
         {
-          "kind": "list_remove_marked",
-          "list_path": "todos"
+          "kind": "collection_remove_matching_bool",
+          "collection_path": "todos",
+          "field": "completed",
+          "remove_when": true
         }
       ]
     },
@@ -256,8 +296,9 @@
       "when": null,
       "effects": [
         {
-          "kind": "list_toggle_owner_mark",
-          "list_path": "todos"
+          "kind": "collection_toggle_owner_bool",
+          "collection_path": "todos",
+          "field": "completed"
         }
       ]
     },
@@ -266,8 +307,9 @@
       "when": null,
       "effects": [
         {
-          "kind": "list_toggle_all_marks",
-          "list_path": "todos"
+          "kind": "collection_set_all_bool_from_any",
+          "collection_path": "todos",
+          "field": "completed"
         }
       ]
     }
@@ -313,7 +355,7 @@
           {
             "id": "list_map_7",
             "kind": "list_map",
-            "list_path": "todos",
+            "collection_path": "todos",
             "children": [
               {
                 "id": "panel_11",

@@ -6,6 +6,7 @@ members = [
   "crates/boon_shape",
   "crates/boon_host_schema",
   "crates/boon_source",
+  "crates/boon_stdlib",
   "crates/boon_runtime",
   "crates/boon_compiler",
   "crates/boon_codegen_rust",

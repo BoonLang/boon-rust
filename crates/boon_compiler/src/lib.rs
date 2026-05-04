@@ -40,7 +40,7 @@ pub struct CompiledSourceSpan {
 pub struct AppIr {
     pub state_cells: Vec<IrStateCell>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub list_states: Vec<IrListState>,
+    pub collection_states: Vec<IrCollectionState>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub static_records: Vec<IrStaticRecord>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -124,18 +124,16 @@ pub struct IrStateCell {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct IrListState {
+pub struct IrCollectionState {
     pub path: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub initial_entries: Vec<IrListSeed>,
+    pub initial_entries: Vec<IrCollectionSeed>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct IrListSeed {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub text: Option<String>,
-    #[serde(default)]
-    pub mark: bool,
+pub struct IrCollectionSeed {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fields: Vec<IrStaticField>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -196,7 +194,7 @@ pub struct IrRenderNode {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub list_path: Option<String>,
+    pub collection_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<IrRenderText>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -232,23 +230,30 @@ pub enum IrEffect {
         state_path: String,
         expr: IrValueExpr,
     },
-    ListAppendText {
-        list_path: String,
+    CollectionAppendTextRecord {
+        collection_path: String,
         text_state_path: String,
+        text_field: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        default_fields: Vec<IrStaticField>,
         trim: bool,
         skip_empty: bool,
     },
-    ListToggleAllMarks {
-        list_path: String,
+    CollectionSetAllBoolFromAny {
+        collection_path: String,
+        field: String,
     },
-    ListToggleOwnerMark {
-        list_path: String,
+    CollectionToggleOwnerBool {
+        collection_path: String,
+        field: String,
     },
-    ListRemoveOwner {
-        list_path: String,
+    CollectionRemoveOwner {
+        collection_path: String,
     },
-    ListRemoveMarked {
-        list_path: String,
+    CollectionRemoveMatchingBool {
+        collection_path: String,
+        field: String,
+        remove_when: bool,
     },
     SetTagState {
         state_path: String,
@@ -540,7 +545,7 @@ fn source_path_backed(sources: &SourceInventory, path: &str) -> bool {
 
 fn app_ir_from_hir(hir: &HirModule, sources: &SourceInventory) -> AppIr {
     let mut ir = AppIr::default();
-    let list_paths = hir
+    let collection_paths = hir
         .items
         .iter()
         .filter_map(|item| match item {
@@ -548,7 +553,7 @@ fn app_ir_from_hir(hir: &HirModule, sources: &SourceInventory) -> AppIr {
             _ => None,
         })
         .collect::<Vec<_>>();
-    let primary_list_path = list_paths.first().cloned().unwrap_or_else(|| {
+    let primary_collection_path = collection_paths.first().cloned().unwrap_or_else(|| {
         dynamic_source_families(sources).first().map_or_else(
             || "records".to_string(),
             |family| dynamic_family_root(family),
@@ -562,9 +567,9 @@ fn app_ir_from_hir(hir: &HirModule, sources: &SourceInventory) -> AppIr {
         if let Some((event_path, initial, step)) = accumulator_from_hir_record(record, sources) {
             push_accumulator_ir(&mut ir, &event_path, &record.key, initial, step);
         }
-        push_list_state_from_hir_record(&mut ir, record);
+        push_collection_state_from_hir_record(&mut ir, hir, record);
         push_static_record_from_hir_record(&mut ir, record);
-        push_list_handlers_from_hir_record(&mut ir, hir, sources, record);
+        push_collection_handlers_from_hir_record(&mut ir, hir, sources, record);
         push_selector_handlers_from_hir_record(&mut ir, sources, record);
     }
     if let Some(model) = matrix_model_from_hir(hir, sources) {
@@ -574,7 +579,7 @@ fn app_ir_from_hir(hir: &HirModule, sources: &SourceInventory) -> AppIr {
         ir.dynamics_models
             .push(dynamics_model_from_record(record, sources));
     }
-    push_item_state_handlers_from_hir(&mut ir, sources, &primary_list_path, hir);
+    push_item_state_handlers_from_hir(&mut ir, sources, &primary_collection_path, hir);
     ir.render_tree = render_tree_from_hir(hir, sources);
     dedupe_app_ir(&mut ir);
     ir
@@ -709,7 +714,7 @@ fn render_tree_from_hir(hir: &HirModule, sources: &SourceInventory) -> Option<Ir
         id: ids.next("root"),
         kind: IrRenderKind::Root,
         source_path: None,
-        list_path: None,
+        collection_path: None,
         text: None,
         children: vec![render_node_from_expr(root, sources, &mut ids)],
     })
@@ -749,7 +754,7 @@ fn render_node_from_expr(
             id: ids.next("list"),
             kind: IrRenderKind::Panel,
             source_path: None,
-            list_path: None,
+            collection_path: None,
             text: None,
             children: items
                 .iter()
@@ -760,7 +765,7 @@ fn render_node_from_expr(
             id: ids.next("unknown"),
             kind: IrRenderKind::Unknown,
             source_path: None,
-            list_path: None,
+            collection_path: None,
             text: render_text_from_expr(expr),
             children: Vec::new(),
         },
@@ -796,7 +801,7 @@ fn render_host_node(
         id: ids.next(path.rsplit('/').next().unwrap_or("node")),
         kind,
         source_path,
-        list_path: None,
+        collection_path: None,
         text,
         children,
     }
@@ -822,7 +827,7 @@ fn render_pipeline_node(
             id: ids.next("list_map"),
             kind: IrRenderKind::ListMap,
             source_path: None,
-            list_path: first_path_in_expr(input).map(str::to_string),
+            collection_path: first_path_in_expr(input).map(str::to_string),
             text: None,
             children: named_arg(args, "new")
                 .map(|item| vec![render_node_from_expr(item, sources, ids)])
@@ -833,7 +838,7 @@ fn render_pipeline_node(
         id: ids.next("binding"),
         kind: IrRenderKind::Text,
         source_path: None,
-        list_path: None,
+        collection_path: None,
         text: first_path_in_expr(input).map(|path| IrRenderText::Binding {
             path: path.to_string(),
         }),
@@ -906,20 +911,20 @@ fn record_value_is_list(record: &HirRecord) -> bool {
     record.value.as_ref().is_some_and(matches_list_pipeline)
 }
 
-fn push_list_state_from_hir_record(ir: &mut AppIr, record: &HirRecord) {
+fn push_collection_state_from_hir_record(ir: &mut AppIr, hir: &HirModule, record: &HirRecord) {
     let Some(expr) = record.value.as_ref() else {
         return;
     };
-    let Some(entries) = initial_list_seeds(expr) else {
+    let Some(entries) = initial_list_seeds(expr, hir) else {
         return;
     };
-    ir.list_states.push(IrListState {
+    ir.collection_states.push(IrCollectionState {
         path: record.key.clone(),
         initial_entries: entries,
     });
 }
 
-fn initial_list_seeds(expr: &HirExpr) -> Option<Vec<IrListSeed>> {
+fn initial_list_seeds(expr: &HirExpr, hir: &HirModule) -> Option<Vec<IrCollectionSeed>> {
     let list_expr = match &expr.kind {
         HirExprKind::List { items } => items,
         HirExprKind::Pipeline { input, .. } => match &input.kind {
@@ -931,43 +936,92 @@ fn initial_list_seeds(expr: &HirExpr) -> Option<Vec<IrListSeed>> {
     Some(
         list_expr
             .iter()
-            .map(|item| IrListSeed {
-                text: item_text_literal(item),
-                mark: false,
+            .map(|item| IrCollectionSeed {
+                fields: collection_seed_fields_from_expr(item, hir),
             })
             .collect(),
     )
 }
 
-fn item_text_literal(expr: &HirExpr) -> Option<String> {
+fn collection_seed_fields_from_expr(expr: &HirExpr, hir: &HirModule) -> Vec<IrStaticField> {
     match &expr.kind {
-        HirExprKind::FunctionCall { args, .. } => named_arg(args, "title").and_then(|arg| {
-            if let HirExprKind::Literal {
-                literal: HirLiteral::Text { value },
-            } = &arg.kind
-            {
-                Some(value.clone())
-            } else {
-                None
-            }
-        }),
-        HirExprKind::Record { entries } => entries.iter().find_map(|entry| {
-            (entry.key == "title")
-                .then_some(entry.value.as_ref())
-                .flatten()
-                .and_then(|value| {
-                    if let HirExprKind::Literal {
-                        literal: HirLiteral::Text { value },
-                    } = &value.kind
-                    {
-                        Some(value.clone())
-                    } else {
-                        None
-                    }
-                })
-        }),
-        _ => None,
+        HirExprKind::FunctionCall { path, args } => hir_function(hir, path)
+            .and_then(|function| record_fields_from_function_call(function, args))
+            .unwrap_or_default(),
+        HirExprKind::Record { entries } => literal_record_fields(entries),
+        _ => Vec::new(),
     }
+}
+
+fn record_fields_from_function_call(
+    function: &boon_hir::HirFunction,
+    args: &[HirCallArg],
+) -> Option<Vec<IrStaticField>> {
+    let HirExprKind::Record { entries } = &function.body.kind else {
+        return None;
+    };
+    let mut env = BTreeMap::new();
+    for arg in args {
+        if let Some(value) = static_value_from_expr(&arg.value) {
+            env.insert(arg.name.clone(), value);
+        }
+    }
+    Some(literal_record_fields_with_env(entries, &env))
+}
+
+fn literal_record_fields_with_env(
+    records: &[HirRecord],
+    env: &BTreeMap<String, IrStaticValue>,
+) -> Vec<IrStaticField> {
+    records
+        .iter()
+        .filter(|record| record.key != "sources")
+        .filter_map(|record| {
+            static_value_from_record_with_env(record, env).map(|value| IrStaticField {
+                key: record.key.clone(),
+                value,
+            })
+        })
+        .collect()
+}
+
+fn static_value_from_record_with_env(
+    record: &HirRecord,
+    env: &BTreeMap<String, IrStaticValue>,
+) -> Option<IrStaticValue> {
+    if !record.children.is_empty() {
+        return Some(IrStaticValue::Record {
+            fields: literal_record_fields_with_env(&record.children, env),
+        });
+    }
+    record
+        .value
+        .as_ref()
+        .and_then(|value| static_value_from_expr_with_env(value, env))
+}
+
+fn static_value_from_expr_with_env(
+    expr: &HirExpr,
+    env: &BTreeMap<String, IrStaticValue>,
+) -> Option<IrStaticValue> {
+    match &expr.kind {
+        HirExprKind::Path { value } => env.get(value).cloned(),
+        HirExprKind::Pipeline { input, stages }
+            if stages
+                .iter()
+                .any(|stage| matches!(stage.kind, HirExprKind::Hold { .. })) =>
+        {
+            static_value_from_expr_with_env(input, env)
+        }
+        _ => static_value_from_expr(expr),
+    }
+}
+
+fn hir_function<'a>(hir: &'a HirModule, name: &str) -> Option<&'a boon_hir::HirFunction> {
+    hir.items.iter().find_map(|item| match item {
+        HirItem::Function(function) if function.name == name => Some(function),
+        _ => None,
+    })
 }
 
 fn push_static_record_from_hir_record(ir: &mut AppIr, record: &HirRecord) {
@@ -1110,7 +1164,7 @@ fn source_then_add_step(
     }
 }
 
-fn push_list_handlers_from_hir_record(
+fn push_collection_handlers_from_hir_record(
     ir: &mut AppIr,
     hir: &HirModule,
     sources: &SourceInventory,
@@ -1128,7 +1182,9 @@ fn push_list_handlers_from_hir_record(
         };
         match op {
             HirListOp::Append => {
-                if let Some((key_path, text_path)) = append_text_sources(hir, sources, args) {
+                if let Some((key_path, text_path, text_field, default_fields)) =
+                    append_text_sources(hir, sources, args)
+                {
                     ir.event_handlers.push(IrEventHandler {
                         source_path: key_path.clone(),
                         when: Some(IrPredicate::SourceTagEquals {
@@ -1136,9 +1192,11 @@ fn push_list_handlers_from_hir_record(
                             tag: "Enter".to_string(),
                         }),
                         effects: vec![
-                            IrEffect::ListAppendText {
-                                list_path: record.key.clone(),
+                            IrEffect::CollectionAppendTextRecord {
+                                collection_path: record.key.clone(),
                                 text_state_path: text_path.clone(),
+                                text_field,
+                                default_fields,
                                 trim: true,
                                 skip_empty: true,
                             },
@@ -1157,18 +1215,20 @@ fn push_list_handlers_from_hir_record(
                         ir.event_handlers.push(IrEventHandler {
                             source_path: dynamic_path,
                             when: None,
-                            effects: vec![IrEffect::ListRemoveOwner {
-                                list_path: record.key.clone(),
+                            effects: vec![IrEffect::CollectionRemoveOwner {
+                                collection_path: record.key.clone(),
                             }],
                         });
                     } else if let Some(static_path) = static_source_path_in_expr(sources, on_expr)
-                        && expr_mentions_path(on_expr, "item.completed")
+                        && let Some(field) = first_item_field_in_expr(on_expr)
                     {
                         ir.event_handlers.push(IrEventHandler {
                             source_path: static_path,
                             when: None,
-                            effects: vec![IrEffect::ListRemoveMarked {
-                                list_path: record.key.clone(),
+                            effects: vec![IrEffect::CollectionRemoveMatchingBool {
+                                collection_path: record.key.clone(),
+                                field,
+                                remove_when: true,
                             }],
                         });
                     }
@@ -1183,11 +1243,52 @@ fn append_text_sources(
     hir: &HirModule,
     sources: &SourceInventory,
     args: &[HirCallArg],
-) -> Option<(String, String)> {
+) -> Option<(String, String, String, Vec<IrStaticField>)> {
     let item_expr = named_arg(args, "item")?;
     let producer_record_name = first_path_in_expr(item_expr)?;
     let producer = hir_record(hir, producer_record_name)?;
-    submit_text_sources(producer.value.as_ref()?, sources)
+    let (key_path, text_path) = submit_text_sources(producer.value.as_ref()?, sources)?;
+    let (text_field, default_fields) = append_record_shape(hir, item_expr)?;
+    Some((key_path, text_path, text_field, default_fields))
+}
+
+fn append_record_shape(hir: &HirModule, expr: &HirExpr) -> Option<(String, Vec<IrStaticField>)> {
+    let (_, stages) = pipeline_parts(expr)?;
+    let append_stage = stages.iter().find_map(|stage| match &stage.kind {
+        HirExprKind::FunctionCall { path, args } => {
+            let function = hir_function(hir, path)?;
+            let HirExprKind::Record { entries } = &function.body.kind else {
+                return None;
+            };
+            let passed_arg = args.iter().find_map(|arg| {
+                matches!(arg.value.kind, HirExprKind::Passed).then(|| arg.name.clone())
+            })?;
+            let mut defaults = Vec::new();
+            let mut text_field = None;
+            for entry in entries {
+                if entry.key == "sources" {
+                    continue;
+                }
+                if entry
+                    .value
+                    .as_ref()
+                    .is_some_and(|value| matches!(value.kind, HirExprKind::Path { ref value } if value == &passed_arg))
+                {
+                    text_field = Some(entry.key.clone());
+                    continue;
+                }
+                if let Some(value) = static_value_from_record_with_env(entry, &BTreeMap::new()) {
+                    defaults.push(IrStaticField {
+                        key: entry.key.clone(),
+                        value,
+                    });
+                }
+            }
+            Some((text_field?, defaults))
+        }
+        _ => None,
+    })?;
+    Some(append_stage)
 }
 
 fn submit_text_sources(expr: &HirExpr, sources: &SourceInventory) -> Option<(String, String)> {
@@ -1232,7 +1333,7 @@ fn push_selector_handlers_from_hir_record(
 fn push_item_state_handlers_from_hir(
     ir: &mut AppIr,
     sources: &SourceInventory,
-    list_path: &str,
+    collection_path: &str,
     hir: &HirModule,
 ) {
     for function in hir.items.iter().filter_map(|item| match item {
@@ -1240,17 +1341,16 @@ fn push_item_state_handlers_from_hir(
         _ => None,
     }) {
         for record in records_in_expr(&function.body) {
-            if record.key != "completed" {
-                continue;
-            }
             for event_path in latest_then_sources(record.value.as_ref(), sources) {
                 let effects = if event_path.contains("[*]") {
-                    vec![IrEffect::ListToggleOwnerMark {
-                        list_path: list_path.to_string(),
+                    vec![IrEffect::CollectionToggleOwnerBool {
+                        collection_path: collection_path.to_string(),
+                        field: record.key.clone(),
                     }]
                 } else {
-                    vec![IrEffect::ListToggleAllMarks {
-                        list_path: list_path.to_string(),
+                    vec![IrEffect::CollectionSetAllBoolFromAny {
+                        collection_path: collection_path.to_string(),
+                        field: record.key.clone(),
                     }]
                 };
                 ir.event_handlers.push(IrEventHandler {
@@ -1310,7 +1410,7 @@ fn dedupe_app_ir(ir: &mut AppIr) {
     ir.state_cells
         .retain(|cell| seen_state.insert(cell.path.clone()));
     let mut seen_list = HashSet::new();
-    ir.list_states
+    ir.collection_states
         .retain(|list| seen_list.insert(list.path.clone()));
     let mut seen_static = HashSet::new();
     ir.static_records
@@ -1394,6 +1494,14 @@ fn first_text_source_in_expr(expr: &HirExpr, sources: &SourceInventory) -> Optio
             .any(|entry| entry.path == resolved && entry.shape == Shape::Text)
             .then_some(resolved)
     })
+}
+
+fn first_item_field_in_expr(expr: &HirExpr) -> Option<String> {
+    let mut paths = Vec::new();
+    collect_expr_paths(expr, &mut paths);
+    paths
+        .into_iter()
+        .find_map(|path| path.strip_prefix("item.").map(str::to_string))
 }
 
 fn static_source_path_in_expr(sources: &SourceInventory, expr: &HirExpr) -> Option<String> {
@@ -1502,12 +1610,6 @@ fn collect_record_and_children<'a>(record: &'a HirRecord, records: &mut Vec<&'a 
     for child in &record.children {
         collect_record_and_children(child, records);
     }
-}
-
-fn expr_mentions_path(expr: &HirExpr, needle: &str) -> bool {
-    let mut paths = Vec::new();
-    collect_expr_paths(expr, &mut paths);
-    paths.iter().any(|path| path == needle)
 }
 
 fn collect_expr_paths(expr: &HirExpr, paths: &mut Vec<String>) {

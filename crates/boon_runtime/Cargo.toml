@@ -10,6 +10,7 @@ boon_compiler = { path = "../boon_compiler" }
 boon_render_ir = { path = "../boon_render_ir" }
 boon_shape = { path = "../boon_shape" }
 boon_source = { path = "../boon_source" }
+boon_stdlib = { path = "../boon_stdlib" }
 serde.workspace = true
 serde_json.workspace = true
 slotmap.workspace = true

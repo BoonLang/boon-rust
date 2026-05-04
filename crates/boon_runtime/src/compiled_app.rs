@@ -12,13 +12,10 @@ use boon_render_ir::{
 };
 use boon_shape::Shape;
 use boon_source::{SourceEntry, SourceOwner};
+use boon_stdlib::FormulaGrid;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
-
-const LIST_TEXT_FIELD: &str = "title";
-const LIST_MARK_FIELD: &str = "completed";
-const LIST_EDIT_FOCUS: &str = "sources.edit_input";
 
 #[derive(Clone, Debug)]
 pub struct CompiledApp {
@@ -36,7 +33,7 @@ pub struct CompiledApp {
     source_state: BTreeMap<String, SourceValue>,
     generic_state: BTreeMap<String, i64>,
     view_selector: String,
-    grid: MatrixRuntimeState,
+    grid: FormulaGrid,
     frame_index: u64,
     motion: DynamicsRuntimeState,
 }
@@ -60,16 +57,13 @@ struct StateEventBinding {
 struct RepeaterBinding {
     family: String,
     root: String,
+    text_field: String,
+    bool_field: Option<String>,
+    edit_focus_field: Option<String>,
     entry_text: Option<String>,
-    input_key: Option<String>,
     input_focus: Option<String>,
     input_blur: Option<String>,
     input_change: Option<String>,
-    static_mass_mark_event: Option<String>,
-    static_remove_marked_event: Option<String>,
-    view_selector_events: BTreeMap<String, String>,
-    dynamic_mark_event: Option<String>,
-    dynamic_remove_event: Option<String>,
     dynamic_text_value: Option<String>,
     dynamic_text_key: Option<String>,
     dynamic_text_blur: Option<String>,
@@ -78,18 +72,12 @@ struct RepeaterBinding {
 
 #[derive(Clone, Debug, Default)]
 struct RuntimeListView {
-    title_line: String,
-    entry_hint: String,
-    count_suffix: String,
-    remove_marked_label: Option<String>,
-    auxiliary_lines: Vec<String>,
     selectors: Vec<RuntimeListSelector>,
 }
 
 #[derive(Clone, Debug)]
 struct RuntimeListSelector {
     id: String,
-    label: String,
     visibility: RuntimeListVisibility,
 }
 
@@ -175,11 +163,11 @@ impl RepeaterBinding {
             handler.effects.iter().any(|effect| {
                 matches!(
                     effect,
-                    IrEffect::ListAppendText { .. }
-                        | IrEffect::ListToggleAllMarks { .. }
-                        | IrEffect::ListToggleOwnerMark { .. }
-                        | IrEffect::ListRemoveOwner { .. }
-                        | IrEffect::ListRemoveMarked { .. }
+                    IrEffect::CollectionAppendTextRecord { .. }
+                        | IrEffect::CollectionSetAllBoolFromAny { .. }
+                        | IrEffect::CollectionToggleOwnerBool { .. }
+                        | IrEffect::CollectionRemoveOwner { .. }
+                        | IrEffect::CollectionRemoveMatchingBool { .. }
                 )
             })
         }) {
@@ -191,13 +179,44 @@ impl RepeaterBinding {
         let root = dynamic_family
             .as_deref()
             .map(dynamic_family_root)
-            .or_else(|| first_list_effect_path(app_ir))
-            .or_else(|| app_ir.list_states.first().map(|list| list.path.clone()))?;
+            .or_else(|| first_collection_effect_path(app_ir))
+            .or_else(|| {
+                app_ir
+                    .collection_states
+                    .first()
+                    .map(|list| list.path.clone())
+            })?;
         let entry_text = app_ir.event_handlers.iter().find_map(|handler| {
             handler.effects.iter().find_map(|effect| match effect {
-                IrEffect::ListAppendText {
+                IrEffect::CollectionAppendTextRecord {
                     text_state_path, ..
                 } => Some(text_state_path.clone()),
+                _ => None,
+            })
+        });
+        let text_field = app_ir
+            .event_handlers
+            .iter()
+            .find_map(|handler| {
+                handler.effects.iter().find_map(|effect| match effect {
+                    IrEffect::CollectionAppendTextRecord { text_field, .. } => {
+                        Some(text_field.clone())
+                    }
+                    _ => None,
+                })
+            })
+            .or_else(|| {
+                app_ir
+                    .collection_states
+                    .first()
+                    .and_then(|collection| first_text_field(&collection.initial_entries))
+            })
+            .unwrap_or_else(|| "value".to_string());
+        let bool_field = app_ir.event_handlers.iter().find_map(|handler| {
+            handler.effects.iter().find_map(|effect| match effect {
+                IrEffect::CollectionSetAllBoolFromAny { field, .. }
+                | IrEffect::CollectionToggleOwnerBool { field, .. }
+                | IrEffect::CollectionRemoveMatchingBool { field, .. } => Some(field.clone()),
                 _ => None,
             })
         });
@@ -208,42 +227,20 @@ impl RepeaterBinding {
         let dynamic_text_base = dynamic_family.as_deref().and_then(|family| {
             dynamic_base_for_producer(inventory, family, "Element/text_input(element.text)")
         });
-        let mut view_selector_events = BTreeMap::new();
-        let mut static_mass_mark_event = None;
-        let mut static_remove_marked_event = None;
-        let mut dynamic_mark_event = None;
-        let mut dynamic_remove_event = None;
-        for handler in &app_ir.event_handlers {
-            for effect in &handler.effects {
-                match effect {
-                    IrEffect::SetTagState { value, .. } => {
-                        view_selector_events.insert(value.clone(), handler.source_path.clone());
-                    }
-                    IrEffect::ListToggleAllMarks { .. } => {
-                        static_mass_mark_event = Some(handler.source_path.clone());
-                    }
-                    IrEffect::ListRemoveMarked { .. } => {
-                        static_remove_marked_event = Some(handler.source_path.clone());
-                    }
-                    IrEffect::ListToggleOwnerMark { .. } => {
-                        dynamic_mark_event = Some(handler.source_path.clone());
-                    }
-                    IrEffect::ListRemoveOwner { .. } => {
-                        dynamic_remove_event = Some(handler.source_path.clone());
-                    }
-                    _ => {}
-                }
-            }
-        }
         let family = dynamic_family.unwrap_or_else(|| format!("{root}[*]"));
+        let edit_focus_field = dynamic_text_base.as_ref().and_then(|base| {
+            base.strip_prefix(&format!("{family}."))
+                .map(str::to_string)
+                .or_else(|| source_base_from_path(base))
+        });
         Some(Self {
             family: family.clone(),
             root,
+            text_field,
+            bool_field,
+            edit_focus_field,
             entry_text: entry_text
                 .or_else(|| input_base.as_ref().map(|base| format!("{base}.text"))),
-            input_key: input_base
-                .as_ref()
-                .and_then(|base| existing_path(inventory, &format!("{base}.event.key_down.key"))),
             input_focus: input_base
                 .as_ref()
                 .and_then(|base| existing_path(inventory, &format!("{base}.event.focus"))),
@@ -253,19 +250,6 @@ impl RepeaterBinding {
             input_change: input_base
                 .as_ref()
                 .and_then(|base| existing_path(inventory, &format!("{base}.event.change"))),
-            static_mass_mark_event,
-            static_remove_marked_event,
-            view_selector_events,
-            dynamic_mark_event: dynamic_mark_event.or_else(|| {
-                dynamic_path_for_producer(
-                    inventory,
-                    &family,
-                    "Element/checkbox(element.event.click)",
-                )
-            }),
-            dynamic_remove_event: dynamic_remove_event.or_else(|| {
-                dynamic_path_for_producer(inventory, &family, "Element/button(element.event.press)")
-            }),
             dynamic_text_value: dynamic_text_base
                 .as_ref()
                 .map(|base| format!("{base}.text")),
@@ -279,6 +263,14 @@ impl RepeaterBinding {
                 .as_ref()
                 .and_then(|base| existing_path(inventory, &format!("{base}.event.change"))),
         })
+    }
+
+    fn bool_field(&self) -> Option<&str> {
+        self.bool_field.as_deref()
+    }
+
+    fn edit_focus_field(&self) -> Option<&str> {
+        self.edit_focus_field.as_deref()
     }
 }
 
@@ -362,14 +354,22 @@ fn unique_paths(paths: Vec<String>) -> Vec<String> {
         .collect()
 }
 
-fn first_list_effect_path(app_ir: &AppIr) -> Option<String> {
+fn first_collection_effect_path(app_ir: &AppIr) -> Option<String> {
     app_ir.event_handlers.iter().find_map(|handler| {
         handler.effects.iter().find_map(|effect| match effect {
-            IrEffect::ListAppendText { list_path, .. }
-            | IrEffect::ListToggleAllMarks { list_path }
-            | IrEffect::ListToggleOwnerMark { list_path }
-            | IrEffect::ListRemoveOwner { list_path }
-            | IrEffect::ListRemoveMarked { list_path } => Some(list_path.clone()),
+            IrEffect::CollectionAppendTextRecord {
+                collection_path, ..
+            }
+            | IrEffect::CollectionSetAllBoolFromAny {
+                collection_path, ..
+            }
+            | IrEffect::CollectionToggleOwnerBool {
+                collection_path, ..
+            }
+            | IrEffect::CollectionRemoveOwner { collection_path }
+            | IrEffect::CollectionRemoveMatchingBool {
+                collection_path, ..
+            } => Some(collection_path.clone()),
             _ => None,
         })
     })
@@ -441,36 +441,39 @@ fn dynamic_family_root(family: &str) -> String {
         .to_string()
 }
 
+fn generic_source_label(path: &str) -> String {
+    path.rsplit('.')
+        .find(|segment| {
+            !matches!(
+                *segment,
+                "sources"
+                    | "event"
+                    | "press"
+                    | "click"
+                    | "text"
+                    | "key_down"
+                    | "key"
+                    | "change"
+                    | "focus"
+                    | "blur"
+            )
+        })
+        .unwrap_or(path)
+        .replace('_', " ")
+}
+
 fn runtime_list_view_from_app_ir(app_ir: &AppIr) -> Option<RuntimeListView> {
     let view = app_ir
         .static_records
         .iter()
         .find(|record| record.path == "view")?;
     Some(RuntimeListView {
-        title_line: static_text_field(view, "title_line").unwrap_or_default(),
-        entry_hint: static_text_field(view, "entry_hint").unwrap_or_default(),
-        count_suffix: static_text_field(view, "count_suffix").unwrap_or_else(|| "items".into()),
-        remove_marked_label: static_record_field(view, "actions")
-            .and_then(|actions| static_record_value_field(actions, "remove_marked"))
-            .and_then(|action| static_value_text_field(action, "label")),
-        auxiliary_lines: static_record_field(view, "auxiliary")
-            .map(|auxiliary| {
-                auxiliary
-                    .iter()
-                    .filter_map(|field| static_value_text(&field.value))
-                    .filter(|line| !line.is_empty())
-                    .cloned()
-                    .collect()
-            })
-            .unwrap_or_default(),
         selectors: static_record_field(view, "selectors")
             .map(|selectors| {
                 selectors
                     .iter()
                     .map(|field| RuntimeListSelector {
                         id: field.key.clone(),
-                        label: static_value_text_field(&field.value, "label")
-                            .unwrap_or_else(|| field.key.clone()),
                         visibility: static_value_field(&field.value, "visibility")
                             .and_then(static_value_tag)
                             .and_then(runtime_list_visibility_from_tag)
@@ -482,10 +485,40 @@ fn runtime_list_view_from_app_ir(app_ir: &AppIr) -> Option<RuntimeListView> {
     })
 }
 
-fn static_text_field(record: &IrStaticRecord, field: &str) -> Option<String> {
-    static_record_value_field(&record.fields, field)
-        .and_then(static_value_text)
-        .cloned()
+fn first_text_field(seeds: &[boon_compiler::IrCollectionSeed]) -> Option<String> {
+    seeds.iter().find_map(|seed| {
+        seed.fields.iter().find_map(|field| {
+            matches!(field.value, IrStaticValue::Text { .. }).then(|| field.key.clone())
+        })
+    })
+}
+
+fn collect_static_text_values(fields: &[IrStaticField], lines: &mut Vec<String>) {
+    for field in fields {
+        match &field.value {
+            IrStaticValue::Text { value } if !value.is_empty() => lines.push(value.clone()),
+            IrStaticValue::Record { fields } => collect_static_text_values(fields, lines),
+            IrStaticValue::List { items } => {
+                for item in items {
+                    collect_static_value_text(item, lines);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn collect_static_value_text(value: &IrStaticValue, lines: &mut Vec<String>) {
+    match value {
+        IrStaticValue::Text { value } if !value.is_empty() => lines.push(value.clone()),
+        IrStaticValue::Record { fields } => collect_static_text_values(fields, lines),
+        IrStaticValue::List { items } => {
+            for item in items {
+                collect_static_value_text(item, lines);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn static_record_field<'a>(record: &'a IrStaticRecord, field: &str) -> Option<&'a [IrStaticField]> {
@@ -506,22 +539,9 @@ fn static_value_field<'a>(value: &'a IrStaticValue, field: &str) -> Option<&'a I
     static_record_value_field(static_value_record(value)?, field)
 }
 
-fn static_value_text_field(value: &IrStaticValue, field: &str) -> Option<String> {
-    static_value_field(value, field)
-        .and_then(static_value_text)
-        .cloned()
-}
-
 fn static_value_record(value: &IrStaticValue) -> Option<&[IrStaticField]> {
     match value {
         IrStaticValue::Record { fields } => Some(fields),
-        _ => None,
-    }
-}
-
-fn static_value_text(value: &IrStaticValue) -> Option<&String> {
-    match value {
-        IrStaticValue::Text { value } => Some(value),
         _ => None,
     }
 }
@@ -551,16 +571,34 @@ struct RuntimeDynamicValue {
 }
 
 impl RuntimeDynamicValue {
-    fn new(id: u64, text: String, completed: bool) -> Self {
-        let mut fields = BTreeMap::new();
-        fields.insert(LIST_TEXT_FIELD.to_string(), json!(text));
-        fields.insert(LIST_MARK_FIELD.to_string(), json!(completed));
+    fn new(id: u64, fields: BTreeMap<String, Value>) -> Self {
         Self {
             id,
             generation: 0,
             fields,
             focus: BTreeMap::new(),
         }
+    }
+
+    fn from_literal_fields(id: u64, fields: &[IrStaticField]) -> Self {
+        Self::new(
+            id,
+            fields
+                .iter()
+                .map(|field| (field.key.clone(), literal_value_to_json(&field.value)))
+                .collect(),
+        )
+    }
+
+    fn from_append_text(
+        id: u64,
+        defaults: &[IrStaticField],
+        text_field: &str,
+        text: String,
+    ) -> Self {
+        let mut value = Self::from_literal_fields(id, defaults);
+        value.set_text_field(text_field, text);
+        value
     }
 
     fn text_field(&self, path: &str) -> String {
@@ -595,30 +633,20 @@ impl RuntimeDynamicValue {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct MatrixRuntimeState {
-    rows: usize,
-    columns: usize,
-    selected: (usize, usize),
-    edit_focus: Option<(usize, usize)>,
-    text: Vec<String>,
-    value: Vec<String>,
-    deps: Vec<Vec<usize>>,
-    rev_deps: Vec<Vec<usize>>,
-}
-
-impl MatrixRuntimeState {
-    fn new(rows: usize, columns: usize) -> Self {
-        let len = rows * columns;
-        Self {
-            rows,
-            columns,
-            selected: (1, 1),
-            edit_focus: None,
-            text: vec![String::new(); len],
-            value: vec![String::new(); len],
-            deps: vec![Vec::new(); len],
-            rev_deps: vec![Vec::new(); len],
+fn literal_value_to_json(value: &IrStaticValue) -> Value {
+    match value {
+        IrStaticValue::Text { value } => json!(value),
+        IrStaticValue::Number { value } => json!(value),
+        IrStaticValue::Bool { value } => json!(value),
+        IrStaticValue::Tag { value } => json!(value),
+        IrStaticValue::Record { fields } => json!(
+            fields
+                .iter()
+                .map(|field| (field.key.clone(), literal_value_to_json(&field.value)))
+                .collect::<BTreeMap<_, _>>()
+        ),
+        IrStaticValue::List { items } => {
+            json!(items.iter().map(literal_value_to_json).collect::<Vec<_>>())
         }
     }
 }
@@ -716,15 +744,17 @@ impl CompiledApp {
         let executable_ir = compiled.executable_ir;
         let wiring = RuntimeWiring::from_compiled(&app_ir, &executable_ir, &inventory);
         let initial_records = app_ir
-            .list_states
+            .collection_states
             .first()
             .map(|list| list.initial_entries.clone())
             .unwrap_or_default();
         let grid = app_ir
             .matrix_models
             .first()
-            .map(|grid| MatrixRuntimeState::new(grid.rows, grid.columns))
-            .unwrap_or_else(|| MatrixRuntimeState::new(100, 26));
+            .map(|grid| {
+                FormulaGrid::new(grid.rows, grid.columns, grid.expression_functions.clone())
+            })
+            .unwrap_or_else(|| FormulaGrid::new(100, 26, Vec::<String>::new()));
         let motion = DynamicsRuntimeState::from_model(app_ir.dynamics_models.first());
         let initial_view_selector = runtime_list_view_from_app_ir(&app_ir).map_or_else(
             || "all".to_string(),
@@ -754,11 +784,7 @@ impl CompiledApp {
                 .into_iter()
                 .enumerate()
                 .map(|(idx, item)| {
-                    RuntimeDynamicValue::new(
-                        idx as u64 + 1,
-                        item.text.unwrap_or_default(),
-                        item.mark,
-                    )
+                    RuntimeDynamicValue::from_literal_fields(idx as u64 + 1, &item.fields)
                 })
                 .collect(),
             next_dynamic_value_id: 1,
@@ -919,15 +945,19 @@ impl CompiledApp {
                         self.set_generic_number(&state_path, value);
                         changed.push(state_path);
                     }
-                    IrEffect::ListAppendText {
-                        list_path,
+                    IrEffect::CollectionAppendTextRecord {
+                        collection_path,
                         text_state_path,
+                        text_field,
+                        default_fields,
                         trim,
                         skip_empty,
                     } => {
-                        if self.apply_generic_list_append_text(
-                            &list_path,
+                        if self.apply_generic_collection_append_text_record(
+                            &collection_path,
                             &text_state_path,
+                            &text_field,
+                            &default_fields,
                             trim,
                             skip_empty,
                         )? {
@@ -935,23 +965,44 @@ impl CompiledApp {
                             changed.extend(self.record_count_change_paths());
                         }
                     }
-                    IrEffect::ListToggleAllMarks { list_path } => {
-                        if self.apply_generic_list_mark_all(&list_path) {
+                    IrEffect::CollectionSetAllBoolFromAny {
+                        collection_path,
+                        field,
+                    } => {
+                        if self.apply_generic_collection_set_all_bool_from_any(
+                            &collection_path,
+                            &field,
+                        ) {
                             changed.extend(self.record_count_change_paths());
                         }
                     }
-                    IrEffect::ListToggleOwnerMark { list_path } => {
-                        if self.apply_generic_list_toggle_owner_mark(&list_path, event)? {
+                    IrEffect::CollectionToggleOwnerBool {
+                        collection_path,
+                        field,
+                    } => {
+                        if self.apply_generic_collection_toggle_owner_bool(
+                            &collection_path,
+                            &field,
+                            event,
+                        )? {
                             changed.extend(self.record_count_change_paths());
                         }
                     }
-                    IrEffect::ListRemoveOwner { list_path } => {
-                        if self.apply_generic_list_remove_owner(&list_path, event)? {
+                    IrEffect::CollectionRemoveOwner { collection_path } => {
+                        if self.apply_generic_collection_remove_owner(&collection_path, event)? {
                             changed.extend(self.record_change_paths());
                         }
                     }
-                    IrEffect::ListRemoveMarked { list_path } => {
-                        if self.apply_generic_list_remove_marked(&list_path) {
+                    IrEffect::CollectionRemoveMatchingBool {
+                        collection_path,
+                        field,
+                        remove_when,
+                    } => {
+                        if self.apply_generic_collection_remove_matching_bool(
+                            &collection_path,
+                            &field,
+                            remove_when,
+                        ) {
                             changed.extend(self.record_change_paths());
                         }
                     }
@@ -1057,14 +1108,16 @@ impl CompiledApp {
         self.generic_state.insert(state_path.to_string(), value);
     }
 
-    fn apply_generic_list_append_text(
+    fn apply_generic_collection_append_text_record(
         &mut self,
-        list_path: &str,
+        collection_path: &str,
         text_state_path: &str,
+        text_field: &str,
+        default_fields: &[IrStaticField],
         trim: bool,
         skip_empty: bool,
     ) -> Result<bool> {
-        if self.record_root() != Some(list_path) {
+        if self.record_root() != Some(collection_path) {
             return Ok(false);
         }
         let mut text = if self
@@ -1087,35 +1140,42 @@ impl CompiledApp {
         if skip_empty && text.is_empty() {
             return Ok(false);
         }
-        self.dynamic_values.push(RuntimeDynamicValue::new(
-            self.next_dynamic_value_id,
-            text,
-            false,
-        ));
+        self.dynamic_values
+            .push(RuntimeDynamicValue::from_append_text(
+                self.next_dynamic_value_id,
+                default_fields,
+                text_field,
+                text,
+            ));
         self.next_dynamic_value_id += 1;
         Ok(true)
     }
 
-    fn apply_generic_list_mark_all(&mut self, list_path: &str) -> bool {
-        if self.record_root() != Some(list_path) {
+    fn apply_generic_collection_set_all_bool_from_any(
+        &mut self,
+        collection_path: &str,
+        field: &str,
+    ) -> bool {
+        if self.record_root() != Some(collection_path) {
             return false;
         }
         let all_marked = self
             .dynamic_values
             .iter()
-            .all(|record| record.bool_field(LIST_MARK_FIELD));
+            .all(|record| record.bool_field(field));
         for record in &mut self.dynamic_values {
-            record.set_bool_field(LIST_MARK_FIELD, !all_marked);
+            record.set_bool_field(field, !all_marked);
         }
         true
     }
 
-    fn apply_generic_list_toggle_owner_mark(
+    fn apply_generic_collection_toggle_owner_bool(
         &mut self,
-        list_path: &str,
+        collection_path: &str,
+        field: &str,
         event: &SourceEmission,
     ) -> Result<bool> {
-        if self.record_root() != Some(list_path) {
+        if self.record_root() != Some(collection_path) {
             return Ok(false);
         }
         let owner_id = event
@@ -1132,16 +1192,16 @@ impl CompiledApp {
         else {
             return Ok(false);
         };
-        record.set_bool_field(LIST_MARK_FIELD, !record.bool_field(LIST_MARK_FIELD));
+        record.set_bool_field(field, !record.bool_field(field));
         Ok(true)
     }
 
-    fn apply_generic_list_remove_owner(
+    fn apply_generic_collection_remove_owner(
         &mut self,
-        list_path: &str,
+        collection_path: &str,
         event: &SourceEmission,
     ) -> Result<bool> {
-        if self.record_root() != Some(list_path) {
+        if self.record_root() != Some(collection_path) {
             return Ok(false);
         }
         let owner_id = event
@@ -1157,13 +1217,18 @@ impl CompiledApp {
         Ok(self.dynamic_values.len() != before)
     }
 
-    fn apply_generic_list_remove_marked(&mut self, list_path: &str) -> bool {
-        if self.record_root() != Some(list_path) {
+    fn apply_generic_collection_remove_matching_bool(
+        &mut self,
+        collection_path: &str,
+        field: &str,
+        remove_when: bool,
+    ) -> bool {
+        if self.record_root() != Some(collection_path) {
             return false;
         }
         let before = self.dynamic_values.len();
         self.dynamic_values
-            .retain(|record| !record.bool_field(LIST_MARK_FIELD));
+            .retain(|record| record.bool_field(field) != remove_when);
         self.dynamic_values.len() != before
     }
 
@@ -1187,6 +1252,33 @@ impl CompiledApp {
         runtime_list_view_from_app_ir(&self.app_ir)
     }
 
+    fn collection_text_field(&self) -> &str {
+        self.wiring
+            .list
+            .as_ref()
+            .map(|sequence| sequence.text_field.as_str())
+            .unwrap_or("value")
+    }
+
+    fn collection_bool_field(&self) -> Option<&str> {
+        self.wiring
+            .list
+            .as_ref()
+            .and_then(RepeaterBinding::bool_field)
+    }
+
+    fn collection_edit_focus_field(&self) -> Option<&str> {
+        self.wiring
+            .list
+            .as_ref()
+            .and_then(RepeaterBinding::edit_focus_field)
+    }
+
+    fn collection_record_marked(&self, record: &RuntimeDynamicValue) -> bool {
+        self.collection_bool_field()
+            .is_some_and(|field| record.bool_field(field))
+    }
+
     fn dynamics_model(&self) -> Option<&boon_compiler::IrDynamicsModel> {
         self.app_ir.dynamics_models.first()
     }
@@ -1196,12 +1288,6 @@ impl CompiledApp {
             .render_tree
             .as_ref()
             .is_some_and(|node| render_node_has_kind(node, &kind))
-    }
-
-    fn has_repeater_surface(&self) -> bool {
-        self.wiring.list.is_some()
-            && (self.has_render_kind(boon_compiler::IrRenderKind::ListMap)
-                || self.list_view().is_some())
     }
 
     fn action_value(&self) -> Option<i64> {
@@ -1219,9 +1305,7 @@ impl CompiledApp {
     }
 
     fn render_text(&self) -> String {
-        if self.has_repeater_surface() {
-            self.render_repeater_text()
-        } else if self.has_render_kind(boon_compiler::IrRenderKind::Grid) {
+        if self.has_render_kind(boon_compiler::IrRenderKind::Grid) {
             self.render_matrix_text()
         } else if !self.app_ir.dynamics_models.is_empty() {
             self.render_dynamics_text()
@@ -1239,9 +1323,7 @@ impl CompiledApp {
             hit_targets: Vec::new(),
         };
         push_rect(&mut scene, 0, 0, 1000, 1000, [245, 245, 245, 255]);
-        if self.has_repeater_surface() {
-            self.render_repeater_scene(&mut scene);
-        } else if self.has_render_kind(boon_compiler::IrRenderKind::Grid) {
+        if self.has_render_kind(boon_compiler::IrRenderKind::Grid) {
             self.render_matrix_scene(&mut scene);
         } else if !self.app_ir.dynamics_models.is_empty() {
             self.render_dynamics_scene(&mut scene);
@@ -1253,7 +1335,6 @@ impl CompiledApp {
 
     fn can_render_generic_scene(&self) -> bool {
         self.app_ir.render_tree.is_some()
-            && !self.has_repeater_surface()
             && !self.has_render_kind(boon_compiler::IrRenderKind::Grid)
             && self.app_ir.dynamics_models.is_empty()
     }
@@ -1263,6 +1344,9 @@ impl CompiledApp {
             self.program.title.clone(),
             "surface: generic_scene".to_string(),
         ];
+        for record in &self.app_ir.static_records {
+            collect_static_text_values(&record.fields, &mut lines);
+        }
         if let Some(tree) = &self.app_ir.render_tree {
             self.collect_generic_text(tree, &mut lines);
         }
@@ -1270,15 +1354,56 @@ impl CompiledApp {
     }
 
     fn collect_generic_text(&self, node: &boon_compiler::IrRenderNode, lines: &mut Vec<String>) {
-        if let Some(text) = node
-            .text
-            .as_ref()
-            .and_then(|text| self.eval_render_text(text))
+        self.collect_generic_text_with_record(node, lines, None);
+    }
+
+    fn collect_generic_text_with_record(
+        &self,
+        node: &boon_compiler::IrRenderNode,
+        lines: &mut Vec<String>,
+        record: Option<&RuntimeDynamicValue>,
+    ) {
+        if matches!(node.kind, boon_compiler::IrRenderKind::ListMap) {
+            for record in self.visible_dynamic_values() {
+                lines.push(format!(
+                    "{} [{}] {}",
+                    record.id,
+                    if self.collection_record_marked(record) {
+                        "x"
+                    } else {
+                        " "
+                    },
+                    record.text_field(self.collection_text_field())
+                ));
+                for child in &node.children {
+                    self.collect_generic_text_with_record(child, lines, Some(record));
+                }
+            }
+            return;
+        }
+
+        if matches!(node.kind, boon_compiler::IrRenderKind::TextInput)
+            && let Some(source_path) = node.source_path.as_deref()
         {
+            if let Some(record) = record {
+                lines.push(record.text_field(self.collection_text_field()));
+            } else {
+                let text_state_path = format!("{source_path}.text");
+                if let Some(SourceValue::Text(value)) = self.source_state.get(&text_state_path) {
+                    lines.push(value.clone());
+                }
+            }
+        }
+
+        if let Some(text) = node.text.as_ref().and_then(|text| {
+            record
+                .and_then(|record| self.eval_render_text_for_record(text, record))
+                .or_else(|| self.eval_render_text(text))
+        }) {
             lines.push(text);
         }
         for child in &node.children {
-            self.collect_generic_text(child, lines);
+            self.collect_generic_text_with_record(child, lines, record);
         }
     }
 
@@ -1288,7 +1413,7 @@ impl CompiledApp {
         if let Some(tree) = &self.app_ir.render_tree {
             let mut y = 278;
             for child in &tree.children {
-                y = self.render_generic_node(scene, child, 278, y, 444);
+                y = self.render_generic_node(scene, child, 278, y, 444, None);
             }
         }
     }
@@ -1300,12 +1425,13 @@ impl CompiledApp {
         x: u32,
         y: u32,
         width: u32,
+        record: Option<&RuntimeDynamicValue>,
     ) -> u32 {
         match node.kind {
             boon_compiler::IrRenderKind::Root | boon_compiler::IrRenderKind::Panel => {
                 let mut next_y = y;
                 for child in &node.children {
-                    next_y = self.render_generic_node(scene, child, x, next_y, width);
+                    next_y = self.render_generic_node(scene, child, x, next_y, width, record);
                 }
                 next_y
             }
@@ -1317,7 +1443,7 @@ impl CompiledApp {
                     .as_deref()
                     .and_then(|base| self.primary_event_source(base))
                 {
-                    push_hit_target(
+                    self.push_generic_hit_target(
                         scene,
                         format!("generic_{}", node.id),
                         x,
@@ -1326,12 +1452,18 @@ impl CompiledApp {
                         92,
                         HitTargetAction::Press,
                         &source_path,
+                        record,
                     );
                 }
                 let label = node
                     .text
                     .as_ref()
-                    .and_then(|text| self.eval_render_text(text))
+                    .and_then(|text| {
+                        record
+                            .and_then(|record| self.eval_render_text_for_record(text, record))
+                            .or_else(|| self.eval_render_text(text))
+                    })
+                    .or_else(|| node.source_path.as_deref().map(generic_source_label))
                     .unwrap_or_default();
                 push_text(scene, x + 86, y + 36, 2, &label, [255, 255, 255, 255]);
                 y + 124
@@ -1342,19 +1474,84 @@ impl CompiledApp {
                 let text = node
                     .text
                     .as_ref()
-                    .and_then(|text| self.eval_render_text(text))
+                    .and_then(|text| {
+                        record
+                            .and_then(|record| self.eval_render_text_for_record(text, record))
+                            .or_else(|| self.eval_render_text(text))
+                    })
                     .unwrap_or_default();
                 if !text.is_empty() {
                     push_text(scene, x, y, 3, &text, [35, 55, 68, 255]);
                 }
                 y + 72
             }
-            boon_compiler::IrRenderKind::TextInput | boon_compiler::IrRenderKind::Checkbox => {
+            boon_compiler::IrRenderKind::TextInput => {
                 push_rect(scene, x, y, width, 64, [255, 255, 255, 255]);
                 push_rect_outline(scene, x, y, width, 64, [188, 202, 212, 255]);
+                if let Some(source_path) = node.source_path.as_deref() {
+                    let text_state_path = format!("{source_path}.text");
+                    let text_value = record
+                        .map(|record| record.text_field(self.collection_text_field()))
+                        .or_else(|| {
+                            self.wiring
+                                .list
+                                .as_ref()
+                                .and_then(|sequence| sequence.entry_text.as_deref())
+                                .filter(|entry| *entry == text_state_path)
+                                .map(|_| self.entry_text.clone())
+                        });
+                    self.push_generic_text_hit_target(
+                        scene,
+                        format!("generic_{}", node.id),
+                        x,
+                        y,
+                        width,
+                        64,
+                        source_path,
+                        text_value.clone(),
+                        record,
+                    );
+                    let display = text_value.unwrap_or_else(|| generic_source_label(source_path));
+                    push_text(scene, x + 18, y + 24, 1, &display, [42, 58, 70, 255]);
+                }
                 y + 86
             }
-            boon_compiler::IrRenderKind::Grid | boon_compiler::IrRenderKind::ListMap => y,
+            boon_compiler::IrRenderKind::Checkbox => {
+                push_rect(scene, x, y, 64, 64, [255, 255, 255, 255]);
+                push_rect_outline(scene, x, y, 64, 64, [188, 202, 212, 255]);
+                if record.is_some_and(|record| self.collection_record_marked(record)) {
+                    push_text(scene, x + 24, y + 24, 1, "x", [68, 146, 126, 255]);
+                }
+                if let Some(source_path) = node
+                    .source_path
+                    .as_deref()
+                    .and_then(|base| self.primary_event_source(base))
+                {
+                    self.push_generic_hit_target(
+                        scene,
+                        format!("generic_{}", node.id),
+                        x,
+                        y,
+                        64,
+                        64,
+                        HitTargetAction::Press,
+                        &source_path,
+                        record,
+                    );
+                }
+                y + 86
+            }
+            boon_compiler::IrRenderKind::ListMap => {
+                let mut next_y = y;
+                for record in self.visible_dynamic_values() {
+                    for child in &node.children {
+                        next_y =
+                            self.render_generic_node(scene, child, x, next_y, width, Some(record));
+                    }
+                }
+                next_y
+            }
+            boon_compiler::IrRenderKind::Grid => y,
         }
     }
 
@@ -1362,6 +1559,20 @@ impl CompiledApp {
         match text {
             boon_compiler::IrRenderText::Literal { value } => Some(value.clone()),
             boon_compiler::IrRenderText::Binding { path } => self.value_text(path),
+        }
+    }
+
+    fn eval_render_text_for_record(
+        &self,
+        text: &boon_compiler::IrRenderText,
+        record: &RuntimeDynamicValue,
+    ) -> Option<String> {
+        match text {
+            boon_compiler::IrRenderText::Literal { value } => Some(value.clone()),
+            boon_compiler::IrRenderText::Binding { path } => path
+                .strip_prefix("item.")
+                .map(|field| record.text_field(field))
+                .or_else(|| self.value_text(path)),
         }
     }
 
@@ -1388,285 +1599,104 @@ impl CompiledApp {
         .find(|candidate| self.inventory.get(candidate).is_some())
     }
 
-    fn render_repeater_scene(&self, scene: &mut FrameScene) {
-        let view = self.list_view();
-        push_rect(scene, 0, 0, 1000, 1000, [245, 245, 245, 255]);
-        push_text(
-            scene,
-            340,
-            66,
-            4,
-            view.as_ref()
-                .map(|view| view.title_line.as_str())
-                .filter(|title_line| !title_line.is_empty())
-                .unwrap_or(&self.program.title),
-            [186, 137, 137, 255],
-        );
-        push_rect(scene, 206, 160, 588, 72, [255, 255, 255, 255]);
-        push_rect_outline(scene, 206, 160, 588, 72, [225, 225, 225, 255]);
-        push_rect_outline(scene, 226, 184, 28, 28, [198, 198, 198, 255]);
-        if let Some(sequence) = &self.wiring.list {
-            if let Some(text_path) = sequence.entry_text.as_deref() {
-                push_text_hit_target(
-                    scene,
-                    "sequence_entry_text",
-                    260,
-                    160,
-                    534,
-                    72,
-                    text_path,
-                    text_path,
-                    sequence.input_key.clone(),
-                    sequence.input_change.clone(),
-                    sequence.input_focus.clone(),
-                    sequence.input_blur.clone(),
-                );
-            }
-            if let Some(path) = sequence.static_mass_mark_event.as_deref() {
-                push_hit_target(
-                    scene,
-                    "sequence_mass_mark",
-                    206,
-                    160,
-                    54,
-                    72,
-                    HitTargetAction::Press,
-                    path,
-                );
-            }
-        }
-        push_text(scene, 234, 191, 1, "v", [116, 116, 116, 255]);
-        push_text(
-            scene,
-            274,
-            186,
-            2,
-            if self.entry_text.is_empty() {
-                view.as_ref()
-                    .map(|view| view.entry_hint.as_str())
-                    .unwrap_or_default()
-            } else {
-                &self.entry_text
-            },
-            if self.entry_text.is_empty() {
-                [180, 180, 180, 255]
-            } else {
-                [54, 54, 54, 255]
-            },
-        );
-        let visible_dynamic_values: Vec<_> = self.visible_dynamic_values().collect();
-        let mut y = 234;
-        for record in &visible_dynamic_values {
-            if y >= 1000 {
-                break;
-            }
-            push_rect(scene, 206, y, 588, 62, [255, 255, 255, 255]);
-            push_rect_outline(scene, 206, y, 588, 62, [232, 232, 232, 255]);
-            push_rect_outline(scene, 226, y + 18, 24, 24, [126, 178, 164, 255]);
-            if let Some(sequence) = &self.wiring.list {
-                if let Some(path) = sequence.dynamic_mark_event.as_deref() {
-                    scene.hit_targets.push(attach_owner(
-                        HitTarget {
-                            id: format!("sequence_mark_{}", record.id),
-                            x: 206,
-                            y,
-                            width: 58,
-                            height: 62,
-                            action: HitTargetAction::Press,
-                            source_path: path.to_string(),
-                            owner_id: None,
-                            generation: 0,
-                            text_state_path: None,
-                            text_value: None,
-                            key_event_path: None,
-                            change_event_path: None,
-                            focus_event_path: None,
-                            blur_event_path: None,
-                        },
-                        record.id.to_string(),
-                        record.generation,
-                    ));
-                }
-                if let Some(path) = sequence.dynamic_remove_event.as_deref() {
-                    scene.hit_targets.push(attach_owner(
-                        HitTarget {
-                            id: format!("sequence_remove_{}", record.id),
-                            x: 736,
-                            y,
-                            width: 58,
-                            height: 62,
-                            action: HitTargetAction::Press,
-                            source_path: path.to_string(),
-                            owner_id: None,
-                            generation: 0,
-                            text_state_path: None,
-                            text_value: None,
-                            key_event_path: None,
-                            change_event_path: None,
-                            focus_event_path: None,
-                            blur_event_path: None,
-                        },
-                        record.id.to_string(),
-                        record.generation,
-                    ));
-                }
-                if let Some(text_path) = sequence.dynamic_text_value.as_deref() {
-                    scene.hit_targets.push(attach_owner(
-                        HitTarget {
-                            id: format!("sequence_text_{}", record.id),
-                            x: 264,
-                            y,
-                            width: 472,
-                            height: 62,
-                            action: HitTargetAction::FocusText,
-                            source_path: text_path.to_string(),
-                            owner_id: None,
-                            generation: 0,
-                            text_state_path: Some(text_path.to_string()),
-                            text_value: Some(record.text_field(LIST_TEXT_FIELD)),
-                            key_event_path: sequence.dynamic_text_key.clone(),
-                            change_event_path: sequence.dynamic_text_change.clone(),
-                            focus_event_path: None,
-                            blur_event_path: sequence.dynamic_text_blur.clone(),
-                        },
-                        record.id.to_string(),
-                        record.generation,
-                    ));
-                }
-            }
-            if record.bool_field(LIST_MARK_FIELD) {
-                push_text(scene, 231, y + 19, 1, "x", [68, 146, 126, 255]);
-            }
-            push_text(
-                scene,
-                270,
-                y + 22,
-                2,
-                &record.text_field(LIST_TEXT_FIELD),
-                if record.bool_field(LIST_MARK_FIELD) {
-                    [160, 160, 160, 255]
-                } else {
-                    [60, 60, 60, 255]
-                },
-            );
-            push_text(scene, 744, y + 22, 1, "x", [172, 84, 84, 255]);
-            y += 62;
-        }
-        let mark = self
-            .dynamic_values
-            .iter()
-            .filter(|record| record.bool_field(LIST_MARK_FIELD))
-            .count();
-        let unmarked = self.dynamic_values.len().saturating_sub(mark);
-        y = 234 + visible_dynamic_values.len() as u32 * 62;
-        if y >= 1000 {
-            return;
-        }
-        push_rect(scene, 206, y, 588, 54, [255, 255, 255, 255]);
-        push_rect_outline(scene, 206, y, 588, 54, [232, 232, 232, 255]);
-        push_text(
-            scene,
-            230,
-            y + 20,
-            1,
-            &format!(
-                "{unmarked} {}",
-                view.as_ref()
-                    .map(|view| view.count_suffix.as_str())
-                    .unwrap_or("unmarked")
-            ),
-            [116, 116, 116, 255],
-        );
-        let view_selectors = self.list_view_selector_layout();
-        for (view_selector, x, outline_w, label) in view_selectors {
-            if self.view_selector == view_selector {
-                push_rect_outline(scene, x - 10, y + 12, outline_w, 28, [218, 185, 185, 255]);
-            }
-            if let Some(path) = self
-                .wiring
-                .list
-                .as_ref()
-                .and_then(|sequence| sequence.view_selector_events.get(&view_selector))
-            {
-                push_hit_target(
-                    scene,
-                    format!("sequence_selector_{view_selector}"),
-                    x - 10,
-                    y + 12,
-                    outline_w,
-                    28,
-                    HitTargetAction::Press,
-                    path,
-                );
-            }
-            push_text(scene, x, y + 21, 1, &label, [116, 116, 116, 255]);
-        }
-        if mark > 0
-            && let Some(label) = view
-                .as_ref()
-                .and_then(|view| view.remove_marked_label.as_deref())
-        {
-            if let Some(path) = self
-                .wiring
-                .list
-                .as_ref()
-                .and_then(|sequence| sequence.static_remove_marked_event.as_deref())
-            {
-                push_hit_target(
-                    scene,
-                    "sequence_remove_marked",
-                    670,
-                    y + 12,
-                    124,
-                    28,
-                    HitTargetAction::Press,
-                    path,
-                );
-            }
-            push_text(scene, 680, y + 21, 1, label, [116, 116, 116, 255]);
-        }
-        if let Some(view) = view {
-            for (index, line) in view.auxiliary_lines.iter().enumerate() {
-                push_text(
-                    scene,
-                    338,
-                    y + 82 + index as u32 * 34,
-                    1,
-                    line,
-                    [150, 150, 150, 255],
-                );
-            }
-        }
+    #[allow(clippy::too_many_arguments)]
+    fn push_generic_hit_target(
+        &self,
+        scene: &mut FrameScene,
+        id: impl Into<String>,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+        action: HitTargetAction,
+        source_path: &str,
+        record: Option<&RuntimeDynamicValue>,
+    ) {
+        let target = HitTarget {
+            id: id.into(),
+            x,
+            y,
+            width,
+            height,
+            action,
+            source_path: source_path.to_string(),
+            owner_id: None,
+            generation: 0,
+            text_state_path: None,
+            text_value: None,
+            key_event_path: None,
+            change_event_path: None,
+            focus_event_path: None,
+            blur_event_path: None,
+        };
+        scene
+            .hit_targets
+            .push(self.attach_generic_owner(target, source_path, record));
     }
 
-    fn list_view_selector_layout(&self) -> Vec<(String, u32, u32, String)> {
-        let view_selectors = self
-            .list_view()
-            .map(|view| view.selectors)
-            .unwrap_or_default();
-        let mut x = 366;
-        view_selectors
-            .into_iter()
-            .map(|view_selector| {
-                let label = if view_selector.label.is_empty() {
-                    view_selector.id.clone()
-                } else {
-                    view_selector.label.clone()
-                };
-                let width = (label.chars().count() as u32 * 10 + 28).max(48);
-                let selector = (view_selector.id, x, width, label);
-                x += width + 22;
-                selector
-            })
-            .collect()
+    #[allow(clippy::too_many_arguments)]
+    fn push_generic_text_hit_target(
+        &self,
+        scene: &mut FrameScene,
+        id: impl Into<String>,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+        source_base: &str,
+        text_value: Option<String>,
+        record: Option<&RuntimeDynamicValue>,
+    ) {
+        let text_state_path = format!("{source_base}.text");
+        let target = HitTarget {
+            id: id.into(),
+            x,
+            y,
+            width,
+            height,
+            action: HitTargetAction::FocusText,
+            source_path: text_state_path.clone(),
+            owner_id: None,
+            generation: 0,
+            text_state_path: Some(text_state_path.clone()),
+            text_value,
+            key_event_path: existing_path(
+                &self.inventory,
+                &format!("{source_base}.event.key_down.key"),
+            ),
+            change_event_path: existing_path(
+                &self.inventory,
+                &format!("{source_base}.event.change"),
+            ),
+            focus_event_path: existing_path(&self.inventory, &format!("{source_base}.event.focus")),
+            blur_event_path: existing_path(&self.inventory, &format!("{source_base}.event.blur")),
+        };
+        scene
+            .hit_targets
+            .push(self.attach_generic_owner(target, &text_state_path, record));
+    }
+
+    fn attach_generic_owner(
+        &self,
+        target: HitTarget,
+        source_path: &str,
+        record: Option<&RuntimeDynamicValue>,
+    ) -> HitTarget {
+        if source_path.contains("[*]")
+            && let Some(record) = record
+        {
+            attach_owner(target, record.id.to_string(), record.generation)
+        } else {
+            target
+        }
     }
 
     fn render_matrix_scene(&self, scene: &mut FrameScene) {
         push_rect(scene, 0, 0, 1000, 1000, [248, 249, 250, 255]);
         let selected = format!(
             "{}{}",
-            column_name(self.grid.selected.1),
-            self.grid.selected.0
+            column_name(self.grid.selected().1),
+            self.grid.selected().0
         );
         push_text(scene, 48, 34, 2, &self.program.title, [31, 46, 60, 255]);
         push_rect(scene, 48, 82, 904, 50, [255, 255, 255, 255]);
@@ -1677,15 +1707,15 @@ impl CompiledApp {
             142,
             100,
             1,
-            self.dense_text(self.grid.selected.0, self.grid.selected.1),
+            self.dense_text(self.grid.selected().0, self.grid.selected().1),
             [35, 50, 64, 255],
         );
         let origin_x = 48;
         let origin_y = 160;
         let row_h = 38;
         let col_w = 92;
-        let visible_cols = self.grid.columns.min(9) as u32;
-        let visible_rows = self.grid.rows.min(15) as u32;
+        let visible_cols = self.grid.columns().min(9) as u32;
+        let visible_rows = self.grid.rows().min(15) as u32;
         push_rect(scene, origin_x, origin_y, 904, 40, [229, 235, 241, 255]);
         push_rect(scene, origin_x, origin_y, 52, 760, [229, 235, 241, 255]);
         for col in 1..=visible_cols {
@@ -1713,7 +1743,7 @@ impl CompiledApp {
             );
             for col in 1..=visible_cols {
                 let x = origin_x + 52 + (col - 1) * col_w;
-                let selected_slot = self.grid.selected == (row as usize, col as usize);
+                let selected_slot = self.grid.selected() == (row as usize, col as usize);
                 push_rect(
                     scene,
                     x,
@@ -1891,47 +1921,6 @@ impl CompiledApp {
             sh(kinematics.body.size),
             [250, 250, 250, 255],
         );
-    }
-
-    fn render_repeater_text(&self) -> String {
-        let view = self.list_view();
-        let mark = self
-            .dynamic_values
-            .iter()
-            .filter(|record| record.bool_field(LIST_MARK_FIELD))
-            .count();
-        let unmarked = self.dynamic_values.len().saturating_sub(mark);
-        let mut lines = vec![
-            self.program.title.clone(),
-            "surface: sequence".to_string(),
-            view.as_ref()
-                .map(|view| view.entry_hint.clone())
-                .unwrap_or_default(),
-            format!("input: {}", self.entry_text),
-        ];
-        for record in self.visible_dynamic_values() {
-            lines.push(format!(
-                "{} [{}] {}",
-                record.id,
-                if record.bool_field(LIST_MARK_FIELD) {
-                    "x"
-                } else {
-                    " "
-                },
-                record.text_field(LIST_TEXT_FIELD)
-            ));
-        }
-        lines.push(format!(
-            "{unmarked} {}",
-            view.as_ref()
-                .map(|view| view.count_suffix.as_str())
-                .unwrap_or("unmarked")
-        ));
-        lines.push(format!("view_selector: {}", self.view_selector));
-        if let Some(view) = view {
-            lines.extend(view.auxiliary_lines.iter().cloned());
-        }
-        lines.join("\n")
     }
 
     fn render_dynamics_text(&self) -> String {
@@ -2170,8 +2159,8 @@ impl CompiledApp {
             .iter()
             .filter(move |record| match visibility {
                 RuntimeListVisibility::All => true,
-                RuntimeListVisibility::Unmarked => !record.bool_field(LIST_MARK_FIELD),
-                RuntimeListVisibility::Marked => record.bool_field(LIST_MARK_FIELD),
+                RuntimeListVisibility::Unmarked => !self.collection_record_marked(record),
+                RuntimeListVisibility::Marked => self.collection_record_marked(record),
             })
     }
 
@@ -2181,240 +2170,47 @@ impl CompiledApp {
             "surface: dense_grid".to_string(),
             format!(
                 "selected: {}{}",
-                column_name(self.grid.selected.1),
-                self.grid.selected.0
+                column_name(self.grid.selected().1),
+                self.grid.selected().0
             ),
             format!(
                 "expression: {}",
-                self.dense_text(self.grid.selected.0, self.grid.selected.1)
+                self.dense_text(self.grid.selected().0, self.grid.selected().1)
             ),
             format!(
                 "value: {}",
-                self.dense_value(self.grid.selected.0, self.grid.selected.1)
+                self.dense_value(self.grid.selected().0, self.grid.selected().1)
             ),
             "columns: A B C D E F ... Z".to_string(),
         ];
-        for row in 1..=self.grid.rows.min(5) {
+        for row in 1..=self.grid.rows().min(5) {
             lines.push(format!(
                 "row {row}: A={} | B={} | C={}",
-                self.dense_value(row, 1.min(self.grid.columns)),
-                self.dense_value(row, 2.min(self.grid.columns)),
-                self.dense_value(row, 3.min(self.grid.columns))
+                self.dense_value(row, 1.min(self.grid.columns())),
+                self.dense_value(row, 2.min(self.grid.columns())),
+                self.dense_value(row, 3.min(self.grid.columns()))
             ));
         }
         lines.push(format!(
             "row {} and column {} reachable",
-            self.grid.rows,
-            column_name(self.grid.columns)
+            self.grid.rows(),
+            column_name(self.grid.columns())
         ));
         lines.join("\n")
     }
 
     fn dense_value(&self, row: usize, col: usize) -> &str {
-        &self.grid.value[self.dense_idx(row, col)]
+        self.grid.value(row, col)
     }
 
     fn dense_text(&self, row: usize, col: usize) -> &str {
-        &self.grid.text[self.dense_idx(row, col)]
-    }
-
-    fn dense_idx(&self, row: usize, col: usize) -> usize {
-        (row - 1) * self.grid.columns + (col - 1)
-    }
-
-    fn set_dense_text(&mut self, row: usize, col: usize, text: String) {
-        let idx = self.dense_idx(row, col);
-        for dep in self.grid.deps[idx].drain(..) {
-            self.grid.rev_deps[dep].retain(|dependent| *dependent != idx);
-        }
-        let deps = self.collect_dense_expression_refs(&text);
-        for dep in &deps {
-            if !self.grid.rev_deps[*dep].contains(&idx) {
-                self.grid.rev_deps[*dep].push(idx);
-            }
-        }
-        self.grid.deps[idx] = deps;
-        self.grid.text[idx] = text;
-        self.recalc_dirty_dense(idx);
-    }
-
-    fn recalc_dirty_dense(&mut self, changed: usize) {
-        let mut dirty = BTreeSet::new();
-        self.collect_dense_dependents(changed, &mut dirty);
-        let mut memo = BTreeMap::new();
-        for idx in dirty {
-            let value = self.evaluate_dense_slot(idx, &mut BTreeSet::new(), &mut memo);
-            self.grid.value[idx] = value;
-        }
-    }
-
-    fn collect_dense_dependents(&self, idx: usize, dirty: &mut BTreeSet<usize>) {
-        if dirty.insert(idx) {
-            for dependent in &self.grid.rev_deps[idx] {
-                self.collect_dense_dependents(*dependent, dirty);
-            }
-        }
-    }
-
-    fn evaluate_dense_slot(
-        &self,
-        idx: usize,
-        visiting: &mut BTreeSet<usize>,
-        memo: &mut BTreeMap<usize, String>,
-    ) -> String {
-        if let Some(value) = memo.get(&idx) {
-            return value.clone();
-        }
-        if !visiting.insert(idx) {
-            return "#CYCLE".to_string();
-        }
-        let text = &self.grid.text[idx];
-        let value = if let Some(expression) = text.strip_prefix('=') {
-            self.resolve_dense_expression(expression, visiting, memo)
-        } else {
-            text.clone()
-        };
-        visiting.remove(&idx);
-        memo.insert(idx, value.clone());
-        value
-    }
-
-    fn resolve_dense_expression(
-        &self,
-        expression: &str,
-        visiting: &mut BTreeSet<usize>,
-        memo: &mut BTreeMap<usize, String>,
-    ) -> String {
-        if self.dense_expression_enabled("add")
-            && let Some(args) = expression
-                .strip_prefix("add(")
-                .and_then(|rest| rest.strip_suffix(')'))
-        {
-            let parts = args.split(',').map(str::trim).collect::<Vec<_>>();
-            if parts.len() != 2 {
-                return "#ERR".to_string();
-            }
-            let Some(left) = self.decode_dense_ref(parts[0]) else {
-                return "#ERR".to_string();
-            };
-            let Some(right) = self.decode_dense_ref(parts[1]) else {
-                return "#ERR".to_string();
-            };
-            let Some(left) = self.evaluate_dense_number(left, visiting, memo) else {
-                return "#CYCLE".to_string();
-            };
-            let Some(right) = self.evaluate_dense_number(right, visiting, memo) else {
-                return "#CYCLE".to_string();
-            };
-            return (left + right).to_string();
-        }
-        if self.dense_expression_enabled("sum")
-            && let Some(args) = expression
-                .strip_prefix("sum(")
-                .and_then(|rest| rest.strip_suffix(')'))
-        {
-            let Some((start, end)) = self.parse_dense_range(args.trim()) else {
-                return "#ERR".to_string();
-            };
-            let mut sum = 0;
-            for row in start.0.min(end.0)..=start.0.max(end.0) {
-                for col in start.1.min(end.1)..=start.1.max(end.1) {
-                    let Some(value) =
-                        self.evaluate_dense_number(self.dense_idx(row, col), visiting, memo)
-                    else {
-                        return "#CYCLE".to_string();
-                    };
-                    sum += value;
-                }
-            }
-            return sum.to_string();
-        }
-        "#ERR".to_string()
-    }
-
-    fn dense_expression_enabled(&self, name: &str) -> bool {
-        self.app_ir.matrix_models.first().is_some_and(|grid| {
-            grid.expression_functions
-                .iter()
-                .any(|function| function == name)
-        })
-    }
-
-    fn collect_dense_expression_refs(&self, text: &str) -> Vec<usize> {
-        let Some(expression) = text.strip_prefix('=') else {
-            return Vec::new();
-        };
-        if self.dense_expression_enabled("add")
-            && let Some(args) = expression
-                .strip_prefix("add(")
-                .and_then(|rest| rest.strip_suffix(')'))
-        {
-            return args
-                .split(',')
-                .filter_map(|arg| self.decode_dense_ref(arg.trim()))
-                .collect();
-        }
-        if self.dense_expression_enabled("sum")
-            && let Some(args) = expression
-                .strip_prefix("sum(")
-                .and_then(|rest| rest.strip_suffix(')'))
-            && let Some((start, end)) = self.parse_dense_range(args.trim())
-        {
-            let mut deps = Vec::new();
-            for row in start.0.min(end.0)..=start.0.max(end.0) {
-                for col in start.1.min(end.1)..=start.1.max(end.1) {
-                    deps.push(self.dense_idx(row, col));
-                }
-            }
-            return deps;
-        }
-        Vec::new()
-    }
-
-    fn parse_dense_range(&self, text: &str) -> Option<((usize, usize), (usize, usize))> {
-        let (start, end) = text.split_once(':')?;
-        Some((
-            self.decode_dense_ref_tuple(start)?,
-            self.decode_dense_ref_tuple(end)?,
-        ))
-    }
-
-    fn decode_dense_ref(&self, text: &str) -> Option<usize> {
-        let (row, col) = self.decode_dense_ref_tuple(text)?;
-        Some(self.dense_idx(row, col))
-    }
-
-    fn decode_dense_ref_tuple(&self, text: &str) -> Option<(usize, usize)> {
-        let mut chars = text.chars();
-        let col = chars.next()?.to_ascii_uppercase();
-        if !col.is_ascii_uppercase() {
-            return None;
-        }
-        let row = chars.as_str().parse::<usize>().ok()?;
-        let col = (col as u8).checked_sub(b'A')? as usize + 1;
-        if row == 0 || row > self.grid.rows || col == 0 || col > self.grid.columns {
-            return None;
-        }
-        Some((row, col))
+        self.grid.text(row, col)
     }
 
     fn parse_dense_owner(&self, owner_id: &str) -> Result<(usize, usize)> {
-        self.decode_dense_ref_tuple(owner_id)
+        self.grid
+            .parse_owner(owner_id)
             .ok_or_else(|| anyhow::anyhow!("dense owner_id `{owner_id}` is outside compiled grid"))
-    }
-
-    fn evaluate_dense_number(
-        &self,
-        idx: usize,
-        visiting: &mut BTreeSet<usize>,
-        memo: &mut BTreeMap<usize, String>,
-    ) -> Option<i64> {
-        let value = self.evaluate_dense_slot(idx, visiting, memo);
-        if value == "#CYCLE" {
-            None
-        } else {
-            Some(value.parse::<i64>().unwrap_or(0))
-        }
     }
 
     fn validate_batch(&self, batch: &SourceBatch) -> Result<()> {
@@ -2542,6 +2338,8 @@ impl BoonApp for CompiledApp {
                 let dynamic_value_id = owner_id.parse::<u64>().map_err(|_| {
                     anyhow::anyhow!("dynamic value owner_id `{owner_id}` is not numeric")
                 })?;
+                let text_field = self.collection_text_field().to_string();
+                let edit_focus_field = self.collection_edit_focus_field().map(str::to_string);
                 let record = self
                     .dynamic_values
                     .iter_mut()
@@ -2549,8 +2347,10 @@ impl BoonApp for CompiledApp {
                     .ok_or_else(|| {
                         anyhow::anyhow!("dynamic value owner `{owner_id}` is not live")
                     })?;
-                record.set_text_field(LIST_TEXT_FIELD, value);
-                record.set_focus_field(LIST_EDIT_FOCUS, true);
+                record.set_text_field(&text_field, value);
+                if let Some(field) = edit_focus_field {
+                    record.set_focus_field(&field, true);
+                }
             } else if self
                 .wiring
                 .grid
@@ -2564,8 +2364,8 @@ impl BoonApp for CompiledApp {
                     .as_deref()
                     .map(|owner_id| self.parse_dense_owner(owner_id))
                     .transpose()?
-                    .unwrap_or(self.grid.selected);
-                self.set_dense_text(row, col, value);
+                    .unwrap_or(self.grid.selected());
+                self.grid.set_text(row, col, value);
             }
         }
 
@@ -2593,13 +2393,15 @@ impl BoonApp for CompiledApp {
                 let dynamic_value_id = owner_id.parse::<u64>().map_err(|_| {
                     anyhow::anyhow!("dynamic value owner_id `{owner_id}` is not numeric")
                 })?;
+                let edit_focus_field = self.collection_edit_focus_field().map(str::to_string);
                 if let Some(record) = self
                     .dynamic_values
                     .iter_mut()
                     .find(|record| record.id == dynamic_value_id)
                     && matches!(event.value, SourceValue::Tag(ref key) if key == "Enter")
+                    && let Some(field) = edit_focus_field
                 {
-                    record.set_focus_field(LIST_EDIT_FOCUS, false);
+                    record.set_focus_field(&field, false);
                 }
                 results.push(self.emit_frame_owned(self.record_change_paths(), metrics));
             } else if self.dynamic_text_event_matches(&event.path) {
@@ -2610,13 +2412,15 @@ impl BoonApp for CompiledApp {
                 let dynamic_value_id = owner_id.parse::<u64>().map_err(|_| {
                     anyhow::anyhow!("dynamic value owner_id `{owner_id}` is not numeric")
                 })?;
+                let edit_focus_field = self.collection_edit_focus_field().map(str::to_string);
                 if let Some(record) = self
                     .dynamic_values
                     .iter_mut()
                     .find(|record| record.id == dynamic_value_id)
                     && event.path.ends_with(".event.blur")
+                    && let Some(field) = edit_focus_field
                 {
-                    record.set_focus_field(LIST_EDIT_FOCUS, false);
+                    record.set_focus_field(&field, false);
                 }
                 results.push(self.emit_frame_owned(self.record_change_paths(), metrics));
             } else if self
@@ -2631,9 +2435,9 @@ impl BoonApp for CompiledApp {
                     .as_deref()
                     .map(|owner_id| self.parse_dense_owner(owner_id))
                     .transpose()?
-                    .unwrap_or(self.grid.selected);
-                self.grid.selected = (row, col);
-                self.grid.edit_focus = Some((row, col));
+                    .unwrap_or(self.grid.selected());
+                self.grid.set_selected(row, col);
+                self.grid.set_edit_focus(Some((row, col)));
                 results.push(self.emit_frame_owned(self.dense_change_paths(), metrics));
             } else if self
                 .wiring
@@ -2643,7 +2447,7 @@ impl BoonApp for CompiledApp {
                 .is_some_and(|path| event.path == *path)
             {
                 if matches!(event.value, SourceValue::Tag(ref key) if key == "Enter") {
-                    self.grid.edit_focus = None;
+                    self.grid.set_edit_focus(None);
                 }
                 results.push(self.emit_frame_owned(self.dense_change_paths(), metrics));
             } else if self
@@ -2655,19 +2459,10 @@ impl BoonApp for CompiledApp {
             {
                 if let SourceValue::Tag(key) = &event.value {
                     match key.as_str() {
-                        "ArrowUp" => {
-                            self.grid.selected.0 = self.grid.selected.0.saturating_sub(1).max(1);
-                        }
-                        "ArrowDown" => {
-                            self.grid.selected.0 = (self.grid.selected.0 + 1).min(self.grid.rows);
-                        }
-                        "ArrowLeft" => {
-                            self.grid.selected.1 = self.grid.selected.1.saturating_sub(1).max(1);
-                        }
-                        "ArrowRight" => {
-                            self.grid.selected.1 =
-                                (self.grid.selected.1 + 1).min(self.grid.columns);
-                        }
+                        "ArrowUp" => self.grid.move_selected(-1, 0),
+                        "ArrowDown" => self.grid.move_selected(1, 0),
+                        "ArrowLeft" => self.grid.move_selected(0, -1),
+                        "ArrowRight" => self.grid.move_selected(0, 1),
                         _ => {}
                     }
                 }
@@ -2750,7 +2545,7 @@ impl BoonApp for CompiledApp {
         let mark = self
             .dynamic_values
             .iter()
-            .filter(|record| record.bool_field(LIST_MARK_FIELD))
+            .filter(|record| self.collection_record_marked(record))
             .count() as i64;
         let mut values = BTreeMap::new();
         for (path, value) in &self.generic_state {
@@ -2782,7 +2577,7 @@ impl BoonApp for CompiledApp {
                 json!(
                     self.dynamic_values
                         .iter()
-                        .map(|record| record.text_field(LIST_TEXT_FIELD))
+                        .map(|record| record.text_field(self.collection_text_field()))
                         .collect::<Vec<_>>()
                 ),
             );
@@ -2807,15 +2602,18 @@ impl BoonApp for CompiledApp {
             for record in &self.dynamic_values {
                 values.insert(
                     format!("store.{}[{}].content_text", sequence.root, record.id),
-                    json!(record.text_field(LIST_TEXT_FIELD)),
+                    json!(record.text_field(self.collection_text_field())),
                 );
                 values.insert(
                     format!("store.{}[{}].mark", sequence.root, record.id),
-                    json!(record.bool_field(LIST_MARK_FIELD)),
+                    json!(self.collection_record_marked(record)),
                 );
                 values.insert(
                     format!("store.{}[{}].edit_focus", sequence.root, record.id),
-                    json!(record.focus_field(LIST_EDIT_FOCUS)),
+                    json!(
+                        self.collection_edit_focus_field()
+                            .is_some_and(|field| record.focus_field(field))
+                    ),
                 );
             }
         }
@@ -2869,8 +2667,8 @@ impl BoonApp for CompiledApp {
             .map(|grid| grid.root.as_str())
             .unwrap_or("grid");
         if self.wiring.grid.is_some() {
-            for row in 1..=self.grid.rows {
-                for col in 1..=self.grid.columns {
+            for row in 1..=self.grid.rows() {
+                for col in 1..=self.grid.columns() {
                     let coordinate = format!("{}{}", column_name(col), row);
                     values.insert(
                         format!("{grid_root}.{coordinate}"),
@@ -2885,25 +2683,25 @@ impl BoonApp for CompiledApp {
         }
         values.insert(
             format!("{grid_root}.selected_expression"),
-            json!(self.dense_text(self.grid.selected.0, self.grid.selected.1)),
+            json!(self.dense_text(self.grid.selected().0, self.grid.selected().1)),
         );
         values.insert(
             format!("{grid_root}.selected_value"),
-            json!(self.dense_value(self.grid.selected.0, self.grid.selected.1)),
+            json!(self.dense_value(self.grid.selected().0, self.grid.selected().1)),
         );
         values.insert(
             format!("{grid_root}.selected"),
             json!(format!(
                 "{}{}",
-                column_name(self.grid.selected.1),
-                self.grid.selected.0
+                column_name(self.grid.selected().1),
+                self.grid.selected().0
             )),
         );
         values.insert(
             format!("{grid_root}.edit_focus"),
             json!(
                 self.grid
-                    .edit_focus
+                    .edit_focus()
                     .map(|(row, col)| format!("{}{}", column_name(col), row))
             ),
         );
@@ -2956,70 +2754,6 @@ fn push_text(scene: &mut FrameScene, x: u32, y: u32, scale: u32, text: &str, col
         scale,
         text: text.to_string(),
         color,
-    });
-}
-
-#[allow(clippy::too_many_arguments)]
-fn push_hit_target(
-    scene: &mut FrameScene,
-    id: impl Into<String>,
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
-    action: HitTargetAction,
-    source_path: impl Into<String>,
-) {
-    scene.hit_targets.push(HitTarget {
-        id: id.into(),
-        x,
-        y,
-        width,
-        height,
-        action,
-        source_path: source_path.into(),
-        owner_id: None,
-        generation: 0,
-        text_state_path: None,
-        text_value: None,
-        key_event_path: None,
-        change_event_path: None,
-        focus_event_path: None,
-        blur_event_path: None,
-    });
-}
-
-#[allow(clippy::too_many_arguments)]
-fn push_text_hit_target(
-    scene: &mut FrameScene,
-    id: impl Into<String>,
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
-    source_path: impl Into<String>,
-    text_state_path: impl Into<String>,
-    key_event_path: Option<String>,
-    change_event_path: Option<String>,
-    focus_event_path: Option<String>,
-    blur_event_path: Option<String>,
-) {
-    scene.hit_targets.push(HitTarget {
-        id: id.into(),
-        x,
-        y,
-        width,
-        height,
-        action: HitTargetAction::FocusText,
-        source_path: source_path.into(),
-        owner_id: None,
-        generation: 0,
-        text_state_path: Some(text_state_path.into()),
-        text_value: None,
-        key_event_path,
-        change_event_path,
-        focus_event_path,
-        blur_event_path,
     });
 }
 
