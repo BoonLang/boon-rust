@@ -4,15 +4,17 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use boon_compiler::{
-    AppIr, ControlAxis, ExecEffect, ExecExpr, ExecutableIr, IrAppMetadata, IrEffect, IrPredicate,
-    IrStaticField, IrStaticRecord, IrStaticValue, IrValueExpr,
+    AppIr, ExecEffect, ExecExpr, ExecutableIr, IrAppMetadata, IrEffect, IrPredicate, IrStaticField,
+    IrStaticRecord, IrStaticValue, IrValueExpr,
 };
 use boon_render_ir::{
     DrawCommand, FrameScene, HitTarget, HitTargetAction, HostPatch, NodeId, NodeKind,
 };
 use boon_shape::Shape;
 use boon_source::{SourceEntry, SourceOwner};
-use boon_stdlib::FormulaGrid;
+use boon_stdlib::{
+    ContactGrid, GridDocument, MotionAxis, MotionBody, MotionConfig, MotionControl, MotionDocument,
+};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
@@ -33,9 +35,8 @@ pub struct CompiledApp {
     source_state: BTreeMap<String, SourceValue>,
     generic_state: BTreeMap<String, i64>,
     view_selector: String,
-    grid: FormulaGrid,
-    frame_index: u64,
-    motion: DynamicsRuntimeState,
+    grid: GridDocument,
+    motion: MotionDocument,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -43,9 +44,9 @@ struct RuntimeWiring {
     action_state: Option<StateEventBinding>,
     clock_state: Option<StateEventBinding>,
     list: Option<RepeaterBinding>,
-    grid: Option<DenseBinding>,
-    kinematic_frame_event: Option<String>,
-    kinematic_control_event: Option<String>,
+    grid: Option<GridBinding>,
+    motion_frame_event: Option<String>,
+    motion_control_event: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -90,7 +91,7 @@ enum RuntimeListVisibility {
 }
 
 #[derive(Clone, Debug)]
-struct DenseBinding {
+struct GridBinding {
     family: String,
     root: String,
     display_double_click: Option<String>,
@@ -135,24 +136,22 @@ impl RuntimeWiring {
             }
         }
         let list = RepeaterBinding::from_app_ir(inventory, app_ir);
-        let grid = (!app_ir.matrix_models.is_empty())
-            .then(|| DenseBinding::from_inventory(inventory))
+        let grid = app_ir
+            .render_tree
+            .as_ref()
+            .is_some_and(|tree| render_node_has_kind(tree, &boon_compiler::IrRenderKind::Grid))
+            .then(|| GridBinding::from_inventory(inventory))
             .flatten();
-        let kinematic_frame_event = app_ir
-            .dynamics_models
-            .first()
-            .map(|kinematics| kinematics.frame_event_path.clone());
-        let kinematic_control_event = app_ir
-            .dynamics_models
-            .first()
-            .map(|kinematics| kinematics.control_event_path.clone());
+        let motion_frame_event = first_static_source_path_matching(inventory, ".event.frame");
+        let motion_control_event =
+            first_static_source_path_matching(inventory, ".event.key_down.key");
         Self {
             action_state,
             clock_state,
             list,
             grid,
-            kinematic_frame_event,
-            kinematic_control_event,
+            motion_frame_event,
+            motion_control_event,
         }
     }
 }
@@ -274,7 +273,7 @@ impl RepeaterBinding {
     }
 }
 
-impl DenseBinding {
+impl GridBinding {
     fn from_inventory(inventory: &SourceInventory) -> Option<Self> {
         let family =
             first_dynamic_family(inventory, "Element/text_input(element.text)").or_else(|| {
@@ -306,6 +305,14 @@ impl DenseBinding {
 
 fn is_static(entry: &SourceEntry) -> bool {
     matches!(&entry.owner, SourceOwner::Static)
+}
+
+fn first_static_source_path_matching(inventory: &SourceInventory, suffix: &str) -> Option<String> {
+    inventory
+        .entries
+        .iter()
+        .find(|entry| is_static(entry) && entry.path.ends_with(suffix))
+        .map(|entry| entry.path.clone())
 }
 
 fn source_shape_is_tick(inventory: &SourceInventory, path: &str) -> bool {
@@ -639,6 +646,11 @@ fn literal_value_to_json(value: &IrStaticValue) -> Value {
         IrStaticValue::Number { value } => json!(value),
         IrStaticValue::Bool { value } => json!(value),
         IrStaticValue::Tag { value } => json!(value),
+        IrStaticValue::Path { value } => json!(value),
+        IrStaticValue::Range { from, to } => json!({
+            "from": from,
+            "to": to,
+        }),
         IrStaticValue::Record { fields } => json!(
             fields
                 .iter()
@@ -651,88 +663,187 @@ fn literal_value_to_json(value: &IrStaticValue) -> Value {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct DynamicsRuntimeState {
-    body_x: i64,
-    body_y: i64,
-    body_dx: i64,
-    body_dy: i64,
-    control_x: i64,
-    control_y: i64,
-    tracked_control_y: i64,
-    contact_field_rows: usize,
-    contact_field_cols: usize,
-    contact_field: Vec<bool>,
-    contact_value: i64,
-    resets_remaining: i64,
+fn grid_dimensions_from_static_records(app_ir: &AppIr) -> (usize, usize) {
+    let rows = top_static_range_end(app_ir, "rows").unwrap_or(100);
+    let columns = top_static_range_end(app_ir, "columns").unwrap_or(26);
+    (rows, columns)
 }
 
-impl DynamicsRuntimeState {
-    fn from_model(model: Option<&boon_compiler::IrDynamicsModel>) -> Self {
-        let Some(model) = model else {
-            return Self::default();
-        };
-        let contact_field_rows = model
-            .contact_field
-            .as_ref()
-            .map_or(0, |contact_field| contact_field.rows);
-        let contact_field_cols = model
-            .contact_field
-            .as_ref()
-            .map_or(0, |contact_field| contact_field.columns);
-        Self {
-            body_x: model.body.x,
-            body_y: model.body.y,
-            body_dx: model.body.dx,
-            body_dy: model.body.dy,
-            control_x: if matches!(model.primary_control.axis, ControlAxis::Horizontal) {
-                model.primary_control.position
-            } else {
-                50
-            },
-            control_y: if matches!(model.primary_control.axis, ControlAxis::Vertical) {
-                model.primary_control.position
-            } else {
-                50
-            },
-            tracked_control_y: model
-                .tracked_control
-                .as_ref()
-                .map_or(50, |tracked_control| tracked_control.position),
-            contact_field_rows,
-            contact_field_cols,
-            contact_field: vec![true; contact_field_rows * contact_field_cols],
-            contact_value: 0,
-            resets_remaining: 3,
-        }
-    }
-
-    fn live_contact_field_indices(&self) -> String {
-        self.contact_field
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, live)| live.then_some(idx.to_string()))
-            .collect::<Vec<_>>()
-            .join(",")
+fn top_static_range_end(app_ir: &AppIr, path: &str) -> Option<usize> {
+    let record = app_ir
+        .static_records
+        .iter()
+        .find(|record| record.path == path)?;
+    match &record.fields.first()?.value {
+        IrStaticValue::Range { to, .. } => usize::try_from(*to).ok().filter(|value| *value > 0),
+        _ => None,
     }
 }
 
-impl Default for DynamicsRuntimeState {
-    fn default() -> Self {
-        Self {
-            body_x: 0,
-            body_y: 0,
-            body_dx: 0,
-            body_dy: 0,
-            control_x: 50,
-            control_y: 50,
-            tracked_control_y: 50,
-            contact_field_rows: 0,
-            contact_field_cols: 0,
-            contact_field: Vec::new(),
-            contact_value: 0,
-            resets_remaining: 3,
+fn std_function_names_from_static_records(app_ir: &AppIr) -> Vec<String> {
+    let mut names = BTreeSet::new();
+    for record in &app_ir.static_records {
+        collect_std_function_names(&record.fields, &mut names);
+    }
+    names.into_iter().collect()
+}
+
+fn collect_std_function_names(fields: &[IrStaticField], names: &mut BTreeSet<String>) {
+    for field in fields {
+        match &field.value {
+            IrStaticValue::Path { value } if value.starts_with("Math/") => {
+                names.insert(field.key.clone());
+            }
+            IrStaticValue::Record { fields } => collect_std_function_names(fields, names),
+            IrStaticValue::List { items } => {
+                for item in items {
+                    collect_std_function_names_from_value(item, names);
+                }
+            }
+            _ => {}
         }
+    }
+}
+
+fn collect_std_function_names_from_value(value: &IrStaticValue, names: &mut BTreeSet<String>) {
+    match value {
+        IrStaticValue::Record { fields } => collect_std_function_names(fields, names),
+        IrStaticValue::List { items } => {
+            for item in items {
+                collect_std_function_names_from_value(item, names);
+            }
+        }
+        IrStaticValue::Text { .. }
+        | IrStaticValue::Number { .. }
+        | IrStaticValue::Bool { .. }
+        | IrStaticValue::Tag { .. }
+        | IrStaticValue::Path { .. }
+        | IrStaticValue::Range { .. } => {}
+    }
+}
+
+fn motion_document_from_static_records(app_ir: &AppIr) -> MotionDocument {
+    let Some(record) = app_ir.static_records.iter().find(|record| {
+        static_record_field(record, "arena").is_some()
+            && static_record_field(record, "body").is_some()
+            && static_record_field(record, "primary_control").is_some()
+    }) else {
+        return MotionDocument::empty();
+    };
+    MotionDocument::new(MotionConfig {
+        arena_width: static_record_field(record, "arena")
+            .and_then(|fields| static_i64_value(fields, "width"))
+            .unwrap_or(1000),
+        arena_height: static_record_field(record, "arena")
+            .and_then(|fields| static_i64_value(fields, "height"))
+            .unwrap_or(700),
+        body: MotionBody {
+            x: static_record_field(record, "body")
+                .and_then(|fields| static_i64_value(fields, "x"))
+                .unwrap_or(500),
+            y: static_record_field(record, "body")
+                .and_then(|fields| static_i64_value(fields, "y"))
+                .unwrap_or(350),
+            dx: static_record_field(record, "body")
+                .and_then(|fields| static_i64_value(fields, "dx"))
+                .unwrap_or(10),
+            dy: static_record_field(record, "body")
+                .and_then(|fields| static_i64_value(fields, "dy"))
+                .unwrap_or(8),
+            size: static_record_field(record, "body")
+                .and_then(|fields| static_i64_value(fields, "size"))
+                .unwrap_or(22),
+        },
+        primary_control: motion_control_from_fields(
+            static_record_field(record, "primary_control"),
+            MotionAxis::Vertical,
+            MotionControl {
+                axis: MotionAxis::Vertical,
+                position: 50,
+                step: 8,
+                x: 38,
+                y: 0,
+                width: 18,
+                height: 128,
+                auto_track: false,
+            },
+        ),
+        tracked_control: static_record_field(record, "tracked_control").map(|fields| {
+            motion_control_from_fields(
+                Some(fields),
+                MotionAxis::Vertical,
+                MotionControl {
+                    axis: MotionAxis::Vertical,
+                    position: 50,
+                    step: 8,
+                    x: 944,
+                    y: 0,
+                    width: 18,
+                    height: 128,
+                    auto_track: true,
+                },
+            )
+        }),
+        contact_grid: static_record_field(record, "contact_field").map(|fields| ContactGrid {
+            rows: static_i64_value(fields, "rows").unwrap_or(6).max(0) as usize,
+            columns: static_i64_value(fields, "columns").unwrap_or(12).max(0) as usize,
+            top: static_i64_value(fields, "top").unwrap_or(56),
+            margin: static_i64_value(fields, "margin").unwrap_or(36),
+            gap: static_i64_value(fields, "gap").unwrap_or(8),
+            height: static_i64_value(fields, "height").unwrap_or(28),
+            value_per_contact: static_i64_value(fields, "value_per_contact").unwrap_or(10),
+        }),
+    })
+}
+
+fn motion_control_from_fields(
+    fields: Option<&[IrStaticField]>,
+    default_axis: MotionAxis,
+    default: MotionControl,
+) -> MotionControl {
+    let Some(fields) = fields else {
+        return default;
+    };
+    MotionControl {
+        axis: static_tag_value(fields, "axis")
+            .and_then(motion_axis_from_tag)
+            .unwrap_or(default_axis),
+        position: static_i64_value(fields, "position").unwrap_or(default.position),
+        step: static_i64_value(fields, "step").unwrap_or(default.step),
+        x: static_i64_value(fields, "x").unwrap_or(default.x),
+        y: static_i64_value(fields, "y").unwrap_or(default.y),
+        width: static_i64_value(fields, "width").unwrap_or(default.width),
+        height: static_i64_value(fields, "height").unwrap_or(default.height),
+        auto_track: static_bool_value(fields, "auto_track").unwrap_or(default.auto_track),
+    }
+}
+
+fn static_i64_value(fields: &[IrStaticField], field: &str) -> Option<i64> {
+    match static_record_value_field(fields, field)? {
+        IrStaticValue::Number { value } => Some(*value),
+        _ => None,
+    }
+}
+
+fn static_bool_value(fields: &[IrStaticField], field: &str) -> Option<bool> {
+    match static_record_value_field(fields, field)? {
+        IrStaticValue::Bool { value } => Some(*value),
+        _ => None,
+    }
+}
+
+fn static_tag_value<'a>(fields: &'a [IrStaticField], field: &str) -> Option<&'a str> {
+    match static_record_value_field(fields, field)? {
+        IrStaticValue::Tag { value } => Some(value.as_str()),
+        _ => None,
+    }
+}
+
+fn motion_axis_from_tag(value: &str) -> Option<MotionAxis> {
+    match value {
+        "Horizontal" => Some(MotionAxis::Horizontal),
+        "Vertical" => Some(MotionAxis::Vertical),
+        _ => None,
     }
 }
 
@@ -748,14 +859,13 @@ impl CompiledApp {
             .first()
             .map(|list| list.initial_entries.clone())
             .unwrap_or_default();
-        let grid = app_ir
-            .matrix_models
-            .first()
-            .map(|grid| {
-                FormulaGrid::new(grid.rows, grid.columns, grid.expression_functions.clone())
-            })
-            .unwrap_or_else(|| FormulaGrid::new(100, 26, Vec::<String>::new()));
-        let motion = DynamicsRuntimeState::from_model(app_ir.dynamics_models.first());
+        let (grid_rows, grid_columns) = grid_dimensions_from_static_records(&app_ir);
+        let grid = GridDocument::new(
+            grid_rows,
+            grid_columns,
+            std_function_names_from_static_records(&app_ir),
+        );
+        let motion = motion_document_from_static_records(&app_ir);
         let initial_view_selector = runtime_list_view_from_app_ir(&app_ir).map_or_else(
             || "all".to_string(),
             |view| {
@@ -793,7 +903,6 @@ impl CompiledApp {
             generic_state,
             view_selector: initial_view_selector,
             grid,
-            frame_index: 0,
             motion,
         };
         app.next_dynamic_value_id = app.dynamic_values.len() as u64 + 1;
@@ -879,7 +988,7 @@ impl CompiledApp {
             .collect()
     }
 
-    fn dense_change_paths(&self) -> Vec<String> {
+    fn grid_change_paths(&self) -> Vec<String> {
         self.wiring
             .grid
             .as_ref()
@@ -887,7 +996,7 @@ impl CompiledApp {
             .unwrap_or_default()
     }
 
-    fn dense_selection_change_paths(&self) -> Vec<String> {
+    fn grid_selection_change_paths(&self) -> Vec<String> {
         self.wiring
             .grid
             .as_ref()
@@ -1279,8 +1388,16 @@ impl CompiledApp {
             .is_some_and(|field| record.bool_field(field))
     }
 
-    fn dynamics_model(&self) -> Option<&boon_compiler::IrDynamicsModel> {
-        self.app_ir.dynamics_models.first()
+    fn motion_root(&self) -> Option<&str> {
+        self.app_ir
+            .static_records
+            .iter()
+            .find(|record| {
+                static_record_field(record, "arena").is_some()
+                    && static_record_field(record, "body").is_some()
+                    && static_record_field(record, "primary_control").is_some()
+            })
+            .map(|record| record.path.as_str())
     }
 
     fn has_render_kind(&self, kind: boon_compiler::IrRenderKind) -> bool {
@@ -1306,9 +1423,9 @@ impl CompiledApp {
 
     fn render_text(&self) -> String {
         if self.has_render_kind(boon_compiler::IrRenderKind::Grid) {
-            self.render_matrix_text()
-        } else if !self.app_ir.dynamics_models.is_empty() {
-            self.render_dynamics_text()
+            self.render_slot_text()
+        } else if self.motion.is_enabled() {
+            self.render_motion_text()
         } else if self.can_render_generic_scene() {
             self.render_generic_text()
         } else {
@@ -1324,9 +1441,9 @@ impl CompiledApp {
         };
         push_rect(&mut scene, 0, 0, 1000, 1000, [245, 245, 245, 255]);
         if self.has_render_kind(boon_compiler::IrRenderKind::Grid) {
-            self.render_matrix_scene(&mut scene);
-        } else if !self.app_ir.dynamics_models.is_empty() {
-            self.render_dynamics_scene(&mut scene);
+            self.render_grid_primitive(&mut scene);
+        } else if self.motion.is_enabled() {
+            self.render_motion_primitive(&mut scene);
         } else if self.can_render_generic_scene() {
             self.render_generic_scene(&mut scene);
         }
@@ -1336,7 +1453,7 @@ impl CompiledApp {
     fn can_render_generic_scene(&self) -> bool {
         self.app_ir.render_tree.is_some()
             && !self.has_render_kind(boon_compiler::IrRenderKind::Grid)
-            && self.app_ir.dynamics_models.is_empty()
+            && !self.motion.is_enabled()
     }
 
     fn render_generic_text(&self) -> String {
@@ -1691,7 +1808,7 @@ impl CompiledApp {
         }
     }
 
-    fn render_matrix_scene(&self, scene: &mut FrameScene) {
+    fn render_grid_primitive(&self, scene: &mut FrameScene) {
         push_rect(scene, 0, 0, 1000, 1000, [248, 249, 250, 255]);
         let selected = format!(
             "{}{}",
@@ -1707,7 +1824,7 @@ impl CompiledApp {
             142,
             100,
             1,
-            self.dense_text(self.grid.selected().0, self.grid.selected().1),
+            self.slot_text(self.grid.selected().0, self.grid.selected().1),
             [35, 50, 64, 255],
         );
         let origin_x = 48;
@@ -1773,7 +1890,7 @@ impl CompiledApp {
                     if let Some(path) = grid.display_double_click.as_deref() {
                         scene.hit_targets.push(attach_owner(
                             HitTarget {
-                                id: format!("dense_slot_{owner_id}"),
+                                id: format!("grid_slot_{owner_id}"),
                                 x,
                                 y,
                                 width: col_w,
@@ -1784,7 +1901,7 @@ impl CompiledApp {
                                 generation: 0,
                                 text_state_path: grid.editor_text.clone(),
                                 text_value: Some(
-                                    self.dense_text(row as usize, col as usize).to_string(),
+                                    self.slot_text(row as usize, col as usize).to_string(),
                                 ),
                                 key_event_path: grid.editor_key.clone(),
                                 change_event_path: None,
@@ -1796,7 +1913,7 @@ impl CompiledApp {
                         ));
                     }
                 }
-                let value = self.dense_value(row as usize, col as usize);
+                let value = self.slot_value(row as usize, col as usize);
                 if !value.is_empty() {
                     push_text(scene, x + 8, y + 14, 1, value, [40, 55, 68, 255]);
                 }
@@ -1804,10 +1921,11 @@ impl CompiledApp {
         }
     }
 
-    fn render_dynamics_scene(&self, scene: &mut FrameScene) {
-        let Some(kinematics) = self.dynamics_model() else {
+    fn render_motion_primitive(&self, scene: &mut FrameScene) {
+        if !self.motion.is_enabled() {
             return;
-        };
+        }
+        let motion = self.motion.config();
         push_rect(scene, 0, 0, 1000, 1000, [18, 24, 32, 255]);
         push_text(scene, 38, 28, 2, &self.program.title, [231, 241, 247, 255]);
         push_text(
@@ -1817,7 +1935,9 @@ impl CompiledApp {
             1,
             &format!(
                 "frame {} contact_value {} resets_remaining {}",
-                self.frame_index, self.motion.contact_value, self.motion.resets_remaining
+                self.motion.frame_index(),
+                self.motion.contact_value(),
+                self.motion.resets_remaining()
             ),
             [153, 183, 198, 255],
         );
@@ -1828,31 +1948,29 @@ impl CompiledApp {
         push_rect(scene, x0, y0, w, h, [12, 20, 29, 255]);
         push_rect_outline(scene, x0, y0, w, h, [74, 103, 122, 255]);
         let sx = |value: i64| {
-            x0 + ((value.clamp(0, kinematics.arena_width) as u32) * w
-                / kinematics.arena_width.max(1) as u32)
+            x0 + ((value.clamp(0, motion.arena_width) as u32) * w
+                / motion.arena_width.max(1) as u32)
         };
         let sy = |value: i64| {
-            y0 + ((value.clamp(0, kinematics.arena_height) as u32) * h
-                / kinematics.arena_height.max(1) as u32)
+            y0 + ((value.clamp(0, motion.arena_height) as u32) * h
+                / motion.arena_height.max(1) as u32)
         };
-        let sw =
-            |value: i64| ((value.max(1) as u32) * w / kinematics.arena_width.max(1) as u32).max(1);
+        let sw = |value: i64| ((value.max(1) as u32) * w / motion.arena_width.max(1) as u32).max(1);
         let sh =
-            |value: i64| ((value.max(1) as u32) * h / kinematics.arena_height.max(1) as u32).max(1);
+            |value: i64| ((value.max(1) as u32) * h / motion.arena_height.max(1) as u32).max(1);
 
-        if let Some(contact_field) = &kinematics.contact_field {
-            let contact_w = (kinematics.arena_width
-                - contact_field.margin * 2
-                - (contact_field.columns.saturating_sub(1) as i64 * contact_field.gap))
-                / contact_field.columns.max(1) as i64;
-            for row in 0..contact_field.rows {
-                for col in 0..contact_field.columns {
-                    let idx = row * contact_field.columns + col;
-                    if self.motion.contact_field.get(idx).copied().unwrap_or(false) {
-                        let bx =
-                            contact_field.margin + col as i64 * (contact_w + contact_field.gap);
-                        let by = contact_field.top
-                            + row as i64 * (contact_field.height + contact_field.gap);
+        if let Some(contact_grid) = &motion.contact_grid {
+            let contact_w = (motion.arena_width
+                - contact_grid.margin * 2
+                - (contact_grid.columns.saturating_sub(1) as i64 * contact_grid.gap))
+                / contact_grid.columns.max(1) as i64;
+            for row in 0..contact_grid.rows {
+                for col in 0..contact_grid.columns {
+                    let idx = row * contact_grid.columns + col;
+                    if self.motion.contact_is_live(idx) {
+                        let bx = contact_grid.margin + col as i64 * (contact_w + contact_grid.gap);
+                        let by = contact_grid.top
+                            + row as i64 * (contact_grid.height + contact_grid.gap);
                         let color = match row % 4 {
                             0 => [232, 92, 80, 255],
                             1 => [236, 168, 72, 255],
@@ -1864,7 +1982,7 @@ impl CompiledApp {
                             sx(bx),
                             sy(by),
                             sw(contact_w),
-                            sh(contact_field.height),
+                            sh(contact_grid.height),
                             color,
                         );
                     }
@@ -1872,36 +1990,36 @@ impl CompiledApp {
             }
         }
 
-        let primary_x = if kinematics.primary_control.axis == ControlAxis::Horizontal {
+        let primary_x = if motion.primary_control.axis == MotionAxis::Horizontal {
             controller_left_from_position(
-                self.motion.control_x,
-                kinematics.arena_width,
-                kinematics.primary_control.width,
+                self.motion.control_x(),
+                motion.arena_width,
+                motion.primary_control.width,
             )
         } else {
-            kinematics.primary_control.x
+            motion.primary_control.x
         };
-        let primary_y = if kinematics.primary_control.axis == ControlAxis::Vertical {
+        let primary_y = if motion.primary_control.axis == MotionAxis::Vertical {
             controller_top_from_position(
-                self.motion.control_y,
-                kinematics.arena_height,
-                kinematics.primary_control.height,
+                self.motion.control_y(),
+                motion.arena_height,
+                motion.primary_control.height,
             )
         } else {
-            kinematics.primary_control.y
+            motion.primary_control.y
         };
         push_rect(
             scene,
             sx(primary_x),
             sy(primary_y),
-            sw(kinematics.primary_control.width),
-            sh(kinematics.primary_control.height),
+            sw(motion.primary_control.width),
+            sh(motion.primary_control.height),
             [85, 212, 230, 255],
         );
-        if let Some(tracked_control) = &kinematics.tracked_control {
+        if let Some(tracked_control) = &motion.tracked_control {
             let tracked_y = controller_top_from_position(
-                self.motion.tracked_control_y,
-                kinematics.arena_height,
+                self.motion.tracked_control_y(),
+                motion.arena_height,
                 tracked_control.height,
             );
             push_rect(
@@ -1915,234 +2033,47 @@ impl CompiledApp {
         }
         push_rect(
             scene,
-            sx(self.motion.body_x),
-            sy(self.motion.body_y),
-            sw(kinematics.body.size),
-            sh(kinematics.body.size),
+            sx(self.motion.body_x()),
+            sy(self.motion.body_y()),
+            sw(motion.body.size),
+            sh(motion.body.size),
             [250, 250, 250, 255],
         );
     }
 
-    fn render_dynamics_text(&self) -> String {
+    fn render_motion_text(&self) -> String {
         let frame_source = self
             .wiring
-            .kinematic_frame_event
+            .motion_frame_event
             .as_deref()
             .unwrap_or("frame source");
         format!(
-            "{}\nsurface: kinematics\nkinematic_mode: {}\nframe: {}\ncontrol_y: {}\ncontrol_x: {}\ntracked_control_y: {}\nbody_x: {}\nbody_y: {}\nbody_dx: {}\nbody_dy: {}\ncontact_field_rows: {}\ncontact_field_cols: {}\ncontact_field_live: {}\ncontact_value: {}\nresets_remaining: {}\ndeterministic input source: {}",
+            "{}\nsurface: motion\nmotion_mode: {}\nframe: {}\ncontrol_y: {}\ncontrol_x: {}\ntracked_control_y: {}\nbody_x: {}\nbody_y: {}\nbody_dx: {}\nbody_dy: {}\ncontact_field_rows: {}\ncontact_field_cols: {}\ncontact_field_live: {}\ncontact_value: {}\nresets_remaining: {}\ndeterministic input source: {}",
             self.program.title,
-            if self
-                .dynamics_model()
-                .and_then(|kinematics| kinematics.contact_field.as_ref())
-                .is_some()
-            {
-                "contact-field"
+            if self.motion.config().contact_grid.is_some() {
+                "contact-grid"
             } else {
-                "dual-walls"
+                "tracked-control"
             },
-            self.frame_index,
-            self.motion.control_y,
-            self.motion.control_x,
-            self.motion.tracked_control_y,
-            self.motion.body_x,
-            self.motion.body_y,
-            self.motion.body_dx,
-            self.motion.body_dy,
-            self.motion.contact_field_rows,
-            self.motion.contact_field_cols,
-            self.motion.live_contact_field_indices(),
-            self.motion.contact_value,
-            self.motion.resets_remaining,
+            self.motion.frame_index(),
+            self.motion.control_y(),
+            self.motion.control_x(),
+            self.motion.tracked_control_y(),
+            self.motion.body_x(),
+            self.motion.body_y(),
+            self.motion.body_dx(),
+            self.motion.body_dy(),
+            self.motion.contact_rows(),
+            self.motion.contact_columns(),
+            self.motion.live_contact_indices(),
+            self.motion.contact_value(),
+            self.motion.resets_remaining(),
             frame_source
         )
     }
 
-    fn advance_kinematic_step(&mut self) {
-        self.frame_index += 1;
-        if self
-            .dynamics_model()
-            .and_then(|kinematics| kinematics.contact_field.as_ref())
-            .is_some()
-        {
-            self.advance_bounded_contact_field_step();
-        } else {
-            self.advance_bounded_peer_step();
-        }
-    }
-
-    fn advance_bounded_peer_step(&mut self) {
-        let Some(kinematics) = self.dynamics_model().cloned() else {
-            return;
-        };
-        let Some(tracked_control) = kinematics.tracked_control.as_ref() else {
-            return;
-        };
-        let arena_w = kinematics.arena_width;
-        let arena_h = kinematics.arena_height;
-        let body_size = kinematics.body.size;
-        let controller_w = kinematics.primary_control.width;
-        let controller_h = kinematics.primary_control.height;
-        let left_x = kinematics.primary_control.x;
-        let right_x = tracked_control.x;
-
-        self.motion.body_x += self.motion.body_dx;
-        self.motion.body_y += self.motion.body_dy;
-        if self.motion.body_y <= 0 {
-            self.motion.body_y = 0;
-            self.motion.body_dy = self.motion.body_dy.abs();
-        } else if self.motion.body_y + body_size >= arena_h {
-            self.motion.body_y = arena_h - body_size;
-            self.motion.body_dy = -self.motion.body_dy.abs();
-        }
-
-        self.motion.tracked_control_y = position_from_controller_top(
-            self.motion.body_y + body_size / 2 - controller_h / 2,
-            arena_h,
-            controller_h,
-        );
-        let left_y = controller_top_from_position(self.motion.control_y, arena_h, controller_h);
-        let right_y =
-            controller_top_from_position(self.motion.tracked_control_y, arena_h, controller_h);
-
-        if self.motion.body_dx < 0
-            && self.motion.body_x <= left_x + controller_w
-            && self.motion.body_x + body_size >= left_x
-            && ranges_overlap(
-                self.motion.body_y,
-                self.motion.body_y + body_size,
-                left_y,
-                left_y + controller_h,
-            )
-        {
-            self.motion.body_x = left_x + controller_w;
-            self.motion.body_dx = self.motion.body_dx.abs();
-            self.motion.body_dy = (self.motion.body_dy
-                + ((self.motion.body_y + body_size / 2) - (left_y + controller_h / 2)) / 18)
-                .clamp(-18, 18);
-            self.motion.contact_value += 1;
-        }
-        if self.motion.body_dx > 0
-            && self.motion.body_x + body_size >= right_x
-            && self.motion.body_x <= right_x + controller_w
-            && ranges_overlap(
-                self.motion.body_y,
-                self.motion.body_y + body_size,
-                right_y,
-                right_y + controller_h,
-            )
-        {
-            self.motion.body_x = right_x - body_size;
-            self.motion.body_dx = -self.motion.body_dx.abs();
-            self.motion.body_dy = (self.motion.body_dy
-                + ((self.motion.body_y + body_size / 2) - (right_y + controller_h / 2)) / 18)
-                .clamp(-18, 18);
-            self.motion.contact_value += 1;
-        }
-        if self.motion.body_x < -body_size || self.motion.body_x > arena_w + body_size {
-            self.motion.body_x = arena_w / 2;
-            self.motion.body_y = arena_h / 2;
-            self.motion.body_dx = if self.motion.body_dx < 0 { 12 } else { -12 };
-            self.motion.body_dy = 8;
-            self.motion.resets_remaining = (self.motion.resets_remaining - 1).max(0);
-        }
-    }
-
-    fn advance_bounded_contact_field_step(&mut self) {
-        let Some(kinematics) = self.dynamics_model().cloned() else {
-            return;
-        };
-        let Some(contact_field) = kinematics.contact_field.as_ref() else {
-            return;
-        };
-        let arena_w = kinematics.arena_width;
-        let arena_h = kinematics.arena_height;
-        let body_size = kinematics.body.size;
-        let controller_w = kinematics.primary_control.width;
-        let controller_h = kinematics.primary_control.height;
-        let control_y = kinematics.primary_control.y;
-
-        self.motion.body_x += self.motion.body_dx;
-        self.motion.body_y += self.motion.body_dy;
-        if self.motion.body_x <= 0 {
-            self.motion.body_x = 0;
-            self.motion.body_dx = self.motion.body_dx.abs();
-        } else if self.motion.body_x + body_size >= arena_w {
-            self.motion.body_x = arena_w - body_size;
-            self.motion.body_dx = -self.motion.body_dx.abs();
-        }
-        if self.motion.body_y <= 0 {
-            self.motion.body_y = 0;
-            self.motion.body_dy = self.motion.body_dy.abs();
-        }
-
-        if self.motion.body_dy < 0 {
-            let margin = contact_field.margin;
-            let gap = contact_field.gap;
-            let contact_h = contact_field.height;
-            let rows = self.motion.contact_field_rows as i64;
-            let cols = self.motion.contact_field_cols as i64;
-            let contact_w = if cols > 0 {
-                (arena_w - margin * 2 - gap * (cols - 1)) / cols
-            } else {
-                0
-            };
-            'contact_field_scan: for row in 0..rows {
-                for col in 0..cols {
-                    let idx = (row * cols + col) as usize;
-                    if !self.motion.contact_field.get(idx).copied().unwrap_or(false) {
-                        continue;
-                    }
-                    let bx = margin + col * (contact_w + gap);
-                    let by = contact_field.top + row * (contact_h + gap);
-                    if rects_overlap(
-                        self.motion.body_x,
-                        self.motion.body_y,
-                        body_size,
-                        body_size,
-                        bx,
-                        by,
-                        contact_w,
-                        contact_h,
-                    ) {
-                        self.motion.contact_field[idx] = false;
-                        self.motion.body_dy = self.motion.body_dy.abs();
-                        self.motion.contact_value += contact_field.value_per_contact;
-                        break 'contact_field_scan;
-                    }
-                }
-            }
-        }
-
-        let control_x = controller_left_from_position(self.motion.control_x, arena_w, controller_w);
-        if self.motion.body_dy > 0
-            && rects_overlap(
-                self.motion.body_x,
-                self.motion.body_y,
-                body_size,
-                body_size,
-                control_x,
-                control_y,
-                controller_w,
-                controller_h,
-            )
-        {
-            self.motion.body_y = control_y - body_size;
-            self.motion.body_dy = -self.motion.body_dy.abs();
-            self.motion.body_dx = (self.motion.body_dx
-                + ((self.motion.body_x + body_size / 2) - (control_x + controller_w / 2)) / 18)
-                .clamp(-18, 18);
-        }
-        if self.motion.body_y > arena_h {
-            self.motion.body_x = control_x + controller_w / 2 - body_size / 2;
-            self.motion.body_y = control_y - body_size - 2;
-            self.motion.body_dx = kinematics.body.dx;
-            self.motion.body_dy = kinematics.body.dy;
-            self.motion.resets_remaining = (self.motion.resets_remaining - 1).max(0);
-        }
-        if self.motion.contact_field.iter().all(|live| !*live) {
-            self.motion.contact_field.fill(true);
-        }
+    fn advance_motion_step(&mut self) {
+        self.motion.advance_frame();
     }
 
     fn visible_dynamic_values(&self) -> impl Iterator<Item = &RuntimeDynamicValue> {
@@ -2164,10 +2095,10 @@ impl CompiledApp {
             })
     }
 
-    fn render_matrix_text(&self) -> String {
+    fn render_slot_text(&self) -> String {
         let mut lines = vec![
             self.program.title.clone(),
-            "surface: dense_grid".to_string(),
+            "surface: grid_primitive".to_string(),
             format!(
                 "selected: {}{}",
                 column_name(self.grid.selected().1),
@@ -2175,20 +2106,20 @@ impl CompiledApp {
             ),
             format!(
                 "expression: {}",
-                self.dense_text(self.grid.selected().0, self.grid.selected().1)
+                self.slot_text(self.grid.selected().0, self.grid.selected().1)
             ),
             format!(
                 "value: {}",
-                self.dense_value(self.grid.selected().0, self.grid.selected().1)
+                self.slot_value(self.grid.selected().0, self.grid.selected().1)
             ),
             "columns: A B C D E F ... Z".to_string(),
         ];
         for row in 1..=self.grid.rows().min(5) {
             lines.push(format!(
                 "row {row}: A={} | B={} | C={}",
-                self.dense_value(row, 1.min(self.grid.columns())),
-                self.dense_value(row, 2.min(self.grid.columns())),
-                self.dense_value(row, 3.min(self.grid.columns()))
+                self.slot_value(row, 1.min(self.grid.columns())),
+                self.slot_value(row, 2.min(self.grid.columns())),
+                self.slot_value(row, 3.min(self.grid.columns()))
             ));
         }
         lines.push(format!(
@@ -2199,18 +2130,18 @@ impl CompiledApp {
         lines.join("\n")
     }
 
-    fn dense_value(&self, row: usize, col: usize) -> &str {
+    fn slot_value(&self, row: usize, col: usize) -> &str {
         self.grid.value(row, col)
     }
 
-    fn dense_text(&self, row: usize, col: usize) -> &str {
+    fn slot_text(&self, row: usize, col: usize) -> &str {
         self.grid.text(row, col)
     }
 
-    fn parse_dense_owner(&self, owner_id: &str) -> Result<(usize, usize)> {
+    fn parse_grid_owner(&self, owner_id: &str) -> Result<(usize, usize)> {
         self.grid
             .parse_owner(owner_id)
-            .ok_or_else(|| anyhow::anyhow!("dense owner_id `{owner_id}` is outside compiled grid"))
+            .ok_or_else(|| anyhow::anyhow!("grid owner_id `{owner_id}` is outside compiled grid"))
     }
 
     fn validate_batch(&self, batch: &SourceBatch) -> Result<()> {
@@ -2279,7 +2210,7 @@ impl CompiledApp {
         if let Some(grid) = &self.wiring.grid
             && path.starts_with(&grid.family)
         {
-            self.parse_dense_owner(owner_id)?;
+            self.parse_grid_owner(owner_id)?;
             return Ok(0);
         }
         bail!("dynamic SOURCE `{path}` has no owner generation grid")
@@ -2362,7 +2293,7 @@ impl BoonApp for CompiledApp {
                 let (row, col) = update
                     .owner_id
                     .as_deref()
-                    .map(|owner_id| self.parse_dense_owner(owner_id))
+                    .map(|owner_id| self.parse_grid_owner(owner_id))
                     .transpose()?
                     .unwrap_or(self.grid.selected());
                 self.grid.set_text(row, col, value);
@@ -2433,12 +2364,12 @@ impl BoonApp for CompiledApp {
                 let (row, col) = event
                     .owner_id
                     .as_deref()
-                    .map(|owner_id| self.parse_dense_owner(owner_id))
+                    .map(|owner_id| self.parse_grid_owner(owner_id))
                     .transpose()?
                     .unwrap_or(self.grid.selected());
                 self.grid.set_selected(row, col);
                 self.grid.set_edit_focus(Some((row, col)));
-                results.push(self.emit_frame_owned(self.dense_change_paths(), metrics));
+                results.push(self.emit_frame_owned(self.grid_change_paths(), metrics));
             } else if self
                 .wiring
                 .grid
@@ -2449,7 +2380,7 @@ impl BoonApp for CompiledApp {
                 if matches!(event.value, SourceValue::Tag(ref key) if key == "Enter") {
                     self.grid.set_edit_focus(None);
                 }
-                results.push(self.emit_frame_owned(self.dense_change_paths(), metrics));
+                results.push(self.emit_frame_owned(self.grid_change_paths(), metrics));
             } else if self
                 .wiring
                 .grid
@@ -2466,54 +2397,33 @@ impl BoonApp for CompiledApp {
                         _ => {}
                     }
                 }
-                results.push(self.emit_frame_owned(self.dense_selection_change_paths(), metrics));
+                results.push(self.emit_frame_owned(self.grid_selection_change_paths(), metrics));
             } else if self
                 .wiring
-                .kinematic_control_event
+                .motion_control_event
                 .as_ref()
                 .is_some_and(|path| event.path == *path)
             {
-                if let SourceValue::Tag(key) = &event.value
-                    && let Some(kinematics) = self.dynamics_model().cloned()
-                {
-                    match kinematics.primary_control.axis {
-                        ControlAxis::Horizontal => match key.as_str() {
-                            "ArrowLeft" | "ArrowUp" => {
-                                self.motion.control_x = (self.motion.control_x
-                                    - kinematics.primary_control.step)
-                                    .max(0);
-                            }
-                            "ArrowRight" | "ArrowDown" => {
-                                self.motion.control_x = (self.motion.control_x
-                                    + kinematics.primary_control.step)
-                                    .min(100);
-                            }
-                            _ => {}
-                        },
-                        ControlAxis::Vertical => match key.as_str() {
-                            "ArrowUp" | "ArrowLeft" => {
-                                self.motion.control_y = (self.motion.control_y
-                                    - kinematics.primary_control.step)
-                                    .max(0);
-                            }
-                            "ArrowDown" | "ArrowRight" => {
-                                self.motion.control_y = (self.motion.control_y
-                                    + kinematics.primary_control.step)
-                                    .min(100);
-                            }
-                            _ => {}
-                        },
-                    }
+                if let SourceValue::Tag(key) = &event.value {
+                    self.motion.apply_key(key);
                 }
-                results.push(self.emit_frame(&["kinematics.control"], metrics));
+                let changed = self
+                    .motion_root()
+                    .map(|root| vec![format!("{root}.control")])
+                    .unwrap_or_default();
+                results.push(self.emit_frame_owned(changed, metrics));
             } else if self
                 .wiring
-                .kinematic_frame_event
+                .motion_frame_event
                 .as_ref()
                 .is_some_and(|path| event.path == *path)
             {
-                self.advance_kinematic_step();
-                results.push(self.emit_frame(&["frame", "kinematics.body"], metrics));
+                self.advance_motion_step();
+                let changed = self
+                    .motion_root()
+                    .map(|root| vec!["frame".to_string(), format!("{root}.body")])
+                    .unwrap_or_else(|| vec!["frame".to_string()]);
+                results.push(self.emit_frame_owned(changed, metrics));
             }
         }
         if results.is_empty() && !changed_paths.is_empty() {
@@ -2617,49 +2527,39 @@ impl BoonApp for CompiledApp {
                 );
             }
         }
-        values.insert("kinematics.frame".to_string(), json!(self.frame_index));
-        values.insert(
-            "kinematics.control_y".to_string(),
-            json!(self.motion.control_y),
-        );
-        values.insert(
-            "kinematics.control_x".to_string(),
-            json!(self.motion.control_x),
-        );
-        values.insert(
-            "kinematics.tracked_control_y".to_string(),
-            json!(self.motion.tracked_control_y),
-        );
-        values.insert("kinematics.body_x".to_string(), json!(self.motion.body_x));
-        values.insert("kinematics.body_y".to_string(), json!(self.motion.body_y));
-        values.insert("kinematics.body_dx".to_string(), json!(self.motion.body_dx));
-        values.insert("kinematics.body_dy".to_string(), json!(self.motion.body_dy));
-        values.insert(
-            "kinematics.contact_field_rows".to_string(),
-            json!(self.motion.contact_field_rows as i64),
-        );
-        values.insert(
-            "kinematics.contact_field_cols".to_string(),
-            json!(self.motion.contact_field_cols as i64),
-        );
-        values.insert(
-            "kinematics.contact_field_live_count".to_string(),
-            json!(
-                self.motion
-                    .contact_field
-                    .iter()
-                    .filter(|live| **live)
-                    .count() as i64
-            ),
-        );
-        values.insert(
-            "kinematics.contact_value".to_string(),
-            json!(self.motion.contact_value),
-        );
-        values.insert(
-            "kinematics.resets_remaining".to_string(),
-            json!(self.motion.resets_remaining),
-        );
+        if let Some(root) = self.motion_root() {
+            values.insert(format!("{root}.frame"), json!(self.motion.frame_index()));
+            values.insert(format!("{root}.control_y"), json!(self.motion.control_y()));
+            values.insert(format!("{root}.control_x"), json!(self.motion.control_x()));
+            values.insert(
+                format!("{root}.tracked_control_y"),
+                json!(self.motion.tracked_control_y()),
+            );
+            values.insert(format!("{root}.body_x"), json!(self.motion.body_x()));
+            values.insert(format!("{root}.body_y"), json!(self.motion.body_y()));
+            values.insert(format!("{root}.body_dx"), json!(self.motion.body_dx()));
+            values.insert(format!("{root}.body_dy"), json!(self.motion.body_dy()));
+            values.insert(
+                format!("{root}.contact_field_rows"),
+                json!(self.motion.contact_rows() as i64),
+            );
+            values.insert(
+                format!("{root}.contact_field_cols"),
+                json!(self.motion.contact_columns() as i64),
+            );
+            values.insert(
+                format!("{root}.contact_field_live_count"),
+                json!(self.motion.live_contact_count() as i64),
+            );
+            values.insert(
+                format!("{root}.contact_value"),
+                json!(self.motion.contact_value()),
+            );
+            values.insert(
+                format!("{root}.resets_remaining"),
+                json!(self.motion.resets_remaining()),
+            );
+        }
         let grid_root = self
             .wiring
             .grid
@@ -2672,22 +2572,22 @@ impl BoonApp for CompiledApp {
                     let coordinate = format!("{}{}", column_name(col), row);
                     values.insert(
                         format!("{grid_root}.{coordinate}"),
-                        json!(self.dense_value(row, col)),
+                        json!(self.slot_value(row, col)),
                     );
                     values.insert(
                         format!("{grid_root}.{coordinate}.expression"),
-                        json!(self.dense_text(row, col)),
+                        json!(self.slot_text(row, col)),
                     );
                 }
             }
         }
         values.insert(
             format!("{grid_root}.selected_expression"),
-            json!(self.dense_text(self.grid.selected().0, self.grid.selected().1)),
+            json!(self.slot_text(self.grid.selected().0, self.grid.selected().1)),
         );
         values.insert(
             format!("{grid_root}.selected_value"),
-            json!(self.dense_value(self.grid.selected().0, self.grid.selected().1)),
+            json!(self.slot_value(self.grid.selected().0, self.grid.selected().1)),
         );
         values.insert(
             format!("{grid_root}.selected"),
@@ -2786,20 +2686,6 @@ fn controller_top_from_position(position: i64, arena_h: i64, controller_h: i64) 
 fn controller_left_from_position(position: i64, arena_w: i64, controller_w: i64) -> i64 {
     ((arena_w - controller_w).max(0) * position.clamp(0, 100) / 100)
         .clamp(0, arena_w - controller_w)
-}
-
-fn position_from_controller_top(top: i64, arena_h: i64, controller_h: i64) -> i64 {
-    let span = (arena_h - controller_h).max(1);
-    (top.clamp(0, span) * 100 / span).clamp(0, 100)
-}
-
-fn ranges_overlap(a0: i64, a1: i64, b0: i64, b1: i64) -> bool {
-    a0 < b1 && b0 < a1
-}
-
-#[allow(clippy::too_many_arguments)]
-fn rects_overlap(ax: i64, ay: i64, aw: i64, ah: i64, bx: i64, by: i64, bw: i64, bh: i64) -> bool {
-    ax < bx + bw && bx < ax + aw && ay < by + bh && by < ay + ah
 }
 
 fn source_state_key(emission: &SourceEmission) -> String {

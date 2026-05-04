@@ -53,26 +53,56 @@
       ]
     },
     {
+      "path": "rows",
+      "fields": [
+        {
+          "key": "value",
+          "value": {
+            "kind": "range",
+            "from": 1,
+            "to": 100
+          }
+        }
+      ]
+    },
+    {
+      "path": "columns",
+      "fields": [
+        {
+          "key": "value",
+          "value": {
+            "kind": "range",
+            "from": 1,
+            "to": 26
+          }
+        }
+      ]
+    },
+    {
       "path": "formulas",
       "fields": [
         {
           "key": "functions",
           "value": {
             "kind": "record",
-            "fields": []
+            "fields": [
+              {
+                "key": "add",
+                "value": {
+                  "kind": "path",
+                  "value": "Math/add"
+                }
+              },
+              {
+                "key": "sum",
+                "value": {
+                  "kind": "path",
+                  "value": "Math/sum"
+                }
+              }
+            ]
           }
         }
-      ]
-    }
-  ],
-  "matrix_models": [
-    {
-      "rows": 100,
-      "columns": 26,
-      "editor_source_family": "cells[*].sources.editor",
-      "expression_functions": [
-        "add",
-        "sum"
       ]
     }
   ],

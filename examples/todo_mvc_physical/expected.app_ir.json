@@ -84,7 +84,15 @@
                 "key": "mass_mark",
                 "value": {
                   "kind": "record",
-                  "fields": []
+                  "fields": [
+                    {
+                      "key": "source",
+                      "value": {
+                        "kind": "path",
+                        "value": "toggle_all_checkbox"
+                      }
+                    }
+                  ]
                 }
               },
               {
@@ -92,6 +100,13 @@
                 "value": {
                   "kind": "record",
                   "fields": [
+                    {
+                      "key": "source",
+                      "value": {
+                        "kind": "path",
+                        "value": "clear_completed_button"
+                      }
+                    },
                     {
                       "key": "label",
                       "value": {
@@ -197,6 +212,13 @@
                       }
                     }
                   ]
+                }
+              },
+              {
+                "key": "title",
+                "value": {
+                  "kind": "path",
+                  "value": "title"
                 }
               }
             ]

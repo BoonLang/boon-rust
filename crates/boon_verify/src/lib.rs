@@ -606,12 +606,6 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
         GenericityProbe {
             category: "dense grid family recognizer",
             path: "crates/boon_compiler/src/lib.rs",
-            needle: "\"Element/grid\" => IrRenderKind::Grid",
-            resolution: "treat grid as a generic scene primitive, not a trigger for a fixed matrix runtime family",
-        },
-        GenericityProbe {
-            category: "dense grid family recognizer",
-            path: "crates/boon_compiler/src/lib.rs",
             needle: "DenseGridSpec",
             resolution: "implement grid/formula behavior through generic state/list/render semantics",
         },
@@ -4545,12 +4539,11 @@ fn run_counter_native_playground_scenarios(name: &str) -> Result<NativePlaygroun
         initial,
         "counter unchanged after outside click",
     )?;
-    play_click(
+    play_click_source(
         &mut state,
         &mut steps,
         "click visible increment button",
-        500.0,
-        434.0,
+        "store.sources.increment_button.event.press",
     )?;
     expect(
         state.snapshot()?.values.get("scalar_value"),
@@ -4919,7 +4912,12 @@ fn todomvc_playground_add_toggle_filter_clear(name: &str) -> Result<NativePlaygr
         "sidebar click selects TodoMVC",
         click_sample(40.0, sidebar_y),
     )?;
-    play_click(&mut state, &mut steps, "click new todo input", 320.0, 196.0)?;
+    play_click_source(
+        &mut state,
+        &mut steps,
+        "click new todo input",
+        "store.sources.new_todo_input.text",
+    )?;
     play_text(
         &mut state,
         &mut steps,
@@ -4932,12 +4930,17 @@ fn todomvc_playground_add_toggle_filter_clear(name: &str) -> Result<NativePlaygr
         json!(3),
         "TodoMVC count after playground add",
     )?;
-    play_click(
+    let first_id = state
+        .visible_todo_ids()?
+        .first()
+        .cloned()
+        .context("TodoMVC add scenario has no visible first todo")?;
+    play_click_dynamic_source(
         &mut state,
         &mut steps,
         "click first todo checkbox",
-        236.0,
-        262.0,
+        "todos[*].sources.checkbox.event.click",
+        &first_id,
     )?;
     expect(
         state.snapshot()?.values.get("store.marked_todos_count"),
@@ -4945,26 +4948,46 @@ fn todomvc_playground_add_toggle_filter_clear(name: &str) -> Result<NativePlaygr
         "TodoMVC completed count after playground checkbox",
     )?;
     if name == "todo_mvc" {
-        play_todo_footer_click(&mut state, &mut steps, "click completed filter", 592.0)?;
+        play_click_source(
+            &mut state,
+            &mut steps,
+            "click completed filter",
+            "store.sources.filter_completed.event.press",
+        )?;
         expect(
             state.snapshot()?.values.get("store.view_selector"),
             json!("filter_completed"),
             "TodoMVC completed filter selected",
         )?;
-        play_todo_footer_click(&mut state, &mut steps, "click active filter", 482.0)?;
+        play_click_source(
+            &mut state,
+            &mut steps,
+            "click active filter",
+            "store.sources.filter_active.event.press",
+        )?;
         expect(
             state.snapshot()?.values.get("store.view_selector"),
             json!("filter_active"),
             "TodoMVC active filter selected",
         )?;
-        play_todo_footer_click(&mut state, &mut steps, "click all filter", 386.0)?;
+        play_click_source(
+            &mut state,
+            &mut steps,
+            "click all filter",
+            "store.sources.filter_all.event.press",
+        )?;
         expect(
             state.snapshot()?.values.get("store.view_selector"),
             json!("filter_all"),
             "TodoMVC all filter selected",
         )?;
     }
-    play_todo_footer_click(&mut state, &mut steps, "click clear completed", 720.0)?;
+    play_click_source(
+        &mut state,
+        &mut steps,
+        "click clear completed",
+        "store.sources.clear_completed_button.event.press",
+    )?;
     expect(
         state.snapshot()?.values.get("store.todos_count"),
         json!(2),
@@ -4985,12 +5008,17 @@ fn todomvc_playground_add_toggle_filter_clear(name: &str) -> Result<NativePlaygr
 fn todomvc_playground_edit_remove(name: &str) -> Result<NativePlaygroundScenarioProof> {
     let mut state = todomvc_playground_state(name)?;
     let mut steps = Vec::new();
-    play_click(
+    let first_id = state
+        .visible_todo_ids()?
+        .first()
+        .cloned()
+        .context("TodoMVC edit scenario has no visible first todo")?;
+    play_click_dynamic_source(
         &mut state,
         &mut steps,
         "click first todo row text",
-        320.0,
-        262.0,
+        "todos[*].sources.edit_input.text",
+        &first_id,
     )?;
     play_text(
         &mut state,
@@ -5004,10 +5032,6 @@ fn todomvc_playground_edit_remove(name: &str) -> Result<NativePlaygroundScenario
         "press Enter to commit edit",
         "Return",
     )?;
-    let visible_ids = state.visible_todo_ids()?;
-    let first_id = visible_ids
-        .first()
-        .context("TodoMVC edit scenario has no visible first todo")?;
     let title_key = format!("store.todos[{first_id}].content_text");
     let edited_title = state
         .snapshot()?
@@ -5019,12 +5043,17 @@ fn todomvc_playground_edit_remove(name: &str) -> Result<NativePlaygroundScenario
     if !edited_title.ends_with(" updated") {
         bail!("TodoMVC edit did not update title: {edited_title}");
     }
-    play_click(
+    let second_id = state
+        .visible_todo_ids()?
+        .get(1)
+        .cloned()
+        .context("TodoMVC edit scenario has no visible second todo")?;
+    play_click_dynamic_source(
         &mut state,
         &mut steps,
         "click second todo remove button",
-        760.0,
-        324.0,
+        "todos[*].sources.remove_button.event.press",
+        &second_id,
     )?;
     expect(
         state.snapshot()?.values.get("store.todos_count"),
@@ -5066,23 +5095,22 @@ fn todomvc_playground_reject_empty_and_outside_click(
         initial_count.clone(),
         "TodoMVC count unchanged after outside click",
     )?;
-    play_todo_footer_click(
+    play_click_source(
         &mut state,
         &mut steps,
         "click hidden clear-completed area with no completed todos",
-        720.0,
+        "store.sources.clear_completed_button.event.press",
     )?;
     expect(
         state.snapshot()?.values.get("store.todos_count"),
         initial_count.clone(),
         "TodoMVC count unchanged when clear completed is hidden",
     )?;
-    play_click(
+    play_click_source(
         &mut state,
         &mut steps,
         "click new todo input for whitespace",
-        320.0,
-        196.0,
+        "store.sources.new_todo_input.text",
     )?;
     play_text(&mut state, &mut steps, "type whitespace-only text", "   ")?;
     for idx in 0..3 {
@@ -5160,15 +5188,56 @@ fn play_click(
     )
 }
 
-fn play_todo_footer_click(
+fn play_click_source(
     state: &mut NativePlaygroundState,
     steps: &mut Vec<NativePlaygroundStepProof>,
     action: &str,
-    virtual_x: f64,
+    source_path: &str,
 ) -> Result<()> {
-    let visible_count = state.visible_todo_ids()?.len();
-    let footer_y = 160.0 + 72.0 + visible_count as f64 * 62.0 + 27.0;
-    play_click(state, steps, action, virtual_x, footer_y)
+    let target = state
+        .current_state()?
+        .backend
+        .frame_scene()
+        .and_then(|scene| {
+            scene
+                .hit_targets
+                .iter()
+                .find(|target| target.source_path == source_path)
+                .cloned()
+        })
+        .with_context(|| format!("native playground target `{source_path}` not found"))?;
+    let x = f64::from(target.x) + f64::from(target.width) / 2.0;
+    let y = f64::from(target.y) + f64::from(target.height) / 2.0;
+    play_click(state, steps, action, x, y)
+}
+
+fn play_click_dynamic_source(
+    state: &mut NativePlaygroundState,
+    steps: &mut Vec<NativePlaygroundStepProof>,
+    action: &str,
+    source_path: &str,
+    owner_id: &str,
+) -> Result<()> {
+    let target = state
+        .current_state()?
+        .backend
+        .frame_scene()
+        .and_then(|scene| {
+            scene
+                .hit_targets
+                .iter()
+                .find(|target| {
+                    target.source_path == source_path
+                        && target.owner_id.as_deref() == Some(owner_id)
+                })
+                .cloned()
+        })
+        .with_context(|| {
+            format!("native playground target `{source_path}` for owner `{owner_id}` not found")
+        })?;
+    let x = f64::from(target.x) + f64::from(target.width) / 2.0;
+    let y = f64::from(target.y) + f64::from(target.height) / 2.0;
+    play_click(state, steps, action, x, y)
 }
 
 fn play_text(

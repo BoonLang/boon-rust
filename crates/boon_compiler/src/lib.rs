@@ -43,10 +43,6 @@ pub struct AppIr {
     pub collection_states: Vec<IrCollectionState>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub static_records: Vec<IrStaticRecord>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub matrix_models: Vec<IrMatrixModel>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub dynamics_models: Vec<IrDynamicsModel>,
     pub event_handlers: Vec<IrEventHandler>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub render_tree: Option<IrRenderNode>,
@@ -156,28 +152,10 @@ pub enum IrStaticValue {
     Number { value: i64 },
     Bool { value: bool },
     Tag { value: String },
+    Path { value: String },
+    Range { from: i64, to: i64 },
     Record { fields: Vec<IrStaticField> },
     List { items: Vec<IrStaticValue> },
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct IrMatrixModel {
-    pub rows: usize,
-    pub columns: usize,
-    pub editor_source_family: String,
-    pub expression_functions: Vec<String>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct IrDynamicsModel {
-    pub frame_event_path: String,
-    pub control_event_path: String,
-    pub arena_width: i64,
-    pub arena_height: i64,
-    pub body: MovingBodySpec,
-    pub primary_control: ControllerSpec,
-    pub tracked_control: Option<ControllerSpec>,
-    pub contact_field: Option<ContactFieldSpec>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -295,45 +273,6 @@ pub struct IrAppMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub primary_label: Option<String>,
     pub physical_debug: bool,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct MovingBodySpec {
-    pub x: i64,
-    pub y: i64,
-    pub dx: i64,
-    pub dy: i64,
-    pub size: i64,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct ControllerSpec {
-    pub axis: ControlAxis,
-    pub position: i64,
-    pub step: i64,
-    pub x: i64,
-    pub y: i64,
-    pub width: i64,
-    pub height: i64,
-    pub auto_track: bool,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ControlAxis {
-    Horizontal,
-    Vertical,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct ContactFieldSpec {
-    pub rows: usize,
-    pub columns: usize,
-    pub top: i64,
-    pub margin: i64,
-    pub gap: i64,
-    pub height: i64,
-    pub value_per_contact: i64,
 }
 
 pub fn compile_source(name: &str, source: &str) -> Result<CompiledModule> {
@@ -571,13 +510,6 @@ fn app_ir_from_hir(hir: &HirModule, sources: &SourceInventory) -> AppIr {
         push_static_record_from_hir_record(&mut ir, record);
         push_collection_handlers_from_hir_record(&mut ir, hir, sources, record);
         push_selector_handlers_from_hir_record(&mut ir, sources, record);
-    }
-    if let Some(model) = matrix_model_from_hir(hir, sources) {
-        ir.matrix_models.push(model);
-    }
-    if let Some(record) = top_record(&hir.parsed, "kinematics") {
-        ir.dynamics_models
-            .push(dynamics_model_from_record(record, sources));
     }
     push_item_state_handlers_from_hir(&mut ir, sources, &primary_collection_path, hir);
     ir.render_tree = render_tree_from_hir(hir, sources);
@@ -1028,7 +960,21 @@ fn push_static_record_from_hir_record(ir: &mut AppIr, record: &HirRecord) {
     if record.key == "store" || record.key == "document" {
         return;
     }
-    let fields = literal_record_fields(&record.children);
+    let fields = if record.children.is_empty() {
+        record
+            .value
+            .as_ref()
+            .and_then(static_value_from_expr)
+            .map(|value| {
+                vec![IrStaticField {
+                    key: "value".to_string(),
+                    value,
+                }]
+            })
+            .unwrap_or_default()
+    } else {
+        literal_record_fields(&record.children)
+    };
     if fields.is_empty() {
         return;
     }
@@ -1066,6 +1012,9 @@ fn static_value_from_expr(expr: &HirExpr) -> Option<IrStaticValue> {
         } => Some(IrStaticValue::Text {
             value: value.clone(),
         }),
+        HirExprKind::Path { value } => Some(IrStaticValue::Path {
+            value: value.clone(),
+        }),
         HirExprKind::Literal {
             literal: HirLiteral::Number { value },
         } => Some(IrStaticValue::Number { value: *value }),
@@ -1081,29 +1030,17 @@ fn static_value_from_expr(expr: &HirExpr) -> Option<IrStaticValue> {
         HirExprKind::Record { entries } => Some(IrStaticValue::Record {
             fields: literal_record_fields(entries),
         }),
+        HirExprKind::ListCall {
+            op: HirListOp::Range,
+            args,
+        } => Some(IrStaticValue::Range {
+            from: named_arg(args, "from")
+                .and_then(number_literal)
+                .unwrap_or(1),
+            to: named_arg(args, "to").and_then(number_literal).unwrap_or(0),
+        }),
         _ => None,
     }
-}
-
-fn matrix_model_from_hir(hir: &HirModule, sources: &SourceInventory) -> Option<IrMatrixModel> {
-    hir.parsed
-        .module_calls
-        .iter()
-        .any(|call| call.path == "Element/grid")
-        .then_some(())?;
-    let family = dynamic_source_families(sources).first()?.clone();
-    Some(IrMatrixModel {
-        rows: range_to(&hir.parsed, "rows").unwrap_or(100),
-        columns: range_to(&hir.parsed, "columns").unwrap_or(26),
-        editor_source_family: source_family_with_producer(
-            sources,
-            &family,
-            "Element/text_input(element.text)",
-        )
-        .and_then(|path| path.strip_suffix(".text").map(str::to_string))
-        .unwrap_or_else(|| format!("{family}.sources.editor")),
-        expression_functions: expression_functions(&hir.parsed),
-    })
 }
 
 fn matches_list_pipeline(expr: &HirExpr) -> bool {
@@ -1885,87 +1822,6 @@ fn app_metadata(name: &str, parsed: &ParsedModule) -> IrAppMetadata {
     }
 }
 
-fn dynamics_model_from_record(
-    record: &ParsedRecordEntry,
-    sources: &SourceInventory,
-) -> IrDynamicsModel {
-    let arena = child_record(record, "arena");
-    let body = child_record(record, "body");
-    let primary_control = child_record(record, "primary_control");
-    let tracked_control = child_record(record, "tracked_control");
-    let contact_field = child_record(record, "contact_field");
-    IrDynamicsModel {
-        frame_event_path: first_static_path_matching(sources, ".event.frame").unwrap_or_default(),
-        control_event_path: first_static_path_matching(sources, ".event.key_down.key")
-            .unwrap_or_default(),
-        arena_width: record_number(arena, "width").unwrap_or(1000),
-        arena_height: record_number(arena, "height").unwrap_or(700),
-        body: MovingBodySpec {
-            x: record_number(body, "x").unwrap_or(500),
-            y: record_number(body, "y").unwrap_or(350),
-            dx: record_number(body, "dx").unwrap_or(10),
-            dy: record_number(body, "dy").unwrap_or(8),
-            size: record_number(body, "size").unwrap_or(22),
-        },
-        primary_control: controller_spec(
-            primary_control,
-            ControlAxis::Vertical,
-            ControllerSpec {
-                axis: ControlAxis::Vertical,
-                position: 50,
-                step: 8,
-                x: 38,
-                y: 0,
-                width: 18,
-                height: 128,
-                auto_track: false,
-            },
-        ),
-        tracked_control: tracked_control.map(|block| {
-            controller_spec(
-                Some(block),
-                ControlAxis::Vertical,
-                ControllerSpec {
-                    axis: ControlAxis::Vertical,
-                    position: 50,
-                    step: 8,
-                    x: 944,
-                    y: 0,
-                    width: 18,
-                    height: 128,
-                    auto_track: true,
-                },
-            )
-        }),
-        contact_field: contact_field.map(|block| ContactFieldSpec {
-            rows: record_number(Some(block), "rows").unwrap_or(6).max(0) as usize,
-            columns: record_number(Some(block), "columns").unwrap_or(12).max(0) as usize,
-            top: record_number(Some(block), "top").unwrap_or(56),
-            margin: record_number(Some(block), "margin").unwrap_or(36),
-            gap: record_number(Some(block), "gap").unwrap_or(8),
-            height: record_number(Some(block), "height").unwrap_or(28),
-            value_per_contact: record_number(Some(block), "value_per_contact").unwrap_or(10),
-        }),
-    }
-}
-
-fn controller_spec(
-    block: Option<&ParsedRecordEntry>,
-    default_axis: ControlAxis,
-    default: ControllerSpec,
-) -> ControllerSpec {
-    ControllerSpec {
-        axis: record_axis(block, "axis").unwrap_or(default_axis),
-        position: record_number(block, "position").unwrap_or(default.position),
-        step: record_number(block, "step").unwrap_or(default.step),
-        x: record_number(block, "x").unwrap_or(default.x),
-        y: record_number(block, "y").unwrap_or(default.y),
-        width: record_number(block, "width").unwrap_or(default.width),
-        height: record_number(block, "height").unwrap_or(default.height),
-        auto_track: record_bool(block, "auto_track").unwrap_or(default.auto_track),
-    }
-}
-
 fn dynamic_source_families(sources: &SourceInventory) -> Vec<String> {
     let mut families = Vec::new();
     for entry in &sources.entries {
@@ -1977,26 +1833,6 @@ fn dynamic_source_families(sources: &SourceInventory) -> Vec<String> {
         }
     }
     families
-}
-
-fn source_family_with_producer(
-    sources: &SourceInventory,
-    family: &str,
-    producer: &str,
-) -> Option<String> {
-    sources
-        .entries
-        .iter()
-        .find(|entry| entry.path.starts_with(family) && entry.producer == producer)
-        .map(|entry| entry.path.clone())
-}
-
-fn first_static_path_matching(sources: &SourceInventory, suffix: &str) -> Option<String> {
-    sources
-        .entries
-        .iter()
-        .find(|entry| matches!(&entry.owner, SourceOwner::Static) && entry.path.ends_with(suffix))
-        .map(|entry| entry.path.clone())
 }
 
 fn infer_dynamic_sequence_root(parsed: &ParsedModule) -> Option<String> {
@@ -2042,23 +1878,6 @@ fn owner_path(path: &str) -> String {
     path.split_once("[*]")
         .map(|(root, _)| format!("{root} record"))
         .unwrap_or_else(|| "dynamic record".to_string())
-}
-
-fn range_to(parsed: &ParsedModule, binding: &str) -> Option<usize> {
-    let record = top_record(parsed, binding)?;
-    parsed
-        .module_calls
-        .iter()
-        .find(|call| span_under_record(parsed, call.span.line, record) && call.path == "List/range")
-        .and_then(|call| call_arg(call, "to"))
-        .and_then(|value| value.parse().ok())
-}
-
-fn call_arg<'a>(call: &'a boon_syntax::ModuleCall, name: &str) -> Option<&'a str> {
-    call.args
-        .iter()
-        .find(|arg| arg.name == name)
-        .map(|arg| arg.value.as_str())
 }
 
 fn module_called_under_record(
@@ -2125,45 +1944,12 @@ fn child_record<'a>(record: &'a ParsedRecordEntry, key: &str) -> Option<&'a Pars
     record.children.iter().find(|entry| entry.key == key)
 }
 
-fn record_number(record: Option<&ParsedRecordEntry>, field: &str) -> Option<i64> {
-    child_record(record?, field)?
-        .value
-        .as_deref()?
-        .trim()
-        .parse()
-        .ok()
-}
-
-fn record_axis(record: Option<&ParsedRecordEntry>, field: &str) -> Option<ControlAxis> {
-    match child_record(record?, field)?.value.as_deref()?.trim() {
-        "Horizontal" => Some(ControlAxis::Horizontal),
-        "Vertical" => Some(ControlAxis::Vertical),
-        _ => None,
-    }
-}
-
 fn record_bool(record: Option<&ParsedRecordEntry>, field: &str) -> Option<bool> {
     match child_record(record?, field)?.value.as_deref()?.trim() {
         "True" => Some(true),
         "False" => Some(false),
         _ => None,
     }
-}
-
-fn expression_functions(parsed: &ParsedModule) -> Vec<String> {
-    parsed
-        .records
-        .iter()
-        .filter_map(|record| child_record(record, "functions"))
-        .flat_map(|functions| functions.children.iter())
-        .filter(|entry| {
-            entry
-                .value
-                .as_deref()
-                .is_some_and(|value| value.trim().starts_with("Math/"))
-        })
-        .map(|entry| entry.key.clone())
-        .collect()
 }
 
 fn module_called(parsed: &ParsedModule, path: &str) -> bool {
