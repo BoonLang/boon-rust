@@ -4190,25 +4190,18 @@ fn run_native_visible_surface_probe(
     dir: &Path,
 ) -> Result<AppWindowSurfaceFrameProof> {
     let out = dir.join("visible-surface-frame.json");
-    let output = Command::new(std::env::current_exe()?)
-        .arg("__native-surface-probe")
-        .arg("--example")
-        .arg(example)
-        .arg("--out")
-        .arg(&out)
-        .stdin(Stdio::null())
-        .output()
-        .context("spawning native app_window visible surface probe helper")?;
-    fs::write(
-        dir.join("visible-surface-helper.log"),
-        [output.stdout.as_slice(), output.stderr.as_slice()].concat(),
+    launch_window_helper_with_cosmic(
+        &[
+            "__native-surface-probe".to_string(),
+            "--example".to_string(),
+            example.to_string(),
+            "--out".to_string(),
+            out.to_string_lossy().to_string(),
+        ],
+        &out,
+        &dir.join("visible-surface-helper.log"),
+        "native app_window visible surface probe helper",
     )?;
-    if !output.status.success() {
-        bail!(
-            "native app_window visible surface probe helper exited with {}",
-            output.status
-        );
-    }
     let surface_frame: AppWindowSurfaceFrameProof = serde_json::from_slice(&fs::read(&out)?)?;
     if !surface_frame.passed {
         bail!(
@@ -4227,25 +4220,18 @@ fn run_native_visible_surface_probe(
 
 fn run_native_close_probe(example: &str, dir: &Path) -> Result<AppWindowCloseProof> {
     let out = dir.join("close-button.json");
-    let output = Command::new(std::env::current_exe()?)
-        .arg("__native-close-probe")
-        .arg("--example")
-        .arg(example)
-        .arg("--out")
-        .arg(&out)
-        .stdin(Stdio::null())
-        .output()
-        .context("spawning native app_window close-button probe helper")?;
-    fs::write(
-        dir.join("close-button-helper.log"),
-        [output.stdout.as_slice(), output.stderr.as_slice()].concat(),
+    launch_window_helper_with_cosmic(
+        &[
+            "__native-close-probe".to_string(),
+            "--example".to_string(),
+            example.to_string(),
+            "--out".to_string(),
+            out.to_string_lossy().to_string(),
+        ],
+        &out,
+        &dir.join("close-button-helper.log"),
+        "native app_window close-button probe helper",
     )?;
-    if !output.status.success() {
-        bail!(
-            "native app_window close-button probe helper exited with {}",
-            output.status
-        );
-    }
     let close: AppWindowCloseProof = serde_json::from_slice(&fs::read(&out)?)?;
     if !close.passed {
         bail!(
@@ -4257,6 +4243,57 @@ fn run_native_close_probe(example: &str, dir: &Path) -> Result<AppWindowClosePro
         );
     }
     Ok(close)
+}
+
+fn launch_window_helper_with_cosmic(
+    args: &[String],
+    proof_path: &Path,
+    log_path: &Path,
+    label: &str,
+) -> Result<()> {
+    let output = Command::new("cosmic-background-launch")
+        .arg("--workspace")
+        .arg("boon-rust")
+        .arg("--")
+        .arg(std::env::current_exe()?)
+        .args(args)
+        .stdin(Stdio::null())
+        .output()
+        .with_context(|| format!("launching {label} through cosmic-background-launch"))?;
+    fs::write(
+        log_path,
+        [output.stdout.as_slice(), output.stderr.as_slice()].concat(),
+    )?;
+    if !output.status.success() {
+        bail!(
+            "{label} launcher exited with {}: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    let pid = String::from_utf8_lossy(&output.stdout)
+        .split_whitespace()
+        .next()
+        .and_then(|pid| pid.parse::<u32>().ok())
+        .with_context(|| format!("{label} launcher did not print a child pid"))?;
+    let proc_path = PathBuf::from(format!("/proc/{pid}"));
+    let deadline = Instant::now() + Duration::from_secs(120);
+    while proc_path.exists() && !proof_path.exists() {
+        if Instant::now() >= deadline {
+            bail!(
+                "{label} timed out before writing proof {}",
+                proof_path.display()
+            );
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    if !proof_path.exists() {
+        bail!(
+            "{label} exited without writing proof {}",
+            proof_path.display()
+        );
+    }
+    Ok(())
 }
 
 pub fn native_visible_surface_probe_helper(example: &str, out: &Path) -> Result<()> {

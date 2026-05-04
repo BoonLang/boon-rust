@@ -30,8 +30,9 @@ behavior, spreadsheet logic, or game physics as runtime families.
 - Do not weaken existing hard gates from `IMPLEMENTATION_PLAN.md`,
   `docs/plans/boon_powered_migration_plan.md`,
   `docs/plans/native_gui_playground_plan.md`, or `prompter.json`.
-- Do not change `cosmic-background-launch` command parameters in this repo until
-  the external compositor/helper work is available after reboot.
+- Launch visible GUI/window checks with
+  `cosmic-background-launch --workspace boon-rust -- <command> [args...]` at
+  the actual window-creating process.
 - Do not add Chromium, Playwright, WebGL2 fallback, winit fallback, legacy
   example copies, nominal source constructors, async/channels inside the Boon
   runtime, `Sheet/new`, or app-specific TodoMVC/Cells/Pong/Arkanoid runtime
@@ -374,7 +375,7 @@ Continue from the current repo state in /home/martinkavik/repos/boon-rust and im
 
 Treat it together with IMPLEMENTATION_PLAN.md, docs/plans/boon_powered_migration_plan.md, docs/plans/generic_boon_language_plan.md, docs/plans/native_gui_playground_plan.md, AGENTS.md, and prompter.json. The new stricter target is Boon-to-Rust transpilation with pure Boon application semantics: Rust may implement the compiler, Rust code generator, small deterministic runtime bridge, generic stdlib primitives, SOURCE plumbing, generic scene renderer, backends, verification, timing, and screenshots, but Rust must not implement maintained-example business behavior or semantic app families. Prefer generated Rust app modules over a full generic VM unless a small internal evaluator is explicitly justified as a compiler implementation detail.
 
-Do not change cosmic-background-launch command-line parameters in this repo yet; the helper/compositor update is being handled separately and will be available after reboot. Continue using the current AGENTS.md launch contract until explicitly told otherwise.
+Launch visible GUI/window checks with cosmic-background-launch --workspace boon-rust -- <command> [args...] at the actual window-creating process. Treat failures of that workspace-qualified launch contract as hard windowing/activation failures.
 
 Remove the remaining Rust semantic family hacks: TodoMVC-shaped list/repeater behavior, matrix/grid spreadsheet behavior, dynamics/kinematics game physics behavior, and Rust scene construction that knows todo rows, spreadsheet formula bars, paddles, balls, bricks, counters, or interval labels. Keep generic list primitives, keyed dynamic source ownership, and generic repeated scene rendering only when driven by Boon-authored data and scene code. Replace app behavior with Boon-authored state transitions and scene construction transpiled into Rust app modules that call only generic bridge and stdlib APIs. Generic Rust renderers may only draw scene primitives and backend details.
 

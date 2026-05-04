@@ -1095,6 +1095,7 @@ fn launch_web_ext(root: &Path, url: &str, profile: &Path, harness_dir: &Path) ->
         );
     }
     let extension = root.join("crates/boon_verify/firefox_extension");
+    let firefox_wrapper = write_firefox_background_wrapper(harness_dir)?;
     let stdout = OpenOptions::new()
         .create(true)
         .append(true)
@@ -1108,28 +1109,68 @@ fn launch_web_ext(root: &Path, url: &str, profile: &Path, harness_dir: &Path) ->
         path_entries.extend(env::split_paths(&path));
     }
     let path = env::join_paths(path_entries).context("joining web-ext PATH")?;
+    let args = vec![
+        "run".to_string(),
+        "--source-dir".to_string(),
+        extension
+            .to_str()
+            .context("extension path is not valid UTF-8")?
+            .to_string(),
+        "--firefox".to_string(),
+        firefox_wrapper
+            .to_str()
+            .context("Firefox wrapper path is not valid UTF-8")?
+            .to_string(),
+        "--firefox-profile".to_string(),
+        profile
+            .to_str()
+            .context("profile path is not valid UTF-8")?
+            .to_string(),
+        "--no-reload".to_string(),
+        "--verbose".to_string(),
+        "--url".to_string(),
+        url.to_string(),
+    ];
     Command::new(web_ext)
         .current_dir(root)
         .env("PATH", path)
-        .args([
-            "run",
-            "--source-dir",
-            extension
-                .to_str()
-                .context("extension path is not valid UTF-8")?,
-            "--firefox-profile",
-            profile
-                .to_str()
-                .context("profile path is not valid UTF-8")?,
-            "--no-reload",
-            "--verbose",
-            "--url",
-            url,
-        ])
+        .args(args)
         .stdout(Stdio::from(stdout))
         .stderr(Stdio::from(stderr))
         .spawn()
         .context("launching repo-local web-ext")
+}
+
+fn write_firefox_background_wrapper(harness_dir: &Path) -> Result<PathBuf> {
+    let wrapper = harness_dir.join("firefox-background-wrapper.sh");
+    fs::write(
+        &wrapper,
+        r#"#!/bin/sh
+set -eu
+output=$(cosmic-background-launch --workspace boon-rust -- firefox "$@")
+printf '%s\n' "$output"
+pid=$(printf '%s\n' "$output" | awk 'NR == 1 { print $1 }')
+if [ -z "$pid" ]; then
+  echo "cosmic-background-launch did not print a child pid" >&2
+  exit 1
+fi
+cleanup() {
+  kill "$pid" 2>/dev/null || true
+  exit 0
+}
+trap cleanup INT TERM
+while [ -e "/proc/$pid" ]; do
+  sleep 0.1
+done
+"#,
+    )?;
+    #[cfg(unix)]
+    {
+        let mut permissions = fs::metadata(&wrapper)?.permissions();
+        std::os::unix::fs::PermissionsExt::set_mode(&mut permissions, 0o755);
+        fs::set_permissions(&wrapper, permissions)?;
+    }
+    Ok(wrapper)
 }
 
 fn wait_for_browser_proof(

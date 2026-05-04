@@ -466,7 +466,7 @@ If native/browser windows are needed during testing, follow `AGENTS.md` and
 launch the actual window-creating process through:
 
 ```sh
-cosmic-background-launch -- <command> [args...]
+cosmic-background-launch --workspace boon-rust -- <command> [args...]
 ```
 
 ## Completion Criteria

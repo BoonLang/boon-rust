@@ -454,7 +454,7 @@ fn verify(args: &[String]) -> Result<()> {
             "platform": env::consts::OS,
             "tool_versions": tool_versions(&root)?,
             "firefox_profile": root.join(".boon-local/firefox-profile"),
-            "commands": ["bootstrap", "generate", "shaders", "cargo fmt --check", "cargo clippy --workspace -- -D warnings", "cargo test --workspace", "verify all"],
+            "commands": ["bootstrap", "generate", "shaders", "cargo fmt --check", "cargo clippy --workspace --all-targets -- -D warnings", "cargo test --workspace", "verify all"],
             "results": report.results,
             "timing_summaries": collect_timing_summaries(&artifacts)?,
         });
@@ -533,6 +533,7 @@ fn quality_gates(root: &Path) -> Result<()> {
     run(Command::new("cargo").current_dir(root).args([
         "clippy",
         "--workspace",
+        "--all-targets",
         "--",
         "-D",
         "warnings",
@@ -656,9 +657,8 @@ fn launch_cosmic_background_and_wait(args: &[String]) -> Result<()> {
     let mut child_args = args.to_vec();
     child_args.push("--status-out".to_string());
     child_args.push(status_path.to_string_lossy().to_string());
-    let mut command = Command::new("cosmic-background-launch");
-    command.arg("--").arg(env::current_exe()?);
-    command.args(&child_args);
+    let exe = env::current_exe()?;
+    let mut command = cosmic_background_command(&exe, &child_args);
     let output = command
         .output()
         .context("launching window command through cosmic-background-launch")?;
@@ -696,6 +696,17 @@ fn launch_cosmic_background_and_wait(args: &[String]) -> Result<()> {
                 .unwrap_or("background window command failed")
         )
     }
+}
+
+fn cosmic_background_command(exe: &Path, child_args: &[String]) -> Command {
+    let mut command = Command::new("cosmic-background-launch");
+    command
+        .arg("--workspace")
+        .arg("boon-rust")
+        .arg("--")
+        .arg(exe);
+    command.args(child_args);
+    command
 }
 
 fn chrono_like_millis() -> u128 {
@@ -844,7 +855,21 @@ fn repo_tool_or_command_path(tools: &Path, name: &str) -> Result<PathBuf> {
     {
         return Ok(local);
     }
+    if let Some(path) = fnm_pinned_tool_path(name) {
+        return Ok(path);
+    }
     command_path(name)
+}
+
+fn fnm_pinned_tool_path(name: &str) -> Option<PathBuf> {
+    if !matches!(name, "node" | "npm") {
+        return None;
+    }
+    let path = home_dir()
+        .ok()?
+        .join(".local/share/fnm/node-versions/v22.22.0/installation/bin")
+        .join(name);
+    path.exists().then_some(path)
 }
 
 fn ensure_command_version(command: &Path, flag: &str, expected: &str, name: &str) -> Result<()> {
@@ -979,6 +1004,31 @@ fn git_commit(root: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cosmic_background_command_uses_boon_workspace() {
+        let args = vec!["__verify-windowed".to_string(), "all".to_string()];
+        let command = cosmic_background_command(Path::new("/tmp/cargo-xtask"), &args);
+        assert_eq!(
+            command.get_program().to_string_lossy(),
+            "cosmic-background-launch"
+        );
+        let actual = command
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            actual,
+            vec![
+                "--workspace",
+                "boon-rust",
+                "--",
+                "/tmp/cargo-xtask",
+                "__verify-windowed",
+                "all"
+            ]
+        );
+    }
 
     #[test]
     fn window_launch_failure_report_records_blocker_without_success_artifact() {
