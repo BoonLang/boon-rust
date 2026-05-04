@@ -373,14 +373,6 @@ fn shaders() -> Result<()> {
 }
 
 fn verify(args: &[String]) -> Result<()> {
-    if verify_target_opens_windows(args)
-        && env::var_os("COSMIC_BACKGROUND_LAUNCH_ID").is_none()
-        && command_exists("cosmic-background-launch")
-    {
-        let mut child_args = vec!["__verify-windowed".to_string()];
-        child_args.extend(args.iter().cloned());
-        return launch_cosmic_background_and_wait(&child_args);
-    }
     let root = repo_root()?;
     let artifacts = root.join("target/boon-artifacts");
     let full_verify = args.first().map(String::as_str) == Some("all");
@@ -392,6 +384,18 @@ fn verify(args: &[String]) -> Result<()> {
     let success_path = artifacts.join("success.json");
     if full_verify && success_path.exists() {
         fs::remove_file(&success_path)?;
+    }
+    if verify_target_opens_windows(args)
+        && env::var_os("COSMIC_BACKGROUND_LAUNCH_ID").is_none()
+        && command_exists("cosmic-background-launch")
+    {
+        let mut child_args = vec!["__verify-windowed".to_string()];
+        child_args.extend(args.iter().cloned());
+        if let Err(err) = launch_cosmic_background_and_wait(&child_args) {
+            write_window_launch_failure_report(&artifacts, args, &err)?;
+            return Err(err);
+        }
+        return Ok(());
     }
     let no_bootstrap = args.iter().any(|arg| arg == "--no-bootstrap");
     if !no_bootstrap {
@@ -458,6 +462,29 @@ fn verify(args: &[String]) -> Result<()> {
     } else if let Some(failed) = report.results.iter().find(|result| !result.passed) {
         bail!("{}", failed.message);
     }
+    println!("wrote {}", report_path.display());
+    Ok(())
+}
+
+fn write_window_launch_failure_report(
+    artifacts: &Path,
+    args: &[String],
+    err: &anyhow::Error,
+) -> Result<()> {
+    let report_path = artifacts.join("verify-report.json");
+    let command = format!("verify {}", args.join(" "));
+    let report = VerifyReport {
+        command,
+        results: vec![GateResult {
+            backend: Backend::QualityGate,
+            example: "window-launch".to_string(),
+            passed: false,
+            frame_hash: None,
+            artifact_dir: artifacts.to_path_buf(),
+            message: format!("windowed verification could not launch: {err}"),
+        }],
+    };
+    fs::write(&report_path, serde_json::to_vec_pretty(&report)?)?;
     println!("wrote {}", report_path.display());
     Ok(())
 }
@@ -947,4 +974,43 @@ fn git_commit(root: &Path) -> Option<String> {
         return None;
     }
     Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn window_launch_failure_report_records_blocker_without_success_artifact() {
+        let dir = repo_root()
+            .expect("repo root")
+            .join("target/xtask-tests/window-launch-report");
+        if dir.exists() {
+            fs::remove_dir_all(&dir).expect("clear stale test dir");
+        }
+        fs::create_dir_all(&dir).expect("create test dir");
+        let success_path = dir.join("success.json");
+        fs::write(&success_path, "{}").expect("seed stale success artifact");
+        fs::remove_file(&success_path).expect("simulate full verify stale success cleanup");
+
+        let args = vec!["all".to_string()];
+        let err = anyhow::anyhow!("cosmic-background-launch failed: usage");
+        write_window_launch_failure_report(&dir, &args, &err).expect("write report");
+
+        assert!(
+            !success_path.exists(),
+            "window launch failures must not leave stale success.json"
+        );
+        let report_path = dir.join("verify-report.json");
+        let report: VerifyReport =
+            serde_json::from_slice(&fs::read(&report_path).expect("read report"))
+                .expect("parse report");
+        assert_eq!(report.command, "verify all");
+        assert_eq!(report.results.len(), 1);
+        let result = &report.results[0];
+        assert_eq!(result.backend, Backend::QualityGate);
+        assert_eq!(result.example, "window-launch");
+        assert!(!result.passed);
+        assert!(result.message.contains("cosmic-background-launch failed"));
+    }
 }

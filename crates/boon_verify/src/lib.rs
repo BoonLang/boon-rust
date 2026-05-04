@@ -57,6 +57,7 @@ pub struct BoonPoweredGateReport {
     pub genericity_gaps: Vec<BoonGenericityGap>,
     pub mutation_probes: Vec<BoonPoweredMutationProbe>,
     pub generated_provenance: BoonPoweredGeneratedProvenance,
+    pub stdlib_boundary: BoonPoweredStdlibBoundary,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -105,6 +106,18 @@ pub struct BoonPoweredGeneratedProvenance {
     pub avoids_runtime_json_deserialization: bool,
     pub has_typed_rust_constructors: bool,
     pub passed: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BoonPoweredStdlibBoundary {
+    pub formula_api_public: bool,
+    pub formula_impl_in_stdlib_only: bool,
+    pub formula_runtime_uses_stdlib: bool,
+    pub formula_runtime_has_no_parser: bool,
+    pub stdlib_has_no_maintained_example_terms: bool,
+    pub formula_configured_by_boon_source: bool,
+    pub passed: bool,
+    pub details: Vec<String>,
 }
 
 fn prepare_artifact_dir(dir: &Path) -> Result<()> {
@@ -176,10 +189,12 @@ pub fn boon_powered_gate_report(
     let genericity_complete = genericity_gaps.is_empty();
     let mutation_probes = source_mutation_probes(root)?;
     let generated_provenance = generated_provenance(root, require_generated)?;
+    let stdlib_boundary = stdlib_boundary(root)?;
     let passed = violations.is_empty()
         && genericity_complete
         && mutation_probes.iter().all(|probe| probe.passed)
-        && generated_provenance.passed;
+        && generated_provenance.passed
+        && stdlib_boundary.passed;
     Ok(BoonPoweredGateReport {
         passed,
         scanned_files,
@@ -188,6 +203,7 @@ pub fn boon_powered_gate_report(
         genericity_gaps,
         mutation_probes,
         generated_provenance,
+        stdlib_boundary,
     })
 }
 
@@ -1343,6 +1359,115 @@ fn generated_provenance(root: &Path, required: bool) -> Result<BoonPoweredGenera
         avoids_runtime_json_deserialization,
         has_typed_rust_constructors,
         passed,
+    })
+}
+
+fn stdlib_boundary(root: &Path) -> Result<BoonPoweredStdlibBoundary> {
+    let stdlib_path = root.join("crates/boon_stdlib/src/lib.rs");
+    let runtime_path = root.join("crates/boon_runtime/src/compiled_app.rs");
+    let compiler_path = root.join("crates/boon_compiler/src/lib.rs");
+    let cells_source_path = root.join("examples/cells/source.bn");
+    let cells_app_ir_path = root.join("examples/cells/expected.app_ir.json");
+
+    let stdlib = fs::read_to_string(&stdlib_path)
+        .with_context(|| format!("reading {}", stdlib_path.display()))?;
+    let runtime = fs::read_to_string(&runtime_path)
+        .with_context(|| format!("reading {}", runtime_path.display()))?;
+    let compiler = fs::read_to_string(&compiler_path)
+        .with_context(|| format!("reading {}", compiler_path.display()))?;
+    let cells_source = fs::read_to_string(&cells_source_path)
+        .with_context(|| format!("reading {}", cells_source_path.display()))?;
+    let cells_app_ir = fs::read_to_string(&cells_app_ir_path)
+        .with_context(|| format!("reading {}", cells_app_ir_path.display()))?;
+
+    let formula_api_public = stdlib.contains("pub struct ExpressionBook")
+        && stdlib.contains("impl ExpressionBook")
+        && stdlib.contains("pub fn set_text")
+        && stdlib.contains("pub fn value");
+
+    let parser_needles = [
+        "fn resolve_expression",
+        "fn collect_expression_refs",
+        "fn parse_range",
+        ".strip_prefix(\"add(\")",
+        ".strip_prefix(\"sum(\")",
+        "\"#CYCLE\"",
+        "\"#ERR\"",
+    ];
+    let runtime_parser_hits = parser_needles
+        .iter()
+        .filter(|needle| runtime.contains(**needle))
+        .map(|needle| format!("runtime contains `{needle}`"))
+        .collect::<Vec<_>>();
+    let compiler_parser_hits = parser_needles
+        .iter()
+        .filter(|needle| compiler.contains(**needle))
+        .map(|needle| format!("compiler contains `{needle}`"))
+        .collect::<Vec<_>>();
+    let formula_impl_in_stdlib_only =
+        runtime_parser_hits.is_empty() && compiler_parser_hits.is_empty();
+    let formula_runtime_has_no_parser = runtime_parser_hits.is_empty();
+    let formula_runtime_uses_stdlib = runtime.contains("boon_stdlib::ExpressionBook")
+        || runtime.contains("use boon_stdlib::ExpressionBook");
+
+    let maintained_terms = [
+        "todo_mvc",
+        "todo_mvc_physical",
+        "cells",
+        "pong",
+        "arkanoid",
+        "kinematics",
+        "paddle",
+        "brick",
+        "todo",
+    ];
+    let stdlib_term_hits = maintained_terms
+        .iter()
+        .filter(|term| stdlib.contains(**term))
+        .map(|term| format!("stdlib contains maintained-example term `{term}`"))
+        .collect::<Vec<_>>();
+    let stdlib_has_no_maintained_example_terms = stdlib_term_hits.is_empty();
+
+    let formula_configured_by_boon_source = cells_source.contains("expressions:")
+        && cells_source.contains("add: Math/add")
+        && cells_source.contains("sum: Math/sum")
+        && cells_app_ir.contains("\"expression_surface\"")
+        && cells_app_ir.contains("\"add\"")
+        && cells_app_ir.contains("\"sum\"");
+
+    let mut details = Vec::new();
+    if !formula_api_public {
+        details.push("boon_stdlib does not expose the expected reusable ExpressionBook API".into());
+    }
+    details.extend(runtime_parser_hits);
+    details.extend(compiler_parser_hits);
+    if !formula_runtime_uses_stdlib {
+        details.push("runtime does not route formula behavior through boon_stdlib".into());
+    }
+    details.extend(stdlib_term_hits);
+    if !formula_configured_by_boon_source {
+        details.push(
+            "Cells formula functions are not visibly configured by examples/cells/source.bn and expected app IR"
+                .into(),
+        );
+    }
+
+    let passed = formula_api_public
+        && formula_impl_in_stdlib_only
+        && formula_runtime_uses_stdlib
+        && formula_runtime_has_no_parser
+        && stdlib_has_no_maintained_example_terms
+        && formula_configured_by_boon_source;
+
+    Ok(BoonPoweredStdlibBoundary {
+        formula_api_public,
+        formula_impl_in_stdlib_only,
+        formula_runtime_uses_stdlib,
+        formula_runtime_has_no_parser,
+        stdlib_has_no_maintained_example_terms,
+        formula_configured_by_boon_source,
+        passed,
+        details,
     })
 }
 
