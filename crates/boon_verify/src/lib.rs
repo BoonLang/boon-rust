@@ -679,6 +679,12 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
             resolution: "lower grid behavior from generic Boon state/render expressions instead of recognizing Element/grid as a fixed app model",
         },
         GenericityProbe {
+            category: "dense grid family recognizer",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "fn infer_dense_source_root(",
+            resolution: "bind dynamic SOURCE owners from generic list/map ownership, not Element/grid recognition",
+        },
+        GenericityProbe {
             category: "kinematics family recognizer",
             path: "crates/boon_compiler/src/lib.rs",
             needle: "pub struct IrDynamicsModel",
@@ -909,6 +915,36 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
         GenericityProbe {
             category: "dense grid family runtime",
             path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "FormulaBook",
+            resolution: "make formula behavior explicit Boon source or an explicit stdlib call from generated app code, not automatic grid runtime state",
+        },
+        GenericityProbe {
+            category: "dense grid family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "ElementGridWiring",
+            resolution: "bind grid cells through generic dynamic SOURCE ownership instead of Element/grid runtime wiring",
+        },
+        GenericityProbe {
+            category: "dense grid family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "grid_selected",
+            resolution: "move selected-cell state into Boon source/generic app state",
+        },
+        GenericityProbe {
+            category: "dense grid family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "grid_edit_focus",
+            resolution: "move cell edit-focus state into Boon source/generic app state",
+        },
+        GenericityProbe {
+            category: "dense grid family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn parse_grid_owner(",
+            resolution: "derive dynamic owners through generic source ownership metadata instead of spreadsheet coordinates in runtime",
+        },
+        GenericityProbe {
+            category: "dense grid family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
             needle: "fn render_grid_model_scene",
             resolution: "render grid UI by executing generic render tree nodes instead of a fixed grid renderer",
         },
@@ -1032,6 +1068,48 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
             needle: "fn track_vertical_position",
             resolution: "move game helper implementation out of the runtime bridge",
         },
+        GenericityProbe {
+            category: "compiler-owned game stdlib",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "\"Geometry/peer_body_",
+            resolution: "keep game behavior in Boon source and expose only generic Geometry primitives",
+        },
+        GenericityProbe {
+            category: "compiler-owned game stdlib",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "\"Geometry/contact_body_",
+            resolution: "keep game behavior in Boon source and expose only generic Geometry primitives",
+        },
+        GenericityProbe {
+            category: "compiler-owned game stdlib",
+            path: "crates/boon_compiler/src/lib.rs",
+            needle: "\"Geometry/track_vertical_position\"",
+            resolution: "keep game behavior in Boon source and expose only generic Geometry primitives",
+        },
+        GenericityProbe {
+            category: "stdlib-owned game family",
+            path: "crates/boon_stdlib/src/lib.rs",
+            needle: "\"Geometry/peer_body_",
+            resolution: "keep stdlib geometry value-level and reusable instead of app-family physics helpers",
+        },
+        GenericityProbe {
+            category: "stdlib-owned game family",
+            path: "crates/boon_stdlib/src/lib.rs",
+            needle: "\"Geometry/contact_body_",
+            resolution: "keep stdlib geometry value-level and reusable instead of app-family physics helpers",
+        },
+        GenericityProbe {
+            category: "stdlib-owned game family",
+            path: "crates/boon_stdlib/src/lib.rs",
+            needle: "fn peer_body_next",
+            resolution: "keep stdlib geometry value-level and reusable instead of app-family physics helpers",
+        },
+        GenericityProbe {
+            category: "stdlib-owned game family",
+            path: "crates/boon_stdlib/src/lib.rs",
+            needle: "fn contact_body_next",
+            resolution: "keep stdlib geometry value-level and reusable instead of app-family physics helpers",
+        },
     ];
     let mut gaps = Vec::new();
     for probe in probes {
@@ -1081,12 +1159,12 @@ fn source_mutation_probes(root: &Path) -> Result<Vec<BoonPoweredMutationProbe>> 
         ("todo_mvc", "List/append", "List/append_broken"),
         ("todo_mvc_physical", "List/append", "List/append_broken"),
         ("cells", "Math/sum", "Math/sum_broken"),
+        ("pong", "Geometry/intersects", "Geometry/intersects_broken"),
         (
-            "pong",
-            "Geometry/peer_body_dx",
-            "Geometry/peer_body_dx_broken",
+            "arkanoid",
+            "12 |> HOLD contact_field_cols",
+            "11 |> HOLD contact_field_cols",
         ),
-        ("arkanoid", "field_columns: 12", "field_columns: 11"),
     ];
     probes
         .iter()
@@ -5098,7 +5176,7 @@ fn todomvc_playground_add_toggle_filter_clear(name: &str) -> Result<NativePlaygr
             "store.sources.filter_completed.event.press",
         )?;
         expect(
-            state.snapshot()?.values.get("store.view_selector"),
+            state.snapshot()?.values.get("view.selector"),
             json!("filter_completed"),
             "TodoMVC completed filter selected",
         )?;
@@ -5109,7 +5187,7 @@ fn todomvc_playground_add_toggle_filter_clear(name: &str) -> Result<NativePlaygr
             "store.sources.filter_active.event.press",
         )?;
         expect(
-            state.snapshot()?.values.get("store.view_selector"),
+            state.snapshot()?.values.get("view.selector"),
             json!("filter_active"),
             "TodoMVC active filter selected",
         )?;
@@ -5120,7 +5198,7 @@ fn todomvc_playground_add_toggle_filter_clear(name: &str) -> Result<NativePlaygr
             "store.sources.filter_all.event.press",
         )?;
         expect(
-            state.snapshot()?.values.get("store.view_selector"),
+            state.snapshot()?.values.get("view.selector"),
             json!("filter_all"),
             "TodoMVC all filter selected",
         )?;

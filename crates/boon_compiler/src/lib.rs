@@ -5,7 +5,9 @@ use boon_hir::{
 use boon_host_schema::{HostContract, element_contracts};
 use boon_shape::Shape;
 use boon_source::{SourceEntry, SourceInventory, SourceOwner};
-use boon_syntax::{ParsedModule, ParsedRecordEntry, parse_module};
+use boon_syntax::{
+    AstExpr, AstExprKind, AstItem, AstRecord, ParsedModule, ParsedRecordEntry, parse_module,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashSet};
@@ -358,11 +360,11 @@ pub fn compile_source(name: &str, source: &str) -> Result<CompiledModule> {
     validate_supported_module_paths(&parsed)?;
     let provenance = compiled_provenance(source, &hir)?;
     let dynamic_sequence_root = infer_dynamic_sequence_root(&parsed);
-    let dynamic_dense_root = infer_dense_source_root(&parsed);
+    let dynamic_mapped_root = infer_dynamic_mapped_source_root(&parsed);
     let map_alias_roots = map_alias_roots(
         &parsed,
         dynamic_sequence_root.as_deref(),
-        dynamic_dense_root.as_deref(),
+        dynamic_mapped_root.as_deref(),
     );
     let host_bindings = collect_host_bindings(&parsed, &map_alias_roots);
     let contracts = element_contracts();
@@ -454,21 +456,7 @@ fn validate_supported_module_paths(parsed: &ParsedModule) -> Result<()> {
             | "Number/less_or_equal"
             | "Number/greater_than"
             | "Number/greater_or_equal"
-            | "Geometry/intersects"
-            | "Geometry/track_vertical_position"
-            | "Geometry/peer_body_x"
-            | "Geometry/peer_body_y"
-            | "Geometry/peer_body_dx"
-            | "Geometry/peer_body_dy"
-            | "Geometry/peer_contact_value"
-            | "Geometry/peer_resets_remaining"
-            | "Geometry/contact_body_x"
-            | "Geometry/contact_body_y"
-            | "Geometry/contact_body_dx"
-            | "Geometry/contact_body_dy"
-            | "Geometry/contact_live_count"
-            | "Geometry/contact_value"
-            | "Geometry/contact_resets_remaining" => {}
+            | "Geometry/intersects" => {}
             path if path.starts_with("Geometry/") => bail!(
                 "unsupported Geometry operation `{}` at line {} column {}",
                 path,
@@ -1524,7 +1512,7 @@ fn push_selector_handlers_from_hir_record(
                 source_path,
                 when: None,
                 effects: vec![IrEffect::SetTagState {
-                    state_path: "view_selector".to_string(),
+                    state_path: format!("{}.selector", record.key),
                     value: selector.key.clone(),
                 }],
             });
@@ -2003,7 +1991,7 @@ fn normalize_binding_expr(expr: &str, map_alias_roots: &BTreeMap<String, String>
 fn map_alias_roots(
     parsed: &ParsedModule,
     dynamic_sequence_root: Option<&str>,
-    dynamic_dense_root: Option<&str>,
+    dynamic_mapped_root: Option<&str>,
 ) -> BTreeMap<String, String> {
     let mut roots = BTreeMap::new();
     for binding in &parsed.map_bindings {
@@ -2017,16 +2005,16 @@ fn map_alias_roots(
             })
             .or_else(|| {
                 collection
-                    .zip(dynamic_dense_root)
+                    .zip(dynamic_mapped_root)
                     .and_then(|(collection, root)| (collection == root).then(|| root.to_string()))
             })
             .or_else(|| {
-                (dynamic_sequence_root.is_some() && dynamic_dense_root.is_none())
+                (dynamic_sequence_root.is_some() && dynamic_mapped_root.is_none())
                     .then(|| dynamic_sequence_root.expect("checked").to_string())
             })
             .or_else(|| {
-                (dynamic_dense_root.is_some() && dynamic_sequence_root.is_none())
-                    .then(|| dynamic_dense_root.expect("checked").to_string())
+                (dynamic_mapped_root.is_some() && dynamic_sequence_root.is_none())
+                    .then(|| dynamic_mapped_root.expect("checked").to_string())
             })
             .or_else(|| Some("records".to_string()));
         if let Some(root) = root {
@@ -2119,13 +2107,93 @@ fn infer_dynamic_sequence_root(parsed: &ParsedModule) -> Option<String> {
         .map(|record| record.key.clone())
 }
 
-fn infer_dense_source_root(parsed: &ParsedModule) -> Option<String> {
-    module_called(parsed, "Element/grid").then_some(())?;
+fn infer_dynamic_mapped_source_root(parsed: &ParsedModule) -> Option<String> {
+    let mapped_collections = parsed
+        .map_bindings
+        .iter()
+        .filter_map(|binding| binding.collection_root())
+        .collect::<HashSet<_>>();
     parsed
         .records
         .iter()
-        .find(|record| record.key != "store" && child_record(record, "sources").is_some())
+        .find(|record| {
+            record.key != "store"
+                && child_record(record, "sources").is_some()
+                && (mapped_collections.contains(record.key.as_str())
+                    || ast_references_path(parsed, &format!("{}.sources", record.key)))
+        })
         .map(|record| record.key.clone())
+}
+
+fn ast_references_path(parsed: &ParsedModule, path: &str) -> bool {
+    parsed
+        .ast
+        .items
+        .iter()
+        .any(|item| ast_item_references_path(item, path))
+}
+
+fn ast_item_references_path(item: &AstItem, path: &str) -> bool {
+    match item {
+        AstItem::Record(record) => ast_record_references_path(record, path),
+        AstItem::Function(function) => ast_expr_references_path(&function.body, path),
+        AstItem::Expression(expr) => ast_expr_references_path(expr, path),
+    }
+}
+
+fn ast_record_references_path(record: &AstRecord, path: &str) -> bool {
+    record
+        .value
+        .as_ref()
+        .is_some_and(|expr| ast_expr_references_path(expr, path))
+        || record
+            .children
+            .iter()
+            .any(|child| ast_record_references_path(child, path))
+}
+
+fn ast_expr_references_path(expr: &AstExpr, path: &str) -> bool {
+    match &expr.kind {
+        AstExprKind::Path { value } => value == path,
+        AstExprKind::Record { entries } => entries
+            .iter()
+            .any(|record| ast_record_references_path(record, path)),
+        AstExprKind::List { items } => items
+            .iter()
+            .any(|item| ast_expr_references_path(item, path)),
+        AstExprKind::Block { bindings } => bindings
+            .iter()
+            .any(|binding| ast_expr_references_path(&binding.value, path)),
+        AstExprKind::When { arms } | AstExprKind::While { arms } => arms
+            .iter()
+            .any(|arm| ast_expr_references_path(&arm.value, path)),
+        AstExprKind::Then { body } | AstExprKind::Hold { body, .. } => {
+            ast_expr_references_path(body, path)
+        }
+        AstExprKind::Latest { branches } => branches
+            .iter()
+            .any(|branch| ast_expr_references_path(branch, path)),
+        AstExprKind::Call { args, .. } => args
+            .iter()
+            .any(|arg| ast_expr_references_path(&arg.value, path)),
+        AstExprKind::Pipeline { input, stages } => {
+            ast_expr_references_path(input, path)
+                || stages
+                    .iter()
+                    .any(|stage| ast_expr_references_path(stage, path))
+        }
+        AstExprKind::Binary { left, right, .. } => {
+            ast_expr_references_path(left, path) || ast_expr_references_path(right, path)
+        }
+        AstExprKind::Source
+        | AstExprKind::Number { .. }
+        | AstExprKind::Bool { .. }
+        | AstExprKind::Tag { .. }
+        | AstExprKind::Text { .. }
+        | AstExprKind::Passed
+        | AstExprKind::Skip
+        | AstExprKind::Raw => false,
+    }
 }
 
 fn normalize_source_path(path: &str, dynamic_sequence_root: Option<&str>) -> String {

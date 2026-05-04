@@ -290,7 +290,7 @@
       "effects": [
         {
           "kind": "set_tag_state",
-          "state_path": "view_selector",
+          "state_path": "view.selector",
           "value": "filter_all"
         }
       ]
@@ -301,7 +301,7 @@
       "effects": [
         {
           "kind": "set_tag_state",
-          "state_path": "view_selector",
+          "state_path": "view.selector",
           "value": "filter_active"
         }
       ]
@@ -312,7 +312,7 @@
       "effects": [
         {
           "kind": "set_tag_state",
-          "state_path": "view_selector",
+          "state_path": "view.selector",
           "value": "filter_completed"
         }
       ]

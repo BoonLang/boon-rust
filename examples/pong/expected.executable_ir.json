@@ -296,34 +296,27 @@
           "path": "kinematics.tracked_control_y",
           "value": {
             "kind": "call",
-            "path": "Geometry/track_vertical_position",
+            "path": "Number/percent_of_range",
             "args": [
               {
-                "name": "body_y",
+                "name": "value",
                 "value": {
                   "kind": "state",
                   "path": "kinematics.body_y"
                 }
               },
               {
-                "name": "body_size",
+                "name": "min",
                 "value": {
                   "kind": "number",
-                  "value": 22
+                  "value": 0
                 }
               },
               {
-                "name": "arena_height",
+                "name": "max",
                 "value": {
                   "kind": "number",
-                  "value": 700
-                }
-              },
-              {
-                "name": "height",
-                "value": {
-                  "kind": "number",
-                  "value": 128
+                  "value": 572
                 }
               }
             ]
@@ -410,112 +403,96 @@
           "kind": "set_state",
           "path": "kinematics.body_x",
           "value": {
-            "kind": "call",
-            "path": "Geometry/peer_body_x",
-            "args": [
-              {
-                "name": "x",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_x"
+            "kind": "when",
+            "input": {
+              "kind": "call",
+              "path": "Number/less_than",
+              "args": [
+                {
+                  "name": "left",
+                  "value": {
+                    "kind": "add",
+                    "left": {
+                      "kind": "state",
+                      "path": "kinematics.body_x"
+                    },
+                    "right": {
+                      "kind": "state",
+                      "path": "kinematics.body_dx"
+                    }
+                  }
+                },
+                {
+                  "name": "right",
+                  "value": {
+                    "kind": "number",
+                    "value": -22
+                  }
                 }
-              },
+              ]
+            },
+            "arms": [
               {
-                "name": "y",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_y"
-                }
-              },
-              {
-                "name": "dx",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_dx"
-                }
-              },
-              {
-                "name": "dy",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_dy"
-                }
-              },
-              {
-                "name": "body_size",
+                "pattern": "True",
                 "value": {
                   "kind": "number",
-                  "value": 22
+                  "value": 500
                 }
               },
               {
-                "name": "arena_width",
+                "pattern": "False",
                 "value": {
-                  "kind": "number",
-                  "value": 1000
-                }
-              },
-              {
-                "name": "arena_height",
-                "value": {
-                  "kind": "number",
-                  "value": 700
-                }
-              },
-              {
-                "name": "control_width",
-                "value": {
-                  "kind": "number",
-                  "value": 18
-                }
-              },
-              {
-                "name": "control_height",
-                "value": {
-                  "kind": "number",
-                  "value": 128
-                }
-              },
-              {
-                "name": "left_x",
-                "value": {
-                  "kind": "number",
-                  "value": 38
-                }
-              },
-              {
-                "name": "right_x",
-                "value": {
-                  "kind": "number",
-                  "value": 944
-                }
-              },
-              {
-                "name": "control_y",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.control_y"
-                }
-              },
-              {
-                "name": "tracked_control_y",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.tracked_control_y"
-                }
-              },
-              {
-                "name": "contact_value",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.contact_value"
-                }
-              },
-              {
-                "name": "resets_remaining",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.resets_remaining"
+                  "kind": "when",
+                  "input": {
+                    "kind": "call",
+                    "path": "Number/greater_than",
+                    "args": [
+                      {
+                        "name": "left",
+                        "value": {
+                          "kind": "add",
+                          "left": {
+                            "kind": "state",
+                            "path": "kinematics.body_x"
+                          },
+                          "right": {
+                            "kind": "state",
+                            "path": "kinematics.body_dx"
+                          }
+                        }
+                      },
+                      {
+                        "name": "right",
+                        "value": {
+                          "kind": "number",
+                          "value": 1022
+                        }
+                      }
+                    ]
+                  },
+                  "arms": [
+                    {
+                      "pattern": "True",
+                      "value": {
+                        "kind": "number",
+                        "value": 500
+                      }
+                    },
+                    {
+                      "pattern": "False",
+                      "value": {
+                        "kind": "add",
+                        "left": {
+                          "kind": "state",
+                          "path": "kinematics.body_x"
+                        },
+                        "right": {
+                          "kind": "state",
+                          "path": "kinematics.body_dx"
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             ]
@@ -530,112 +507,103 @@
           "kind": "set_state",
           "path": "kinematics.body_y",
           "value": {
-            "kind": "call",
-            "path": "Geometry/peer_body_y",
-            "args": [
-              {
-                "name": "x",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_x"
+            "kind": "when",
+            "input": {
+              "kind": "call",
+              "path": "Number/less_than",
+              "args": [
+                {
+                  "name": "left",
+                  "value": {
+                    "kind": "add",
+                    "left": {
+                      "kind": "state",
+                      "path": "kinematics.body_y"
+                    },
+                    "right": {
+                      "kind": "state",
+                      "path": "kinematics.body_dy"
+                    }
+                  }
+                },
+                {
+                  "name": "right",
+                  "value": {
+                    "kind": "number",
+                    "value": 0
+                  }
                 }
-              },
+              ]
+            },
+            "arms": [
               {
-                "name": "y",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_y"
-                }
-              },
-              {
-                "name": "dx",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_dx"
-                }
-              },
-              {
-                "name": "dy",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_dy"
-                }
-              },
-              {
-                "name": "body_size",
+                "pattern": "True",
                 "value": {
                   "kind": "number",
-                  "value": 22
+                  "value": 0
                 }
               },
               {
-                "name": "arena_width",
+                "pattern": "False",
                 "value": {
-                  "kind": "number",
-                  "value": 1000
-                }
-              },
-              {
-                "name": "arena_height",
-                "value": {
-                  "kind": "number",
-                  "value": 700
-                }
-              },
-              {
-                "name": "control_width",
-                "value": {
-                  "kind": "number",
-                  "value": 18
-                }
-              },
-              {
-                "name": "control_height",
-                "value": {
-                  "kind": "number",
-                  "value": 128
-                }
-              },
-              {
-                "name": "left_x",
-                "value": {
-                  "kind": "number",
-                  "value": 38
-                }
-              },
-              {
-                "name": "right_x",
-                "value": {
-                  "kind": "number",
-                  "value": 944
-                }
-              },
-              {
-                "name": "control_y",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.control_y"
-                }
-              },
-              {
-                "name": "tracked_control_y",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.tracked_control_y"
-                }
-              },
-              {
-                "name": "contact_value",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.contact_value"
-                }
-              },
-              {
-                "name": "resets_remaining",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.resets_remaining"
+                  "kind": "when",
+                  "input": {
+                    "kind": "call",
+                    "path": "Number/greater_than",
+                    "args": [
+                      {
+                        "name": "left",
+                        "value": {
+                          "kind": "add",
+                          "left": {
+                            "kind": "state",
+                            "path": "kinematics.body_y"
+                          },
+                          "right": {
+                            "kind": "add",
+                            "left": {
+                              "kind": "state",
+                              "path": "kinematics.body_dy"
+                            },
+                            "right": {
+                              "kind": "number",
+                              "value": 22
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "name": "right",
+                        "value": {
+                          "kind": "number",
+                          "value": 700
+                        }
+                      }
+                    ]
+                  },
+                  "arms": [
+                    {
+                      "pattern": "True",
+                      "value": {
+                        "kind": "number",
+                        "value": 678
+                      }
+                    },
+                    {
+                      "pattern": "False",
+                      "value": {
+                        "kind": "add",
+                        "left": {
+                          "kind": "state",
+                          "path": "kinematics.body_y"
+                        },
+                        "right": {
+                          "kind": "state",
+                          "path": "kinematics.body_dy"
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             ]
@@ -650,112 +618,275 @@
           "kind": "set_state",
           "path": "kinematics.body_dx",
           "value": {
-            "kind": "call",
-            "path": "Geometry/peer_body_dx",
-            "args": [
-              {
-                "name": "x",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_x"
+            "kind": "when",
+            "input": {
+              "kind": "call",
+              "path": "Number/less_than",
+              "args": [
+                {
+                  "name": "left",
+                  "value": {
+                    "kind": "add",
+                    "left": {
+                      "kind": "state",
+                      "path": "kinematics.body_x"
+                    },
+                    "right": {
+                      "kind": "state",
+                      "path": "kinematics.body_dx"
+                    }
+                  }
+                },
+                {
+                  "name": "right",
+                  "value": {
+                    "kind": "number",
+                    "value": -22
+                  }
                 }
-              },
+              ]
+            },
+            "arms": [
               {
-                "name": "y",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_y"
-                }
-              },
-              {
-                "name": "dx",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_dx"
-                }
-              },
-              {
-                "name": "dy",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_dy"
-                }
-              },
-              {
-                "name": "body_size",
+                "pattern": "True",
                 "value": {
                   "kind": "number",
-                  "value": 22
+                  "value": 12
                 }
               },
               {
-                "name": "arena_width",
+                "pattern": "False",
                 "value": {
-                  "kind": "number",
-                  "value": 1000
-                }
-              },
-              {
-                "name": "arena_height",
-                "value": {
-                  "kind": "number",
-                  "value": 700
-                }
-              },
-              {
-                "name": "control_width",
-                "value": {
-                  "kind": "number",
-                  "value": 18
-                }
-              },
-              {
-                "name": "control_height",
-                "value": {
-                  "kind": "number",
-                  "value": 128
-                }
-              },
-              {
-                "name": "left_x",
-                "value": {
-                  "kind": "number",
-                  "value": 38
-                }
-              },
-              {
-                "name": "right_x",
-                "value": {
-                  "kind": "number",
-                  "value": 944
-                }
-              },
-              {
-                "name": "control_y",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.control_y"
-                }
-              },
-              {
-                "name": "tracked_control_y",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.tracked_control_y"
-                }
-              },
-              {
-                "name": "contact_value",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.contact_value"
-                }
-              },
-              {
-                "name": "resets_remaining",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.resets_remaining"
+                  "kind": "when",
+                  "input": {
+                    "kind": "call",
+                    "path": "Number/greater_than",
+                    "args": [
+                      {
+                        "name": "left",
+                        "value": {
+                          "kind": "add",
+                          "left": {
+                            "kind": "state",
+                            "path": "kinematics.body_x"
+                          },
+                          "right": {
+                            "kind": "state",
+                            "path": "kinematics.body_dx"
+                          }
+                        }
+                      },
+                      {
+                        "name": "right",
+                        "value": {
+                          "kind": "number",
+                          "value": 1022
+                        }
+                      }
+                    ]
+                  },
+                  "arms": [
+                    {
+                      "pattern": "True",
+                      "value": {
+                        "kind": "number",
+                        "value": -12
+                      }
+                    },
+                    {
+                      "pattern": "False",
+                      "value": {
+                        "kind": "when",
+                        "input": {
+                          "kind": "call",
+                          "path": "Geometry/intersects",
+                          "args": [
+                            {
+                              "name": "ax",
+                              "value": {
+                                "kind": "add",
+                                "left": {
+                                  "kind": "state",
+                                  "path": "kinematics.body_x"
+                                },
+                                "right": {
+                                  "kind": "state",
+                                  "path": "kinematics.body_dx"
+                                }
+                              }
+                            },
+                            {
+                              "name": "ay",
+                              "value": {
+                                "kind": "state",
+                                "path": "kinematics.body_y"
+                              }
+                            },
+                            {
+                              "name": "aw",
+                              "value": {
+                                "kind": "number",
+                                "value": 22
+                              }
+                            },
+                            {
+                              "name": "ah",
+                              "value": {
+                                "kind": "number",
+                                "value": 22
+                              }
+                            },
+                            {
+                              "name": "bx",
+                              "value": {
+                                "kind": "number",
+                                "value": 38
+                              }
+                            },
+                            {
+                              "name": "by",
+                              "value": {
+                                "kind": "state",
+                                "path": "kinematics.control_top"
+                              }
+                            },
+                            {
+                              "name": "bw",
+                              "value": {
+                                "kind": "number",
+                                "value": 18
+                              }
+                            },
+                            {
+                              "name": "bh",
+                              "value": {
+                                "kind": "number",
+                                "value": 128
+                              }
+                            }
+                          ]
+                        },
+                        "arms": [
+                          {
+                            "pattern": "True",
+                            "value": {
+                              "kind": "call",
+                              "path": "Number/abs",
+                              "args": [
+                                {
+                                  "name": "value",
+                                  "value": {
+                                    "kind": "state",
+                                    "path": "kinematics.body_dx"
+                                  }
+                                }
+                              ]
+                            }
+                          },
+                          {
+                            "pattern": "False",
+                            "value": {
+                              "kind": "when",
+                              "input": {
+                                "kind": "call",
+                                "path": "Geometry/intersects",
+                                "args": [
+                                  {
+                                    "name": "ax",
+                                    "value": {
+                                      "kind": "add",
+                                      "left": {
+                                        "kind": "state",
+                                        "path": "kinematics.body_x"
+                                      },
+                                      "right": {
+                                        "kind": "state",
+                                        "path": "kinematics.body_dx"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "name": "ay",
+                                    "value": {
+                                      "kind": "state",
+                                      "path": "kinematics.body_y"
+                                    }
+                                  },
+                                  {
+                                    "name": "aw",
+                                    "value": {
+                                      "kind": "number",
+                                      "value": 22
+                                    }
+                                  },
+                                  {
+                                    "name": "ah",
+                                    "value": {
+                                      "kind": "number",
+                                      "value": 22
+                                    }
+                                  },
+                                  {
+                                    "name": "bx",
+                                    "value": {
+                                      "kind": "number",
+                                      "value": 944
+                                    }
+                                  },
+                                  {
+                                    "name": "by",
+                                    "value": {
+                                      "kind": "state",
+                                      "path": "kinematics.tracked_control_top"
+                                    }
+                                  },
+                                  {
+                                    "name": "bw",
+                                    "value": {
+                                      "kind": "number",
+                                      "value": 18
+                                    }
+                                  },
+                                  {
+                                    "name": "bh",
+                                    "value": {
+                                      "kind": "number",
+                                      "value": 128
+                                    }
+                                  }
+                                ]
+                              },
+                              "arms": [
+                                {
+                                  "pattern": "True",
+                                  "value": {
+                                    "kind": "call",
+                                    "path": "Number/neg_abs",
+                                    "args": [
+                                      {
+                                        "name": "value",
+                                        "value": {
+                                          "kind": "state",
+                                          "path": "kinematics.body_dx"
+                                        }
+                                      }
+                                    ]
+                                  }
+                                },
+                                {
+                                  "pattern": "False",
+                                  "value": {
+                                    "kind": "state",
+                                    "path": "kinematics.body_dx"
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
                 }
               }
             ]
@@ -770,112 +901,114 @@
           "kind": "set_state",
           "path": "kinematics.body_dy",
           "value": {
-            "kind": "call",
-            "path": "Geometry/peer_body_dy",
-            "args": [
+            "kind": "when",
+            "input": {
+              "kind": "call",
+              "path": "Number/less_than",
+              "args": [
+                {
+                  "name": "left",
+                  "value": {
+                    "kind": "add",
+                    "left": {
+                      "kind": "state",
+                      "path": "kinematics.body_y"
+                    },
+                    "right": {
+                      "kind": "state",
+                      "path": "kinematics.body_dy"
+                    }
+                  }
+                },
+                {
+                  "name": "right",
+                  "value": {
+                    "kind": "number",
+                    "value": 0
+                  }
+                }
+              ]
+            },
+            "arms": [
               {
-                "name": "x",
+                "pattern": "True",
                 "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_x"
+                  "kind": "call",
+                  "path": "Number/abs",
+                  "args": [
+                    {
+                      "name": "value",
+                      "value": {
+                        "kind": "state",
+                        "path": "kinematics.body_dy"
+                      }
+                    }
+                  ]
                 }
               },
               {
-                "name": "y",
+                "pattern": "False",
                 "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_y"
-                }
-              },
-              {
-                "name": "dx",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_dx"
-                }
-              },
-              {
-                "name": "dy",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_dy"
-                }
-              },
-              {
-                "name": "body_size",
-                "value": {
-                  "kind": "number",
-                  "value": 22
-                }
-              },
-              {
-                "name": "arena_width",
-                "value": {
-                  "kind": "number",
-                  "value": 1000
-                }
-              },
-              {
-                "name": "arena_height",
-                "value": {
-                  "kind": "number",
-                  "value": 700
-                }
-              },
-              {
-                "name": "control_width",
-                "value": {
-                  "kind": "number",
-                  "value": 18
-                }
-              },
-              {
-                "name": "control_height",
-                "value": {
-                  "kind": "number",
-                  "value": 128
-                }
-              },
-              {
-                "name": "left_x",
-                "value": {
-                  "kind": "number",
-                  "value": 38
-                }
-              },
-              {
-                "name": "right_x",
-                "value": {
-                  "kind": "number",
-                  "value": 944
-                }
-              },
-              {
-                "name": "control_y",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.control_y"
-                }
-              },
-              {
-                "name": "tracked_control_y",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.tracked_control_y"
-                }
-              },
-              {
-                "name": "contact_value",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.contact_value"
-                }
-              },
-              {
-                "name": "resets_remaining",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.resets_remaining"
+                  "kind": "when",
+                  "input": {
+                    "kind": "call",
+                    "path": "Number/greater_than",
+                    "args": [
+                      {
+                        "name": "left",
+                        "value": {
+                          "kind": "add",
+                          "left": {
+                            "kind": "state",
+                            "path": "kinematics.body_y"
+                          },
+                          "right": {
+                            "kind": "add",
+                            "left": {
+                              "kind": "state",
+                              "path": "kinematics.body_dy"
+                            },
+                            "right": {
+                              "kind": "number",
+                              "value": 22
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "name": "right",
+                        "value": {
+                          "kind": "number",
+                          "value": 700
+                        }
+                      }
+                    ]
+                  },
+                  "arms": [
+                    {
+                      "pattern": "True",
+                      "value": {
+                        "kind": "call",
+                        "path": "Number/neg_abs",
+                        "args": [
+                          {
+                            "name": "value",
+                            "value": {
+                              "kind": "state",
+                              "path": "kinematics.body_dy"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "pattern": "False",
+                      "value": {
+                        "kind": "state",
+                        "path": "kinematics.body_dy"
+                      }
+                    }
+                  ]
                 }
               }
             ]
@@ -890,112 +1023,187 @@
           "kind": "set_state",
           "path": "kinematics.contact_value",
           "value": {
-            "kind": "call",
-            "path": "Geometry/peer_contact_value",
-            "args": [
+            "kind": "when",
+            "input": {
+              "kind": "call",
+              "path": "Geometry/intersects",
+              "args": [
+                {
+                  "name": "ax",
+                  "value": {
+                    "kind": "add",
+                    "left": {
+                      "kind": "state",
+                      "path": "kinematics.body_x"
+                    },
+                    "right": {
+                      "kind": "state",
+                      "path": "kinematics.body_dx"
+                    }
+                  }
+                },
+                {
+                  "name": "ay",
+                  "value": {
+                    "kind": "state",
+                    "path": "kinematics.body_y"
+                  }
+                },
+                {
+                  "name": "aw",
+                  "value": {
+                    "kind": "number",
+                    "value": 22
+                  }
+                },
+                {
+                  "name": "ah",
+                  "value": {
+                    "kind": "number",
+                    "value": 22
+                  }
+                },
+                {
+                  "name": "bx",
+                  "value": {
+                    "kind": "number",
+                    "value": 38
+                  }
+                },
+                {
+                  "name": "by",
+                  "value": {
+                    "kind": "state",
+                    "path": "kinematics.control_top"
+                  }
+                },
+                {
+                  "name": "bw",
+                  "value": {
+                    "kind": "number",
+                    "value": 18
+                  }
+                },
+                {
+                  "name": "bh",
+                  "value": {
+                    "kind": "number",
+                    "value": 128
+                  }
+                }
+              ]
+            },
+            "arms": [
               {
-                "name": "x",
+                "pattern": "True",
                 "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_x"
+                  "kind": "add",
+                  "left": {
+                    "kind": "state",
+                    "path": "kinematics.contact_value"
+                  },
+                  "right": {
+                    "kind": "number",
+                    "value": 1
+                  }
                 }
               },
               {
-                "name": "y",
+                "pattern": "False",
                 "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_y"
-                }
-              },
-              {
-                "name": "dx",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_dx"
-                }
-              },
-              {
-                "name": "dy",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_dy"
-                }
-              },
-              {
-                "name": "body_size",
-                "value": {
-                  "kind": "number",
-                  "value": 22
-                }
-              },
-              {
-                "name": "arena_width",
-                "value": {
-                  "kind": "number",
-                  "value": 1000
-                }
-              },
-              {
-                "name": "arena_height",
-                "value": {
-                  "kind": "number",
-                  "value": 700
-                }
-              },
-              {
-                "name": "control_width",
-                "value": {
-                  "kind": "number",
-                  "value": 18
-                }
-              },
-              {
-                "name": "control_height",
-                "value": {
-                  "kind": "number",
-                  "value": 128
-                }
-              },
-              {
-                "name": "left_x",
-                "value": {
-                  "kind": "number",
-                  "value": 38
-                }
-              },
-              {
-                "name": "right_x",
-                "value": {
-                  "kind": "number",
-                  "value": 944
-                }
-              },
-              {
-                "name": "control_y",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.control_y"
-                }
-              },
-              {
-                "name": "tracked_control_y",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.tracked_control_y"
-                }
-              },
-              {
-                "name": "contact_value",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.contact_value"
-                }
-              },
-              {
-                "name": "resets_remaining",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.resets_remaining"
+                  "kind": "when",
+                  "input": {
+                    "kind": "call",
+                    "path": "Geometry/intersects",
+                    "args": [
+                      {
+                        "name": "ax",
+                        "value": {
+                          "kind": "add",
+                          "left": {
+                            "kind": "state",
+                            "path": "kinematics.body_x"
+                          },
+                          "right": {
+                            "kind": "state",
+                            "path": "kinematics.body_dx"
+                          }
+                        }
+                      },
+                      {
+                        "name": "ay",
+                        "value": {
+                          "kind": "state",
+                          "path": "kinematics.body_y"
+                        }
+                      },
+                      {
+                        "name": "aw",
+                        "value": {
+                          "kind": "number",
+                          "value": 22
+                        }
+                      },
+                      {
+                        "name": "ah",
+                        "value": {
+                          "kind": "number",
+                          "value": 22
+                        }
+                      },
+                      {
+                        "name": "bx",
+                        "value": {
+                          "kind": "number",
+                          "value": 944
+                        }
+                      },
+                      {
+                        "name": "by",
+                        "value": {
+                          "kind": "state",
+                          "path": "kinematics.tracked_control_top"
+                        }
+                      },
+                      {
+                        "name": "bw",
+                        "value": {
+                          "kind": "number",
+                          "value": 18
+                        }
+                      },
+                      {
+                        "name": "bh",
+                        "value": {
+                          "kind": "number",
+                          "value": 128
+                        }
+                      }
+                    ]
+                  },
+                  "arms": [
+                    {
+                      "pattern": "True",
+                      "value": {
+                        "kind": "add",
+                        "left": {
+                          "kind": "state",
+                          "path": "kinematics.contact_value"
+                        },
+                        "right": {
+                          "kind": "number",
+                          "value": 1
+                        }
+                      }
+                    },
+                    {
+                      "pattern": "False",
+                      "value": {
+                        "kind": "state",
+                        "path": "kinematics.contact_value"
+                      }
+                    }
+                  ]
                 }
               }
             ]
@@ -1010,112 +1218,135 @@
           "kind": "set_state",
           "path": "kinematics.resets_remaining",
           "value": {
-            "kind": "call",
-            "path": "Geometry/peer_resets_remaining",
-            "args": [
+            "kind": "when",
+            "input": {
+              "kind": "call",
+              "path": "Number/less_than",
+              "args": [
+                {
+                  "name": "left",
+                  "value": {
+                    "kind": "add",
+                    "left": {
+                      "kind": "state",
+                      "path": "kinematics.body_x"
+                    },
+                    "right": {
+                      "kind": "state",
+                      "path": "kinematics.body_dx"
+                    }
+                  }
+                },
+                {
+                  "name": "right",
+                  "value": {
+                    "kind": "number",
+                    "value": -22
+                  }
+                }
+              ]
+            },
+            "arms": [
               {
-                "name": "x",
+                "pattern": "True",
                 "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_x"
+                  "kind": "call",
+                  "path": "Number/max",
+                  "args": [
+                    {
+                      "name": "left",
+                      "value": {
+                        "kind": "subtract",
+                        "left": {
+                          "kind": "state",
+                          "path": "kinematics.resets_remaining"
+                        },
+                        "right": {
+                          "kind": "number",
+                          "value": 1
+                        }
+                      }
+                    },
+                    {
+                      "name": "right",
+                      "value": {
+                        "kind": "number",
+                        "value": 0
+                      }
+                    }
+                  ]
                 }
               },
               {
-                "name": "y",
+                "pattern": "False",
                 "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_y"
-                }
-              },
-              {
-                "name": "dx",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_dx"
-                }
-              },
-              {
-                "name": "dy",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.body_dy"
-                }
-              },
-              {
-                "name": "body_size",
-                "value": {
-                  "kind": "number",
-                  "value": 22
-                }
-              },
-              {
-                "name": "arena_width",
-                "value": {
-                  "kind": "number",
-                  "value": 1000
-                }
-              },
-              {
-                "name": "arena_height",
-                "value": {
-                  "kind": "number",
-                  "value": 700
-                }
-              },
-              {
-                "name": "control_width",
-                "value": {
-                  "kind": "number",
-                  "value": 18
-                }
-              },
-              {
-                "name": "control_height",
-                "value": {
-                  "kind": "number",
-                  "value": 128
-                }
-              },
-              {
-                "name": "left_x",
-                "value": {
-                  "kind": "number",
-                  "value": 38
-                }
-              },
-              {
-                "name": "right_x",
-                "value": {
-                  "kind": "number",
-                  "value": 944
-                }
-              },
-              {
-                "name": "control_y",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.control_y"
-                }
-              },
-              {
-                "name": "tracked_control_y",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.tracked_control_y"
-                }
-              },
-              {
-                "name": "contact_value",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.contact_value"
-                }
-              },
-              {
-                "name": "resets_remaining",
-                "value": {
-                  "kind": "state",
-                  "path": "kinematics.resets_remaining"
+                  "kind": "when",
+                  "input": {
+                    "kind": "call",
+                    "path": "Number/greater_than",
+                    "args": [
+                      {
+                        "name": "left",
+                        "value": {
+                          "kind": "add",
+                          "left": {
+                            "kind": "state",
+                            "path": "kinematics.body_x"
+                          },
+                          "right": {
+                            "kind": "state",
+                            "path": "kinematics.body_dx"
+                          }
+                        }
+                      },
+                      {
+                        "name": "right",
+                        "value": {
+                          "kind": "number",
+                          "value": 1022
+                        }
+                      }
+                    ]
+                  },
+                  "arms": [
+                    {
+                      "pattern": "True",
+                      "value": {
+                        "kind": "call",
+                        "path": "Number/max",
+                        "args": [
+                          {
+                            "name": "left",
+                            "value": {
+                              "kind": "subtract",
+                              "left": {
+                                "kind": "state",
+                                "path": "kinematics.resets_remaining"
+                              },
+                              "right": {
+                                "kind": "number",
+                                "value": 1
+                              }
+                            }
+                          },
+                          {
+                            "name": "right",
+                            "value": {
+                              "kind": "number",
+                              "value": 0
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "pattern": "False",
+                      "value": {
+                        "kind": "state",
+                        "path": "kinematics.resets_remaining"
+                      }
+                    }
+                  ]
                 }
               }
             ]

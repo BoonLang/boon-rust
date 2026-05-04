@@ -437,7 +437,7 @@ fn todo_list_controls_run_through_generic_list_ir() {
     })
     .expect("filter event succeeds");
     assert_eq!(
-        app.snapshot().values.get("store.view_selector"),
+        app.snapshot().values.get("view.selector"),
         Some(&serde_json::json!("filter_completed"))
     );
 

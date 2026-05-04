@@ -33,10 +33,10 @@ pub struct CompiledApp {
     entry_text: String,
     source_state: BTreeMap<String, SourceValue>,
     generic_state: BTreeMap<String, i64>,
-    view_selector: String,
-    grid: FormulaBook,
-    grid_selected: (usize, usize),
-    grid_edit_focus: Option<(usize, usize)>,
+    tag_state: BTreeMap<String, String>,
+    formula_book: FormulaBook,
+    focused_slot: (usize, usize),
+    editing_slot: Option<(usize, usize)>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -44,7 +44,7 @@ struct RuntimeWiring {
     action_state: Option<StateEventBinding>,
     clock_state: Option<StateEventBinding>,
     list: Option<CollectionSourceWiring>,
-    grid: Option<ElementGridWiring>,
+    dense: Option<DenseSourceWiring>,
 }
 
 #[derive(Clone, Debug)]
@@ -89,7 +89,7 @@ enum CollectionViewVisibility {
 }
 
 #[derive(Clone, Debug)]
-struct ElementGridWiring {
+struct DenseSourceWiring {
     family: String,
     root: String,
     display_double_click: Option<String>,
@@ -134,17 +134,17 @@ impl RuntimeWiring {
             }
         }
         let list = CollectionSourceWiring::from_app_ir(inventory, app_ir);
-        let grid = app_ir
+        let dense = app_ir
             .render_tree
             .as_ref()
             .is_some_and(|tree| render_node_has_kind(tree, &boon_compiler::IrRenderKind::Grid))
-            .then(|| ElementGridWiring::from_inventory(inventory))
+            .then(|| DenseSourceWiring::from_inventory(inventory))
             .flatten();
         Self {
             action_state,
             clock_state,
             list,
-            grid,
+            dense,
         }
     }
 }
@@ -275,7 +275,7 @@ impl CollectionSourceWiring {
     }
 }
 
-impl ElementGridWiring {
+impl DenseSourceWiring {
     fn from_inventory(inventory: &SourceInventory) -> Option<Self> {
         let family =
             first_dynamic_family(inventory, "Element/text_input(element.text)").or_else(|| {
@@ -726,25 +726,29 @@ impl CompiledApp {
             .map(|list| list.initial_entries.clone())
             .unwrap_or_default();
         let (grid_rows, grid_columns) = grid_dimensions_from_static_records(&app_ir);
-        let grid = FormulaBook::new(
+        let formula_book = FormulaBook::new(
             grid_rows,
             grid_columns,
             std_function_names_from_static_records(&app_ir),
-        );
-        let initial_view_selector = collection_view_from_app_ir(&app_ir).map_or_else(
-            || "all".to_string(),
-            |view| {
-                view.selectors
-                    .first()
-                    .map(|selector| selector.id.clone())
-                    .unwrap_or_else(|| "all".to_string())
-            },
         );
         let mut generic_state = BTreeMap::new();
         for slot in &executable_ir.state_slots {
             if let Ok(value) = selfless_eval_exec_number(&slot.initial) {
                 generic_state.insert(slot.path.clone(), value);
             }
+        }
+        let mut tag_state = BTreeMap::new();
+        if let Some(selector_path) = collection_view_selector_state_path(&app_ir) {
+            let initial_selector = collection_view_from_app_ir(&app_ir).map_or_else(
+                || "all".to_string(),
+                |view| {
+                    view.selectors
+                        .first()
+                        .map(|selector| selector.id.clone())
+                        .unwrap_or_else(|| "all".to_string())
+                },
+            );
+            tag_state.insert(selector_path, initial_selector);
         }
         let mut app = Self {
             program,
@@ -766,10 +770,10 @@ impl CompiledApp {
             entry_text: String::new(),
             source_state: BTreeMap::new(),
             generic_state,
-            view_selector: initial_view_selector,
-            grid,
-            grid_selected: (1, 1),
-            grid_edit_focus: None,
+            tag_state,
+            formula_book,
+            focused_slot: (1, 1),
+            editing_slot: None,
         };
         app.next_dynamic_value_id = app.dynamic_values.len() as u64 + 1;
         app.frame_text = app.render_text();
@@ -854,41 +858,41 @@ impl CompiledApp {
             .collect()
     }
 
-    fn grid_change_paths(&self) -> Vec<String> {
+    fn dense_change_paths(&self) -> Vec<String> {
         self.wiring
-            .grid
+            .dense
             .as_ref()
             .map(|grid| vec![grid.root.clone()])
             .unwrap_or_default()
     }
 
-    fn grid_selection_change_paths(&self) -> Vec<String> {
+    fn dense_selection_change_paths(&self) -> Vec<String> {
         self.wiring
-            .grid
+            .dense
             .as_ref()
             .map(|grid| vec![format!("{}.selected", grid.root)])
             .unwrap_or_default()
     }
 
-    fn set_grid_selected(&mut self, row: usize, col: usize) {
-        self.grid_selected = (
-            row.clamp(1, self.grid.rows()),
-            col.clamp(1, self.grid.columns()),
+    fn set_focused_slot(&mut self, row: usize, col: usize) {
+        self.focused_slot = (
+            row.clamp(1, self.formula_book.rows()),
+            col.clamp(1, self.formula_book.columns()),
         );
     }
 
-    fn move_grid_selected(&mut self, row_delta: isize, col_delta: isize) {
+    fn move_focused_slot(&mut self, row_delta: isize, col_delta: isize) {
         let row = self
-            .grid_selected
+            .focused_slot
             .0
             .saturating_add_signed(row_delta)
-            .clamp(1, self.grid.rows());
+            .clamp(1, self.formula_book.rows());
         let col = self
-            .grid_selected
+            .focused_slot
             .1
             .saturating_add_signed(col_delta)
-            .clamp(1, self.grid.columns());
-        self.grid_selected = (row, col);
+            .clamp(1, self.formula_book.columns());
+        self.focused_slot = (row, col);
     }
 
     fn static_text_event_matches(&self, path: &str) -> bool {
@@ -997,9 +1001,7 @@ impl CompiledApp {
                         }
                     }
                     IrEffect::SetTagState { state_path, value } => {
-                        if state_path == "view_selector" {
-                            self.view_selector = value.clone();
-                        }
+                        self.tag_state.insert(state_path.clone(), value.clone());
                         changed.push(state_path);
                     }
                     IrEffect::ClearText { text_state_path } => {
@@ -1409,13 +1411,6 @@ impl CompiledApp {
             .is_some_and(|field| record.bool_field(field))
     }
 
-    fn has_render_kind(&self, kind: boon_compiler::IrRenderKind) -> bool {
-        self.app_ir
-            .render_tree
-            .as_ref()
-            .is_some_and(|node| render_node_has_kind(node, &kind))
-    }
-
     fn action_value(&self) -> Option<i64> {
         self.wiring
             .action_state
@@ -1431,9 +1426,7 @@ impl CompiledApp {
     }
 
     fn render_text(&self) -> String {
-        if self.has_render_kind(boon_compiler::IrRenderKind::Grid) {
-            self.render_slot_text()
-        } else if self.can_render_generic_scene() {
+        if self.can_render_generic_scene() {
             self.render_generic_text()
         } else {
             String::new()
@@ -1447,9 +1440,7 @@ impl CompiledApp {
             hit_targets: Vec::new(),
         };
         push_rect(&mut scene, 0, 0, 1000, 1000, [245, 245, 245, 255]);
-        if self.has_render_kind(boon_compiler::IrRenderKind::Grid) {
-            self.render_element_grid_scene(&mut scene);
-        } else if self.can_render_generic_scene() {
+        if self.can_render_generic_scene() {
             self.render_generic_scene(&mut scene);
         }
         scene
@@ -1457,7 +1448,6 @@ impl CompiledApp {
 
     fn can_render_generic_scene(&self) -> bool {
         self.app_ir.render_tree.is_some()
-            && !self.has_render_kind(boon_compiler::IrRenderKind::Grid)
     }
 
     fn render_generic_text(&self) -> String {
@@ -1500,6 +1490,10 @@ impl CompiledApp {
                     self.collect_generic_text_with_record(child, lines, Some(record));
                 }
             }
+            return;
+        }
+        if matches!(node.kind, boon_compiler::IrRenderKind::Grid) {
+            self.collect_dense_summary(lines);
             return;
         }
 
@@ -1815,7 +1809,10 @@ impl CompiledApp {
                 }
                 next_y
             }
-            boon_compiler::IrRenderKind::Grid => y,
+            boon_compiler::IrRenderKind::Grid => {
+                self.render_dense_node(scene);
+                y
+            }
         }
     }
 
@@ -2156,12 +2153,12 @@ impl CompiledApp {
         }
     }
 
-    fn render_element_grid_scene(&self, scene: &mut FrameScene) {
+    fn render_dense_node(&self, scene: &mut FrameScene) {
         push_rect(scene, 0, 0, 1000, 1000, [248, 249, 250, 255]);
         let selected = format!(
             "{}{}",
-            column_name(self.grid_selected.1),
-            self.grid_selected.0
+            column_name(self.focused_slot.1),
+            self.focused_slot.0
         );
         push_text(scene, 48, 34, 2, &self.program.title, [31, 46, 60, 255]);
         push_rect(scene, 48, 82, 904, 50, [255, 255, 255, 255]);
@@ -2172,15 +2169,15 @@ impl CompiledApp {
             142,
             100,
             1,
-            self.slot_text(self.grid_selected.0, self.grid_selected.1),
+            self.slot_text(self.focused_slot.0, self.focused_slot.1),
             [35, 50, 64, 255],
         );
         let origin_x = 48;
         let origin_y = 160;
         let row_h = 38;
         let col_w = 92;
-        let visible_cols = self.grid.columns().min(9) as u32;
-        let visible_rows = self.grid.rows().min(15) as u32;
+        let visible_cols = self.formula_book.columns().min(9) as u32;
+        let visible_rows = self.formula_book.rows().min(15) as u32;
         push_rect(scene, origin_x, origin_y, 904, 40, [229, 235, 241, 255]);
         push_rect(scene, origin_x, origin_y, 52, 760, [229, 235, 241, 255]);
         for col in 1..=visible_cols {
@@ -2208,7 +2205,7 @@ impl CompiledApp {
             );
             for col in 1..=visible_cols {
                 let x = origin_x + 52 + (col - 1) * col_w;
-                let selected_slot = self.grid_selected == (row as usize, col as usize);
+                let selected_slot = self.focused_slot == (row as usize, col as usize);
                 push_rect(
                     scene,
                     x,
@@ -2233,7 +2230,7 @@ impl CompiledApp {
                         [214, 222, 228, 255]
                     },
                 );
-                if let Some(grid) = &self.wiring.grid {
+                if let Some(grid) = &self.wiring.dense {
                     let owner_id = format!("{}{}", column_name(col as usize), row);
                     if let Some(path) = grid.display_double_click.as_deref() {
                         scene.hit_targets.push(attach_owner(
@@ -2273,9 +2270,11 @@ impl CompiledApp {
         let visibility = self
             .list_view()
             .and_then(|view| {
+                let selected = collection_view_selector_state_path(&self.app_ir)
+                    .and_then(|path| self.tag_state.get(&path).cloned());
                 view.selectors
                     .into_iter()
-                    .find(|selector| selector.id == self.view_selector)
+                    .find(|selector| selected.as_ref().is_some_and(|id| selector.id == *id))
                     .map(|selector| selector.visibility)
             })
             .unwrap_or_default();
@@ -2288,51 +2287,48 @@ impl CompiledApp {
             })
     }
 
-    fn render_slot_text(&self) -> String {
-        let mut lines = vec![
-            self.program.title.clone(),
-            "surface: grid_primitive".to_string(),
+    fn collect_dense_summary(&self, lines: &mut Vec<String>) {
+        lines.extend([
             format!(
                 "selected: {}{}",
-                column_name(self.grid_selected.1),
-                self.grid_selected.0
+                column_name(self.focused_slot.1),
+                self.focused_slot.0
             ),
             format!(
                 "expression: {}",
-                self.slot_text(self.grid_selected.0, self.grid_selected.1)
+                self.slot_text(self.focused_slot.0, self.focused_slot.1)
             ),
             format!(
                 "value: {}",
-                self.slot_value(self.grid_selected.0, self.grid_selected.1)
+                self.slot_value(self.focused_slot.0, self.focused_slot.1)
             ),
             "columns: A B C D E F ... Z".to_string(),
-        ];
-        for row in 1..=self.grid.rows().min(5) {
+        ]);
+        for row in 1..=self.formula_book.rows().min(5) {
             lines.push(format!(
                 "row {row}: A={} | B={} | C={}",
-                self.slot_value(row, 1.min(self.grid.columns())),
-                self.slot_value(row, 2.min(self.grid.columns())),
-                self.slot_value(row, 3.min(self.grid.columns()))
+                self.slot_value(row, 1.min(self.formula_book.columns())),
+                self.slot_value(row, 2.min(self.formula_book.columns())),
+                self.slot_value(row, 3.min(self.formula_book.columns()))
             ));
         }
         lines.push(format!(
             "row {} and column {} reachable",
-            self.grid.rows(),
-            column_name(self.grid.columns())
+            self.formula_book.rows(),
+            column_name(self.formula_book.columns())
         ));
-        lines.join("\n")
     }
 
     fn slot_value(&self, row: usize, col: usize) -> &str {
-        self.grid.value(row, col)
+        self.formula_book.value(row, col)
     }
 
     fn slot_text(&self, row: usize, col: usize) -> &str {
-        self.grid.text(row, col)
+        self.formula_book.text(row, col)
     }
 
-    fn parse_grid_owner(&self, owner_id: &str) -> Result<(usize, usize)> {
-        self.grid
+    fn parse_dense_owner(&self, owner_id: &str) -> Result<(usize, usize)> {
+        self.formula_book
             .parse_owner(owner_id)
             .ok_or_else(|| anyhow::anyhow!("grid owner_id `{owner_id}` is outside compiled grid"))
     }
@@ -2400,10 +2396,10 @@ impl CompiledApp {
                     anyhow::anyhow!("dynamic dynamic value owner `{owner_id}` is not live")
                 });
         }
-        if let Some(grid) = &self.wiring.grid
+        if let Some(grid) = &self.wiring.dense
             && path.starts_with(&grid.family)
         {
-            self.parse_grid_owner(owner_id)?;
+            self.parse_dense_owner(owner_id)?;
             return Ok(0);
         }
         bail!("dynamic SOURCE `{path}` has no owner generation grid")
@@ -2477,7 +2473,7 @@ impl BoonApp for CompiledApp {
                 }
             } else if self
                 .wiring
-                .grid
+                .dense
                 .as_ref()
                 .and_then(|grid| grid.editor_text.as_ref())
                 .is_some_and(|path| update.path == *path)
@@ -2486,10 +2482,10 @@ impl BoonApp for CompiledApp {
                 let (row, col) = update
                     .owner_id
                     .as_deref()
-                    .map(|owner_id| self.parse_grid_owner(owner_id))
+                    .map(|owner_id| self.parse_dense_owner(owner_id))
                     .transpose()?
-                    .unwrap_or(self.grid_selected);
-                self.grid.set_text(row, col, value);
+                    .unwrap_or(self.focused_slot);
+                self.formula_book.set_text(row, col, value);
             }
         }
 
@@ -2549,7 +2545,7 @@ impl BoonApp for CompiledApp {
                 results.push(self.emit_frame_owned(self.record_change_paths(), metrics));
             } else if self
                 .wiring
-                .grid
+                .dense
                 .as_ref()
                 .and_then(|grid| grid.display_double_click.as_ref())
                 .is_some_and(|path| event.path == *path)
@@ -2557,40 +2553,40 @@ impl BoonApp for CompiledApp {
                 let (row, col) = event
                     .owner_id
                     .as_deref()
-                    .map(|owner_id| self.parse_grid_owner(owner_id))
+                    .map(|owner_id| self.parse_dense_owner(owner_id))
                     .transpose()?
-                    .unwrap_or(self.grid_selected);
-                self.set_grid_selected(row, col);
-                self.grid_edit_focus = Some((row, col));
-                results.push(self.emit_frame_owned(self.grid_change_paths(), metrics));
+                    .unwrap_or(self.focused_slot);
+                self.set_focused_slot(row, col);
+                self.editing_slot = Some((row, col));
+                results.push(self.emit_frame_owned(self.dense_change_paths(), metrics));
             } else if self
                 .wiring
-                .grid
+                .dense
                 .as_ref()
                 .and_then(|grid| grid.editor_key.as_ref())
                 .is_some_and(|path| event.path == *path)
             {
                 if matches!(event.value, SourceValue::Tag(ref key) if key == "Enter") {
-                    self.grid_edit_focus = None;
+                    self.editing_slot = None;
                 }
-                results.push(self.emit_frame_owned(self.grid_change_paths(), metrics));
+                results.push(self.emit_frame_owned(self.dense_change_paths(), metrics));
             } else if self
                 .wiring
-                .grid
+                .dense
                 .as_ref()
                 .and_then(|grid| grid.viewport_key.as_ref())
                 .is_some_and(|path| event.path == *path)
             {
                 if let SourceValue::Tag(key) = &event.value {
                     match key.as_str() {
-                        "ArrowUp" => self.move_grid_selected(-1, 0),
-                        "ArrowDown" => self.move_grid_selected(1, 0),
-                        "ArrowLeft" => self.move_grid_selected(0, -1),
-                        "ArrowRight" => self.move_grid_selected(0, 1),
+                        "ArrowUp" => self.move_focused_slot(-1, 0),
+                        "ArrowDown" => self.move_focused_slot(1, 0),
+                        "ArrowLeft" => self.move_focused_slot(0, -1),
+                        "ArrowRight" => self.move_focused_slot(0, 1),
                         _ => {}
                     }
                 }
-                results.push(self.emit_frame_owned(self.grid_selection_change_paths(), metrics));
+                results.push(self.emit_frame_owned(self.dense_selection_change_paths(), metrics));
             }
         }
         if results.is_empty() && !changed_paths.is_empty() {
@@ -2675,7 +2671,9 @@ impl BoonApp for CompiledApp {
                         .collect::<Vec<_>>()
                 ),
             );
-            values.insert(view_selector_state_key(), json!(self.view_selector));
+            for (path, value) in &self.tag_state {
+                values.insert(path.clone(), json!(value));
+            }
             for record in &self.dynamic_values {
                 values.insert(
                     format!("store.{}[{}].content_text", sequence.root, record.id),
@@ -2696,13 +2694,13 @@ impl BoonApp for CompiledApp {
         }
         let grid_root = self
             .wiring
-            .grid
+            .dense
             .as_ref()
             .map(|grid| grid.root.as_str())
             .unwrap_or("grid");
-        if self.wiring.grid.is_some() {
-            for row in 1..=self.grid.rows() {
-                for col in 1..=self.grid.columns() {
+        if self.wiring.dense.is_some() {
+            for row in 1..=self.formula_book.rows() {
+                for col in 1..=self.formula_book.columns() {
                     let coordinate = format!("{}{}", column_name(col), row);
                     values.insert(
                         format!("{grid_root}.{coordinate}"),
@@ -2717,24 +2715,24 @@ impl BoonApp for CompiledApp {
         }
         values.insert(
             format!("{grid_root}.selected_expression"),
-            json!(self.slot_text(self.grid_selected.0, self.grid_selected.1)),
+            json!(self.slot_text(self.focused_slot.0, self.focused_slot.1)),
         );
         values.insert(
             format!("{grid_root}.selected_value"),
-            json!(self.slot_value(self.grid_selected.0, self.grid_selected.1)),
+            json!(self.slot_value(self.focused_slot.0, self.focused_slot.1)),
         );
         values.insert(
             format!("{grid_root}.selected"),
             json!(format!(
                 "{}{}",
-                column_name(self.grid_selected.1),
-                self.grid_selected.0
+                column_name(self.focused_slot.1),
+                self.focused_slot.0
             )),
         );
         values.insert(
             format!("{grid_root}.edit_focus"),
             json!(
-                self.grid_edit_focus
+                self.editing_slot
                     .map(|(row, col)| format!("{}{}", column_name(col), row))
             ),
         );
@@ -2796,8 +2794,13 @@ fn attach_owner(mut target: HitTarget, owner_id: impl Into<String>, generation: 
     target
 }
 
-fn view_selector_state_key() -> String {
-    "store.view_selector".to_string()
+fn collection_view_selector_state_path(app_ir: &AppIr) -> Option<String> {
+    app_ir.event_handlers.iter().find_map(|handler| {
+        handler.effects.iter().find_map(|effect| match effect {
+            IrEffect::SetTagState { state_path, .. } => Some(state_path.clone()),
+            _ => None,
+        })
+    })
 }
 
 fn render_node_has_kind(
