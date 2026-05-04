@@ -411,7 +411,12 @@ pub fn compile_source(name: &str, source: &str) -> Result<CompiledModule> {
     let mut entries = Vec::new();
 
     for leaf in &parsed.source_leaves {
-        let source_path = normalize_source_path(&leaf.path, dynamic_sequence_root.as_deref());
+        let source_path = normalize_source_path(
+            &leaf.path,
+            dynamic_sequence_root
+                .as_deref()
+                .or(dynamic_mapped_root.as_deref()),
+        );
         if source_path.is_empty() {
             bail!("SOURCE at line {} has no data path", leaf.span.line);
         }
@@ -2244,7 +2249,7 @@ fn map_alias_roots(
                 (dynamic_mapped_root.is_some() && dynamic_sequence_root.is_none())
                     .then(|| dynamic_mapped_root.expect("checked").to_string())
             })
-            .or_else(|| Some("records".to_string()));
+            .or_else(|| collection.map(str::to_string));
         if let Some(root) = root {
             roots.insert(binding.variable.clone(), root);
         }
@@ -2341,7 +2346,7 @@ fn infer_dynamic_mapped_source_root(parsed: &ParsedModule) -> Option<String> {
         .iter()
         .filter_map(|binding| binding.collection_root())
         .collect::<HashSet<_>>();
-    parsed
+    let explicit_source_family = parsed
         .records
         .iter()
         .find(|record| {
@@ -2350,7 +2355,24 @@ fn infer_dynamic_mapped_source_root(parsed: &ParsedModule) -> Option<String> {
                 && (mapped_collections.contains(record.key.as_str())
                     || ast_references_path(parsed, &format!("{}.sources", record.key)))
         })
-        .map(|record| record.key.clone())
+        .map(|record| record.key.clone());
+    if explicit_source_family.is_some() {
+        return explicit_source_family;
+    }
+    let mut roots = parsed
+        .map_bindings
+        .iter()
+        .filter_map(|binding| binding.collection_root())
+        .filter(|root| parsed.records.iter().any(|record| record.key == *root))
+        .collect::<Vec<_>>();
+    roots.sort_unstable();
+    roots.dedup();
+    (roots.len() == 1
+        && parsed
+            .source_leaves
+            .iter()
+            .any(|leaf| leaf.path.starts_with("sources.")))
+    .then(|| roots[0].to_string())
 }
 
 fn ast_references_path(parsed: &ParsedModule, path: &str) -> bool {

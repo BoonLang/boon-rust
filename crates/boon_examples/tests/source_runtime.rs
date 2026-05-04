@@ -709,14 +709,9 @@ document:
             )
     )
 "#;
-    let compiled =
-        compile_source("ad_hoc_selector_probe", source).expect("ad hoc selector source compiles");
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&compiled.app_ir).unwrap()
+    let mut app = CompiledApp::new(
+        compile_source("ad_hoc_selector_probe", source).expect("ad hoc selector source compiles"),
     );
-    let mut app = CompiledApp::new(compiled);
-    println!("{:#?}", app.snapshot().values);
 
     assert_eq!(
         app.snapshot().values.get("filters.selector"),

@@ -102,6 +102,8 @@ pub struct BoonPoweredGeneratedProvenance {
     pub has_compiled_module: bool,
     pub has_source_span_table: bool,
     pub avoids_runtime_compile_source: bool,
+    pub avoids_runtime_json_deserialization: bool,
+    pub has_typed_rust_constructors: bool,
     pub passed: bool,
 }
 
@@ -1296,11 +1298,17 @@ fn generated_provenance(root: &Path, required: bool) -> Result<BoonPoweredGenera
     };
     let has_source_sha256 = text.contains("SOURCE_SHA256");
     let has_ir_sha256 = text.contains("IR_SHA256");
-    let has_executable_ir = text.contains("EXECUTABLE_IR_JSON");
-    let has_compiled_module = text.contains("COMPILED_MODULE_JSON");
+    let has_executable_ir = text.contains("ExecutableIr {");
+    let has_compiled_module = text.contains("CompiledApp::from_generated_parts");
     let has_source_span_table = text.contains("SOURCE_SPANS") || text.contains("SourceSpan");
     let avoids_runtime_compile_source = !text.contains("compile_source(name, def.source)")
         && !text.contains("compile_source(name, def.source)?");
+    let avoids_runtime_json_deserialization = !text.contains("serde_json::from_str")
+        && !text.contains("EXECUTABLE_IR_JSON")
+        && !text.contains("COMPILED_MODULE_JSON");
+    let has_typed_rust_constructors = text.contains("SourceInventory {")
+        && text.contains("AppIr {")
+        && text.contains("ExecutableIr {");
     let passed = if required {
         exists
             && has_source_sha256
@@ -1309,6 +1317,8 @@ fn generated_provenance(root: &Path, required: bool) -> Result<BoonPoweredGenera
             && has_compiled_module
             && has_source_span_table
             && avoids_runtime_compile_source
+            && avoids_runtime_json_deserialization
+            && has_typed_rust_constructors
     } else {
         !exists
             || (has_source_sha256
@@ -1316,7 +1326,9 @@ fn generated_provenance(root: &Path, required: bool) -> Result<BoonPoweredGenera
                 && has_executable_ir
                 && has_compiled_module
                 && has_source_span_table
-                && avoids_runtime_compile_source)
+                && avoids_runtime_compile_source
+                && avoids_runtime_json_deserialization
+                && has_typed_rust_constructors)
     };
     Ok(BoonPoweredGeneratedProvenance {
         path: path.to_string_lossy().to_string(),
@@ -1328,6 +1340,8 @@ fn generated_provenance(root: &Path, required: bool) -> Result<BoonPoweredGenera
         has_compiled_module,
         has_source_span_table,
         avoids_runtime_compile_source,
+        avoids_runtime_json_deserialization,
+        has_typed_rust_constructors,
         passed,
     })
 }

@@ -574,6 +574,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "boon_compiler",
+ "boon_shape",
+ "boon_source",
  "serde_json",
 ]
 
@@ -604,7 +606,6 @@ dependencies = [
  "boon_runtime",
  "boon_shape",
  "boon_source",
- "serde",
  "serde_json",
 ]
 

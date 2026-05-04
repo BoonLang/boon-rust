@@ -677,10 +677,20 @@ fn literal_value_to_json(value: &IrStaticValue) -> Value {
 
 impl CompiledApp {
     pub fn new(compiled: boon_compiler::CompiledModule) -> Self {
-        let inventory = compiled.sources;
-        let program = compiled.program;
-        let app_ir = compiled.app_ir;
-        let executable_ir = compiled.executable_ir;
+        Self::from_generated_parts(
+            compiled.program,
+            compiled.app_ir,
+            compiled.executable_ir,
+            compiled.sources,
+        )
+    }
+
+    pub fn from_generated_parts(
+        program: IrAppMetadata,
+        app_ir: AppIr,
+        executable_ir: ExecutableIr,
+        inventory: SourceInventory,
+    ) -> Self {
         let wiring = RuntimeWiring::from_compiled(&app_ir, &executable_ir, &inventory);
         let initial_records = app_ir
             .collection_states
