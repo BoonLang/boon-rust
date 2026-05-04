@@ -1,10 +1,94 @@
 {
   "state_slots": [
     {
-      "path": "world",
+      "path": "kinematics.frame",
       "initial": {
         "kind": "number",
         "value": 0
+      }
+    },
+    {
+      "path": "kinematics.control_x",
+      "initial": {
+        "kind": "number",
+        "value": 50
+      }
+    },
+    {
+      "path": "kinematics.control_y",
+      "initial": {
+        "kind": "number",
+        "value": 50
+      }
+    },
+    {
+      "path": "kinematics.tracked_control_y",
+      "initial": {
+        "kind": "number",
+        "value": 50
+      }
+    },
+    {
+      "path": "kinematics.body_x",
+      "initial": {
+        "kind": "number",
+        "value": 470
+      }
+    },
+    {
+      "path": "kinematics.body_y",
+      "initial": {
+        "kind": "number",
+        "value": 205
+      }
+    },
+    {
+      "path": "kinematics.body_dx",
+      "initial": {
+        "kind": "number",
+        "value": 10
+      }
+    },
+    {
+      "path": "kinematics.body_dy",
+      "initial": {
+        "kind": "number",
+        "value": -12
+      }
+    },
+    {
+      "path": "kinematics.contact_field_rows",
+      "initial": {
+        "kind": "number",
+        "value": 6
+      }
+    },
+    {
+      "path": "kinematics.contact_field_cols",
+      "initial": {
+        "kind": "number",
+        "value": 12
+      }
+    },
+    {
+      "path": "kinematics.contact_field_live_count",
+      "initial": {
+        "kind": "number",
+        "value": 72
+      }
+    },
+    {
+      "path": "kinematics.contact_value",
+      "initial": {
+        "kind": "number",
+        "value": 0
+      }
+    },
+    {
+      "path": "kinematics.resets_remaining",
+      "initial": {
+        "kind": "number",
+        "value": 3
       }
     }
   ],
@@ -14,17 +98,1470 @@
       "effects": [
         {
           "kind": "set_state",
-          "path": "world",
+          "path": "kinematics.frame",
           "value": {
             "kind": "add",
             "left": {
               "kind": "state",
-              "path": "world"
+              "path": "kinematics.frame"
             },
             "right": {
               "kind": "number",
               "value": 1
             }
+          }
+        }
+      ]
+    },
+    {
+      "source_path": "store.sources.paddle.event.key_down.key",
+      "effects": [
+        {
+          "kind": "set_state",
+          "path": "kinematics.control_x",
+          "value": {
+            "kind": "when",
+            "arms": [
+              {
+                "pattern": "ArrowLeft",
+                "value": {
+                  "kind": "call",
+                  "path": "Number/clamp",
+                  "args": [
+                    {
+                      "name": "value",
+                      "value": {
+                        "kind": "subtract",
+                        "left": {
+                          "kind": "state",
+                          "path": "kinematics.control_x"
+                        },
+                        "right": {
+                          "kind": "number",
+                          "value": 8
+                        }
+                      }
+                    },
+                    {
+                      "name": "min",
+                      "value": {
+                        "kind": "number",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "name": "max",
+                      "value": {
+                        "kind": "number",
+                        "value": 100
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "pattern": "ArrowUp",
+                "value": {
+                  "kind": "call",
+                  "path": "Number/clamp",
+                  "args": [
+                    {
+                      "name": "value",
+                      "value": {
+                        "kind": "subtract",
+                        "left": {
+                          "kind": "state",
+                          "path": "kinematics.control_x"
+                        },
+                        "right": {
+                          "kind": "number",
+                          "value": 8
+                        }
+                      }
+                    },
+                    {
+                      "name": "min",
+                      "value": {
+                        "kind": "number",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "name": "max",
+                      "value": {
+                        "kind": "number",
+                        "value": 100
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "pattern": "ArrowRight",
+                "value": {
+                  "kind": "call",
+                  "path": "Number/clamp",
+                  "args": [
+                    {
+                      "name": "value",
+                      "value": {
+                        "kind": "add",
+                        "left": {
+                          "kind": "state",
+                          "path": "kinematics.control_x"
+                        },
+                        "right": {
+                          "kind": "number",
+                          "value": 8
+                        }
+                      }
+                    },
+                    {
+                      "name": "min",
+                      "value": {
+                        "kind": "number",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "name": "max",
+                      "value": {
+                        "kind": "number",
+                        "value": 100
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "pattern": "ArrowDown",
+                "value": {
+                  "kind": "call",
+                  "path": "Number/clamp",
+                  "args": [
+                    {
+                      "name": "value",
+                      "value": {
+                        "kind": "add",
+                        "left": {
+                          "kind": "state",
+                          "path": "kinematics.control_x"
+                        },
+                        "right": {
+                          "kind": "number",
+                          "value": 8
+                        }
+                      }
+                    },
+                    {
+                      "name": "min",
+                      "value": {
+                        "kind": "number",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "name": "max",
+                      "value": {
+                        "kind": "number",
+                        "value": 100
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "pattern": "__",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.control_x"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "source_path": "store.sources.tick.event.frame",
+      "effects": [
+        {
+          "kind": "set_state",
+          "path": "kinematics.control_y",
+          "value": {
+            "kind": "state",
+            "path": "kinematics.control_y"
+          }
+        }
+      ]
+    },
+    {
+      "source_path": "store.sources.tick.event.frame",
+      "effects": [
+        {
+          "kind": "set_state",
+          "path": "kinematics.tracked_control_y",
+          "value": {
+            "kind": "state",
+            "path": "kinematics.tracked_control_y"
+          }
+        }
+      ]
+    },
+    {
+      "source_path": "store.sources.tick.event.frame",
+      "effects": [
+        {
+          "kind": "set_state",
+          "path": "kinematics.body_x",
+          "value": {
+            "kind": "call",
+            "path": "Geometry/contact_body_x",
+            "args": [
+              {
+                "name": "x",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_x"
+                }
+              },
+              {
+                "name": "y",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_y"
+                }
+              },
+              {
+                "name": "dx",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_dx"
+                }
+              },
+              {
+                "name": "dy",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_dy"
+                }
+              },
+              {
+                "name": "initial_dx",
+                "value": {
+                  "kind": "number",
+                  "value": 10
+                }
+              },
+              {
+                "name": "initial_dy",
+                "value": {
+                  "kind": "number",
+                  "value": -12
+                }
+              },
+              {
+                "name": "body_size",
+                "value": {
+                  "kind": "number",
+                  "value": 22
+                }
+              },
+              {
+                "name": "arena_width",
+                "value": {
+                  "kind": "number",
+                  "value": 1000
+                }
+              },
+              {
+                "name": "arena_height",
+                "value": {
+                  "kind": "number",
+                  "value": 700
+                }
+              },
+              {
+                "name": "control_width",
+                "value": {
+                  "kind": "number",
+                  "value": 160
+                }
+              },
+              {
+                "name": "control_height",
+                "value": {
+                  "kind": "number",
+                  "value": 18
+                }
+              },
+              {
+                "name": "control_x",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.control_x"
+                }
+              },
+              {
+                "name": "control_y",
+                "value": {
+                  "kind": "number",
+                  "value": 646
+                }
+              },
+              {
+                "name": "field_rows",
+                "value": {
+                  "kind": "number",
+                  "value": 6
+                }
+              },
+              {
+                "name": "field_columns",
+                "value": {
+                  "kind": "number",
+                  "value": 12
+                }
+              },
+              {
+                "name": "field_top",
+                "value": {
+                  "kind": "number",
+                  "value": 56
+                }
+              },
+              {
+                "name": "field_margin",
+                "value": {
+                  "kind": "number",
+                  "value": 36
+                }
+              },
+              {
+                "name": "field_gap",
+                "value": {
+                  "kind": "number",
+                  "value": 8
+                }
+              },
+              {
+                "name": "field_height",
+                "value": {
+                  "kind": "number",
+                  "value": 28
+                }
+              },
+              {
+                "name": "live_count",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.contact_field_live_count"
+                }
+              },
+              {
+                "name": "value_per_contact",
+                "value": {
+                  "kind": "number",
+                  "value": 10
+                }
+              },
+              {
+                "name": "contact_value",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.contact_value"
+                }
+              },
+              {
+                "name": "resets_remaining",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.resets_remaining"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "source_path": "store.sources.tick.event.frame",
+      "effects": [
+        {
+          "kind": "set_state",
+          "path": "kinematics.body_y",
+          "value": {
+            "kind": "call",
+            "path": "Geometry/contact_body_y",
+            "args": [
+              {
+                "name": "x",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_x"
+                }
+              },
+              {
+                "name": "y",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_y"
+                }
+              },
+              {
+                "name": "dx",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_dx"
+                }
+              },
+              {
+                "name": "dy",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_dy"
+                }
+              },
+              {
+                "name": "initial_dx",
+                "value": {
+                  "kind": "number",
+                  "value": 10
+                }
+              },
+              {
+                "name": "initial_dy",
+                "value": {
+                  "kind": "number",
+                  "value": -12
+                }
+              },
+              {
+                "name": "body_size",
+                "value": {
+                  "kind": "number",
+                  "value": 22
+                }
+              },
+              {
+                "name": "arena_width",
+                "value": {
+                  "kind": "number",
+                  "value": 1000
+                }
+              },
+              {
+                "name": "arena_height",
+                "value": {
+                  "kind": "number",
+                  "value": 700
+                }
+              },
+              {
+                "name": "control_width",
+                "value": {
+                  "kind": "number",
+                  "value": 160
+                }
+              },
+              {
+                "name": "control_height",
+                "value": {
+                  "kind": "number",
+                  "value": 18
+                }
+              },
+              {
+                "name": "control_x",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.control_x"
+                }
+              },
+              {
+                "name": "control_y",
+                "value": {
+                  "kind": "number",
+                  "value": 646
+                }
+              },
+              {
+                "name": "field_rows",
+                "value": {
+                  "kind": "number",
+                  "value": 6
+                }
+              },
+              {
+                "name": "field_columns",
+                "value": {
+                  "kind": "number",
+                  "value": 12
+                }
+              },
+              {
+                "name": "field_top",
+                "value": {
+                  "kind": "number",
+                  "value": 56
+                }
+              },
+              {
+                "name": "field_margin",
+                "value": {
+                  "kind": "number",
+                  "value": 36
+                }
+              },
+              {
+                "name": "field_gap",
+                "value": {
+                  "kind": "number",
+                  "value": 8
+                }
+              },
+              {
+                "name": "field_height",
+                "value": {
+                  "kind": "number",
+                  "value": 28
+                }
+              },
+              {
+                "name": "live_count",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.contact_field_live_count"
+                }
+              },
+              {
+                "name": "value_per_contact",
+                "value": {
+                  "kind": "number",
+                  "value": 10
+                }
+              },
+              {
+                "name": "contact_value",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.contact_value"
+                }
+              },
+              {
+                "name": "resets_remaining",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.resets_remaining"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "source_path": "store.sources.tick.event.frame",
+      "effects": [
+        {
+          "kind": "set_state",
+          "path": "kinematics.body_dx",
+          "value": {
+            "kind": "call",
+            "path": "Geometry/contact_body_dx",
+            "args": [
+              {
+                "name": "x",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_x"
+                }
+              },
+              {
+                "name": "y",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_y"
+                }
+              },
+              {
+                "name": "dx",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_dx"
+                }
+              },
+              {
+                "name": "dy",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_dy"
+                }
+              },
+              {
+                "name": "initial_dx",
+                "value": {
+                  "kind": "number",
+                  "value": 10
+                }
+              },
+              {
+                "name": "initial_dy",
+                "value": {
+                  "kind": "number",
+                  "value": -12
+                }
+              },
+              {
+                "name": "body_size",
+                "value": {
+                  "kind": "number",
+                  "value": 22
+                }
+              },
+              {
+                "name": "arena_width",
+                "value": {
+                  "kind": "number",
+                  "value": 1000
+                }
+              },
+              {
+                "name": "arena_height",
+                "value": {
+                  "kind": "number",
+                  "value": 700
+                }
+              },
+              {
+                "name": "control_width",
+                "value": {
+                  "kind": "number",
+                  "value": 160
+                }
+              },
+              {
+                "name": "control_height",
+                "value": {
+                  "kind": "number",
+                  "value": 18
+                }
+              },
+              {
+                "name": "control_x",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.control_x"
+                }
+              },
+              {
+                "name": "control_y",
+                "value": {
+                  "kind": "number",
+                  "value": 646
+                }
+              },
+              {
+                "name": "field_rows",
+                "value": {
+                  "kind": "number",
+                  "value": 6
+                }
+              },
+              {
+                "name": "field_columns",
+                "value": {
+                  "kind": "number",
+                  "value": 12
+                }
+              },
+              {
+                "name": "field_top",
+                "value": {
+                  "kind": "number",
+                  "value": 56
+                }
+              },
+              {
+                "name": "field_margin",
+                "value": {
+                  "kind": "number",
+                  "value": 36
+                }
+              },
+              {
+                "name": "field_gap",
+                "value": {
+                  "kind": "number",
+                  "value": 8
+                }
+              },
+              {
+                "name": "field_height",
+                "value": {
+                  "kind": "number",
+                  "value": 28
+                }
+              },
+              {
+                "name": "live_count",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.contact_field_live_count"
+                }
+              },
+              {
+                "name": "value_per_contact",
+                "value": {
+                  "kind": "number",
+                  "value": 10
+                }
+              },
+              {
+                "name": "contact_value",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.contact_value"
+                }
+              },
+              {
+                "name": "resets_remaining",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.resets_remaining"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "source_path": "store.sources.tick.event.frame",
+      "effects": [
+        {
+          "kind": "set_state",
+          "path": "kinematics.body_dy",
+          "value": {
+            "kind": "call",
+            "path": "Geometry/contact_body_dy",
+            "args": [
+              {
+                "name": "x",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_x"
+                }
+              },
+              {
+                "name": "y",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_y"
+                }
+              },
+              {
+                "name": "dx",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_dx"
+                }
+              },
+              {
+                "name": "dy",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_dy"
+                }
+              },
+              {
+                "name": "initial_dx",
+                "value": {
+                  "kind": "number",
+                  "value": 10
+                }
+              },
+              {
+                "name": "initial_dy",
+                "value": {
+                  "kind": "number",
+                  "value": -12
+                }
+              },
+              {
+                "name": "body_size",
+                "value": {
+                  "kind": "number",
+                  "value": 22
+                }
+              },
+              {
+                "name": "arena_width",
+                "value": {
+                  "kind": "number",
+                  "value": 1000
+                }
+              },
+              {
+                "name": "arena_height",
+                "value": {
+                  "kind": "number",
+                  "value": 700
+                }
+              },
+              {
+                "name": "control_width",
+                "value": {
+                  "kind": "number",
+                  "value": 160
+                }
+              },
+              {
+                "name": "control_height",
+                "value": {
+                  "kind": "number",
+                  "value": 18
+                }
+              },
+              {
+                "name": "control_x",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.control_x"
+                }
+              },
+              {
+                "name": "control_y",
+                "value": {
+                  "kind": "number",
+                  "value": 646
+                }
+              },
+              {
+                "name": "field_rows",
+                "value": {
+                  "kind": "number",
+                  "value": 6
+                }
+              },
+              {
+                "name": "field_columns",
+                "value": {
+                  "kind": "number",
+                  "value": 12
+                }
+              },
+              {
+                "name": "field_top",
+                "value": {
+                  "kind": "number",
+                  "value": 56
+                }
+              },
+              {
+                "name": "field_margin",
+                "value": {
+                  "kind": "number",
+                  "value": 36
+                }
+              },
+              {
+                "name": "field_gap",
+                "value": {
+                  "kind": "number",
+                  "value": 8
+                }
+              },
+              {
+                "name": "field_height",
+                "value": {
+                  "kind": "number",
+                  "value": 28
+                }
+              },
+              {
+                "name": "live_count",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.contact_field_live_count"
+                }
+              },
+              {
+                "name": "value_per_contact",
+                "value": {
+                  "kind": "number",
+                  "value": 10
+                }
+              },
+              {
+                "name": "contact_value",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.contact_value"
+                }
+              },
+              {
+                "name": "resets_remaining",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.resets_remaining"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "source_path": "store.sources.tick.event.frame",
+      "effects": [
+        {
+          "kind": "set_state",
+          "path": "kinematics.contact_field_rows",
+          "value": {
+            "kind": "state",
+            "path": "kinematics.contact_field_rows"
+          }
+        }
+      ]
+    },
+    {
+      "source_path": "store.sources.tick.event.frame",
+      "effects": [
+        {
+          "kind": "set_state",
+          "path": "kinematics.contact_field_cols",
+          "value": {
+            "kind": "state",
+            "path": "kinematics.contact_field_cols"
+          }
+        }
+      ]
+    },
+    {
+      "source_path": "store.sources.tick.event.frame",
+      "effects": [
+        {
+          "kind": "set_state",
+          "path": "kinematics.contact_field_live_count",
+          "value": {
+            "kind": "call",
+            "path": "Geometry/contact_live_count",
+            "args": [
+              {
+                "name": "x",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_x"
+                }
+              },
+              {
+                "name": "y",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_y"
+                }
+              },
+              {
+                "name": "dx",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_dx"
+                }
+              },
+              {
+                "name": "dy",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_dy"
+                }
+              },
+              {
+                "name": "initial_dx",
+                "value": {
+                  "kind": "number",
+                  "value": 10
+                }
+              },
+              {
+                "name": "initial_dy",
+                "value": {
+                  "kind": "number",
+                  "value": -12
+                }
+              },
+              {
+                "name": "body_size",
+                "value": {
+                  "kind": "number",
+                  "value": 22
+                }
+              },
+              {
+                "name": "arena_width",
+                "value": {
+                  "kind": "number",
+                  "value": 1000
+                }
+              },
+              {
+                "name": "arena_height",
+                "value": {
+                  "kind": "number",
+                  "value": 700
+                }
+              },
+              {
+                "name": "control_width",
+                "value": {
+                  "kind": "number",
+                  "value": 160
+                }
+              },
+              {
+                "name": "control_height",
+                "value": {
+                  "kind": "number",
+                  "value": 18
+                }
+              },
+              {
+                "name": "control_x",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.control_x"
+                }
+              },
+              {
+                "name": "control_y",
+                "value": {
+                  "kind": "number",
+                  "value": 646
+                }
+              },
+              {
+                "name": "field_rows",
+                "value": {
+                  "kind": "number",
+                  "value": 6
+                }
+              },
+              {
+                "name": "field_columns",
+                "value": {
+                  "kind": "number",
+                  "value": 12
+                }
+              },
+              {
+                "name": "field_top",
+                "value": {
+                  "kind": "number",
+                  "value": 56
+                }
+              },
+              {
+                "name": "field_margin",
+                "value": {
+                  "kind": "number",
+                  "value": 36
+                }
+              },
+              {
+                "name": "field_gap",
+                "value": {
+                  "kind": "number",
+                  "value": 8
+                }
+              },
+              {
+                "name": "field_height",
+                "value": {
+                  "kind": "number",
+                  "value": 28
+                }
+              },
+              {
+                "name": "live_count",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.contact_field_live_count"
+                }
+              },
+              {
+                "name": "value_per_contact",
+                "value": {
+                  "kind": "number",
+                  "value": 10
+                }
+              },
+              {
+                "name": "contact_value",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.contact_value"
+                }
+              },
+              {
+                "name": "resets_remaining",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.resets_remaining"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "source_path": "store.sources.tick.event.frame",
+      "effects": [
+        {
+          "kind": "set_state",
+          "path": "kinematics.contact_value",
+          "value": {
+            "kind": "call",
+            "path": "Geometry/contact_value",
+            "args": [
+              {
+                "name": "x",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_x"
+                }
+              },
+              {
+                "name": "y",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_y"
+                }
+              },
+              {
+                "name": "dx",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_dx"
+                }
+              },
+              {
+                "name": "dy",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_dy"
+                }
+              },
+              {
+                "name": "initial_dx",
+                "value": {
+                  "kind": "number",
+                  "value": 10
+                }
+              },
+              {
+                "name": "initial_dy",
+                "value": {
+                  "kind": "number",
+                  "value": -12
+                }
+              },
+              {
+                "name": "body_size",
+                "value": {
+                  "kind": "number",
+                  "value": 22
+                }
+              },
+              {
+                "name": "arena_width",
+                "value": {
+                  "kind": "number",
+                  "value": 1000
+                }
+              },
+              {
+                "name": "arena_height",
+                "value": {
+                  "kind": "number",
+                  "value": 700
+                }
+              },
+              {
+                "name": "control_width",
+                "value": {
+                  "kind": "number",
+                  "value": 160
+                }
+              },
+              {
+                "name": "control_height",
+                "value": {
+                  "kind": "number",
+                  "value": 18
+                }
+              },
+              {
+                "name": "control_x",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.control_x"
+                }
+              },
+              {
+                "name": "control_y",
+                "value": {
+                  "kind": "number",
+                  "value": 646
+                }
+              },
+              {
+                "name": "field_rows",
+                "value": {
+                  "kind": "number",
+                  "value": 6
+                }
+              },
+              {
+                "name": "field_columns",
+                "value": {
+                  "kind": "number",
+                  "value": 12
+                }
+              },
+              {
+                "name": "field_top",
+                "value": {
+                  "kind": "number",
+                  "value": 56
+                }
+              },
+              {
+                "name": "field_margin",
+                "value": {
+                  "kind": "number",
+                  "value": 36
+                }
+              },
+              {
+                "name": "field_gap",
+                "value": {
+                  "kind": "number",
+                  "value": 8
+                }
+              },
+              {
+                "name": "field_height",
+                "value": {
+                  "kind": "number",
+                  "value": 28
+                }
+              },
+              {
+                "name": "live_count",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.contact_field_live_count"
+                }
+              },
+              {
+                "name": "value_per_contact",
+                "value": {
+                  "kind": "number",
+                  "value": 10
+                }
+              },
+              {
+                "name": "contact_value",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.contact_value"
+                }
+              },
+              {
+                "name": "resets_remaining",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.resets_remaining"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "source_path": "store.sources.tick.event.frame",
+      "effects": [
+        {
+          "kind": "set_state",
+          "path": "kinematics.resets_remaining",
+          "value": {
+            "kind": "call",
+            "path": "Geometry/contact_resets_remaining",
+            "args": [
+              {
+                "name": "x",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_x"
+                }
+              },
+              {
+                "name": "y",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_y"
+                }
+              },
+              {
+                "name": "dx",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_dx"
+                }
+              },
+              {
+                "name": "dy",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.body_dy"
+                }
+              },
+              {
+                "name": "initial_dx",
+                "value": {
+                  "kind": "number",
+                  "value": 10
+                }
+              },
+              {
+                "name": "initial_dy",
+                "value": {
+                  "kind": "number",
+                  "value": -12
+                }
+              },
+              {
+                "name": "body_size",
+                "value": {
+                  "kind": "number",
+                  "value": 22
+                }
+              },
+              {
+                "name": "arena_width",
+                "value": {
+                  "kind": "number",
+                  "value": 1000
+                }
+              },
+              {
+                "name": "arena_height",
+                "value": {
+                  "kind": "number",
+                  "value": 700
+                }
+              },
+              {
+                "name": "control_width",
+                "value": {
+                  "kind": "number",
+                  "value": 160
+                }
+              },
+              {
+                "name": "control_height",
+                "value": {
+                  "kind": "number",
+                  "value": 18
+                }
+              },
+              {
+                "name": "control_x",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.control_x"
+                }
+              },
+              {
+                "name": "control_y",
+                "value": {
+                  "kind": "number",
+                  "value": 646
+                }
+              },
+              {
+                "name": "field_rows",
+                "value": {
+                  "kind": "number",
+                  "value": 6
+                }
+              },
+              {
+                "name": "field_columns",
+                "value": {
+                  "kind": "number",
+                  "value": 12
+                }
+              },
+              {
+                "name": "field_top",
+                "value": {
+                  "kind": "number",
+                  "value": 56
+                }
+              },
+              {
+                "name": "field_margin",
+                "value": {
+                  "kind": "number",
+                  "value": 36
+                }
+              },
+              {
+                "name": "field_gap",
+                "value": {
+                  "kind": "number",
+                  "value": 8
+                }
+              },
+              {
+                "name": "field_height",
+                "value": {
+                  "kind": "number",
+                  "value": 28
+                }
+              },
+              {
+                "name": "live_count",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.contact_field_live_count"
+                }
+              },
+              {
+                "name": "value_per_contact",
+                "value": {
+                  "kind": "number",
+                  "value": 10
+                }
+              },
+              {
+                "name": "contact_value",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.contact_value"
+                }
+              },
+              {
+                "name": "resets_remaining",
+                "value": {
+                  "kind": "state",
+                  "path": "kinematics.resets_remaining"
+                }
+              }
+            ]
           }
         }
       ]

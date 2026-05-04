@@ -69,6 +69,18 @@ pub struct ExecSourceHandler {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ExecCallArg {
+    pub name: String,
+    pub value: ExecExpr,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ExecWhenArm {
+    pub pattern: String,
+    pub value: ExecExpr,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ExecEffect {
     SetState { path: String, value: ExecExpr },
@@ -109,6 +121,13 @@ pub enum ExecExpr {
     },
     TextFromNumber {
         value: Box<ExecExpr>,
+    },
+    Call {
+        path: String,
+        args: Vec<ExecCallArg>,
+    },
+    When {
+        arms: Vec<ExecWhenArm>,
     },
     Skip,
 }
@@ -380,11 +399,54 @@ pub fn compile_source(name: &str, source: &str) -> Result<CompiledModule> {
 fn validate_supported_module_paths(parsed: &ParsedModule) -> Result<()> {
     for call in &parsed.module_calls {
         match call.path.as_str() {
-            "Document/new" | "Element/panel" | "Element/text" | "Element/button"
-            | "Element/text_input" | "Element/checkbox" | "Element/label" | "Element/grid"
-            | "List/append" | "List/remove" | "List/retain" | "List/map" | "List/count"
-            | "List/range" | "Text/from_number" | "Text/trim" | "Text/is_not_empty"
-            | "Math/add" | "Math/sum" => {}
+            "Document/new"
+            | "Element/panel"
+            | "Element/text"
+            | "Element/button"
+            | "Element/text_input"
+            | "Element/checkbox"
+            | "Element/label"
+            | "Element/grid"
+            | "List/append"
+            | "List/remove"
+            | "List/retain"
+            | "List/map"
+            | "List/count"
+            | "List/range"
+            | "Text/from_number"
+            | "Text/trim"
+            | "Text/is_not_empty"
+            | "Math/add"
+            | "Math/sum"
+            | "Number/min"
+            | "Number/max"
+            | "Number/clamp"
+            | "Geometry/track_vertical_position"
+            | "Geometry/peer_body_x"
+            | "Geometry/peer_body_y"
+            | "Geometry/peer_body_dx"
+            | "Geometry/peer_body_dy"
+            | "Geometry/peer_contact_value"
+            | "Geometry/peer_resets_remaining"
+            | "Geometry/contact_body_x"
+            | "Geometry/contact_body_y"
+            | "Geometry/contact_body_dx"
+            | "Geometry/contact_body_dy"
+            | "Geometry/contact_live_count"
+            | "Geometry/contact_value"
+            | "Geometry/contact_resets_remaining" => {}
+            path if path.starts_with("Geometry/") => bail!(
+                "unsupported Geometry operation `{}` at line {} column {}",
+                path,
+                call.span.line,
+                call.span.column
+            ),
+            path if path.starts_with("Number/") => bail!(
+                "unsupported Number operation `{}` at line {} column {}",
+                path,
+                call.span.line,
+                call.span.column
+            ),
             path if path.starts_with("Math/") => bail!(
                 "unsupported Math operation `{}` at line {} column {}",
                 path,
@@ -546,36 +608,53 @@ fn executable_ir_from_hir(hir: &HirModule, sources: &SourceInventory) -> Executa
         let HirItem::Record(record) = item else {
             continue;
         };
-        if let Some((source_path, state_path, initial, value)) =
-            executable_hold_handler_from_record(record, sources)
-        {
-            executable.state_slots.push(ExecStateSlot {
-                path: state_path.clone(),
-                initial,
-            });
-            executable.source_handlers.push(ExecSourceHandler {
-                source_path,
-                effects: vec![ExecEffect::SetState {
-                    path: state_path,
-                    value,
-                }],
-            });
-        }
+        push_executable_hold_handlers(&mut executable, record, None, sources);
     }
     executable
 }
 
+fn push_executable_hold_handlers(
+    executable: &mut ExecutableIr,
+    record: &HirRecord,
+    parent_path: Option<&str>,
+    sources: &SourceInventory,
+) {
+    let state_path = parent_path.map_or_else(
+        || record.key.clone(),
+        |parent| format!("{parent}.{}", record.key),
+    );
+    if let Some((source_path, initial, value)) =
+        executable_hold_handler_from_record(record, &state_path, sources)
+    {
+        executable.state_slots.push(ExecStateSlot {
+            path: state_path.clone(),
+            initial,
+        });
+        executable.source_handlers.push(ExecSourceHandler {
+            source_path,
+            effects: vec![ExecEffect::SetState {
+                path: state_path.clone(),
+                value,
+            }],
+        });
+    }
+    for child in &record.children {
+        push_executable_hold_handlers(executable, child, Some(&state_path), sources);
+    }
+}
+
 fn executable_hold_handler_from_record(
     record: &HirRecord,
+    state_path: &str,
     sources: &SourceInventory,
-) -> Option<(String, String, ExecExpr, ExecExpr)> {
+) -> Option<(String, ExecExpr, ExecExpr)> {
     let expr = record.value.as_ref()?;
     let (input, stages) = pipeline_parts(expr)?;
     let initial = exec_expr_from_hir(input, None, sources)?;
     let (state_name, hold_body) = stages.iter().find_map(hold_stage)?;
     let (source_path, value) =
-        executable_source_then_expr(hold_body, state_name, &record.key, sources)?;
-    Some((source_path, record.key.clone(), initial, value))
+        executable_source_then_expr(hold_body, state_name, state_path, sources)?;
+    Some((source_path, initial, value))
 }
 
 fn executable_source_then_expr(
@@ -643,6 +722,29 @@ fn exec_expr_from_hir(
                 boon_syntax::AstBinaryOp::Equal => Some(ExecExpr::Equal { left, right }),
             }
         }
+        HirExprKind::FunctionCall { path, args } => Some(ExecExpr::Call {
+            path: path.clone(),
+            args: args
+                .iter()
+                .map(|arg| {
+                    Some(ExecCallArg {
+                        name: arg.name.clone(),
+                        value: exec_expr_from_hir(&arg.value, hold_state, sources)?,
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?,
+        }),
+        HirExprKind::When { arms } => Some(ExecExpr::When {
+            arms: arms
+                .iter()
+                .map(|arm| {
+                    Some(ExecWhenArm {
+                        pattern: arm.pattern.clone(),
+                        value: exec_expr_from_hir(&arm.value, hold_state, sources)?,
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?,
+        }),
         HirExprKind::Pipeline { input, stages } => {
             if stages.len() == 1
                 && let HirExprKind::FunctionCall { path, .. } = &stages[0].kind
@@ -747,6 +849,7 @@ fn render_host_node(
         .or_else(|| named_arg(args, "text"))
         .and_then(render_text_from_expr);
     let children = named_arg(args, "children")
+        .or_else(|| named_arg(args, "cells"))
         .map(|children| render_children_from_expr(children, sources, ids))
         .unwrap_or_default();
     IrRenderNode {

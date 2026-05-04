@@ -1014,8 +1014,12 @@ fn source_mutation_probes(root: &Path) -> Result<Vec<BoonPoweredMutationProbe>> 
         ("todo_mvc", "List/append", "List/append_broken"),
         ("todo_mvc_physical", "List/append", "List/append_broken"),
         ("cells", "Math/sum", "Math/sum_broken"),
-        ("pong", "dx: -12", "dx: -13"),
-        ("arkanoid", "columns: 12", "columns: 11"),
+        (
+            "pong",
+            "Geometry/peer_body_dx",
+            "Geometry/peer_body_dx_broken",
+        ),
+        ("arkanoid", "field_columns: 12", "field_columns: 11"),
     ];
     probes
         .iter()

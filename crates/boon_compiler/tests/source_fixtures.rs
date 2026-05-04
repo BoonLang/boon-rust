@@ -378,6 +378,87 @@ fn todo_append_lowers_to_generic_list_event_ir() {
     );
 }
 
+#[test]
+fn executable_ir_lowers_when_and_number_calls_without_family_runtime() {
+    let compiled = compile_source(
+        "generic_controls",
+        r#"
+store:
+    sources:
+        keyboard:
+            event:
+                key_down:
+                    key: SOURCE
+
+position:
+    50 |> HOLD value {
+        store.sources.keyboard.event.key_down.key
+        |> THEN {
+            WHEN {
+                ArrowLeft => Number/clamp(value: value - 8, min: 0, max: 100)
+                ArrowRight => Number/clamp(value: value + 8, min: 0, max: 100)
+                __ => value
+            }
+        }
+    }
+
+document:
+    Document/new(
+        root:
+            Element/label(element: store.sources.keyboard)
+    )
+"#,
+    )
+    .expect("generic control source compiles");
+
+    let executable_ir =
+        serde_json::to_string(&compiled.executable_ir).expect("executable ir serializes");
+    assert!(
+        executable_ir.contains("\"when\"")
+            && executable_ir.contains("\"Number/clamp\"")
+            && executable_ir.contains("ArrowLeft")
+            && executable_ir.contains("ArrowRight"),
+        "executable IR should contain source-authored control branches and stdlib call: {executable_ir}"
+    );
+}
+
+#[test]
+fn executable_ir_lowers_nested_hold_state_paths_generically() {
+    let compiled = compile_source(
+        "nested_state",
+        r#"
+store:
+    sources:
+        tick:
+            event:
+                frame: SOURCE
+
+world:
+    position:
+        1 |> HOLD old_position {
+            store.sources.tick.event.frame |> THEN { old_position + 2 }
+        }
+
+document:
+    Document/new(
+        root:
+            Element/label(element: store.sources.tick)
+    )
+"#,
+    )
+    .expect("nested source compiles");
+
+    assert!(
+        compiled
+            .executable_ir
+            .state_slots
+            .iter()
+            .any(|slot| slot.path == "world.position"),
+        "nested HOLD should lower to a generic dotted state path: {:#?}",
+        compiled.executable_ir
+    );
+}
+
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()

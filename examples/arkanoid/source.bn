@@ -12,37 +12,256 @@ game:
     title: TEXT { Arkanoid }
 
 kinematics:
-    arena:
-        width: 1000
-        height: 700
-    body:
-        x: 470
-        y: 205
-        dx: 10
-        dy: -12
-        size: 22
-    primary_control:
-        axis: Horizontal
-        position: 50
-        step: 8
-        x: 0
-        y: 646
-        width: 160
-        height: 18
-        auto_track: False
-    contact_field:
-        rows: 6
-        columns: 12
-        top: 56
-        margin: 36
-        gap: 8
-        height: 28
-        value_per_contact: 10
-
-world:
-    0 |> HOLD frame {
-        store.sources.tick.event.frame |> THEN { frame + 1 }
-    }
+    frame:
+        0 |> HOLD frame {
+            store.sources.tick.event.frame |> THEN { frame + 1 }
+        }
+    control_x:
+        50 |> HOLD control_x {
+            store.sources.paddle.event.key_down.key
+            |> THEN {
+                WHEN {
+                    ArrowLeft => Number/clamp(value: control_x - 8, min: 0, max: 100)
+                    ArrowUp => Number/clamp(value: control_x - 8, min: 0, max: 100)
+                    ArrowRight => Number/clamp(value: control_x + 8, min: 0, max: 100)
+                    ArrowDown => Number/clamp(value: control_x + 8, min: 0, max: 100)
+                    __ => control_x
+                }
+            }
+        }
+    control_y:
+        50 |> HOLD control_y {
+            store.sources.tick.event.frame |> THEN { control_y }
+        }
+    tracked_control_y:
+        50 |> HOLD tracked_control_y {
+            store.sources.tick.event.frame |> THEN { tracked_control_y }
+        }
+    body_x:
+        470 |> HOLD body_x {
+            store.sources.tick.event.frame
+            |> THEN {
+                Geometry/contact_body_x(
+                    x: body_x
+                    y: kinematics.body_y
+                    dx: kinematics.body_dx
+                    dy: kinematics.body_dy
+                    initial_dx: 10
+                    initial_dy: -12
+                    body_size: 22
+                    arena_width: 1000
+                    arena_height: 700
+                    control_width: 160
+                    control_height: 18
+                    control_x: kinematics.control_x
+                    control_y: 646
+                    field_rows: 6
+                    field_columns: 12
+                    field_top: 56
+                    field_margin: 36
+                    field_gap: 8
+                    field_height: 28
+                    live_count: kinematics.contact_field_live_count
+                    value_per_contact: 10
+                    contact_value: kinematics.contact_value
+                    resets_remaining: kinematics.resets_remaining
+                )
+            }
+        }
+    body_y:
+        205 |> HOLD body_y {
+            store.sources.tick.event.frame
+            |> THEN {
+                Geometry/contact_body_y(
+                    x: kinematics.body_x
+                    y: body_y
+                    dx: kinematics.body_dx
+                    dy: kinematics.body_dy
+                    initial_dx: 10
+                    initial_dy: -12
+                    body_size: 22
+                    arena_width: 1000
+                    arena_height: 700
+                    control_width: 160
+                    control_height: 18
+                    control_x: kinematics.control_x
+                    control_y: 646
+                    field_rows: 6
+                    field_columns: 12
+                    field_top: 56
+                    field_margin: 36
+                    field_gap: 8
+                    field_height: 28
+                    live_count: kinematics.contact_field_live_count
+                    value_per_contact: 10
+                    contact_value: kinematics.contact_value
+                    resets_remaining: kinematics.resets_remaining
+                )
+            }
+        }
+    body_dx:
+        10 |> HOLD body_dx {
+            store.sources.tick.event.frame
+            |> THEN {
+                Geometry/contact_body_dx(
+                    x: kinematics.body_x
+                    y: kinematics.body_y
+                    dx: body_dx
+                    dy: kinematics.body_dy
+                    initial_dx: 10
+                    initial_dy: -12
+                    body_size: 22
+                    arena_width: 1000
+                    arena_height: 700
+                    control_width: 160
+                    control_height: 18
+                    control_x: kinematics.control_x
+                    control_y: 646
+                    field_rows: 6
+                    field_columns: 12
+                    field_top: 56
+                    field_margin: 36
+                    field_gap: 8
+                    field_height: 28
+                    live_count: kinematics.contact_field_live_count
+                    value_per_contact: 10
+                    contact_value: kinematics.contact_value
+                    resets_remaining: kinematics.resets_remaining
+                )
+            }
+        }
+    body_dy:
+        -12 |> HOLD body_dy {
+            store.sources.tick.event.frame
+            |> THEN {
+                Geometry/contact_body_dy(
+                    x: kinematics.body_x
+                    y: kinematics.body_y
+                    dx: kinematics.body_dx
+                    dy: body_dy
+                    initial_dx: 10
+                    initial_dy: -12
+                    body_size: 22
+                    arena_width: 1000
+                    arena_height: 700
+                    control_width: 160
+                    control_height: 18
+                    control_x: kinematics.control_x
+                    control_y: 646
+                    field_rows: 6
+                    field_columns: 12
+                    field_top: 56
+                    field_margin: 36
+                    field_gap: 8
+                    field_height: 28
+                    live_count: kinematics.contact_field_live_count
+                    value_per_contact: 10
+                    contact_value: kinematics.contact_value
+                    resets_remaining: kinematics.resets_remaining
+                )
+            }
+        }
+    contact_field_rows:
+        6 |> HOLD contact_field_rows {
+            store.sources.tick.event.frame |> THEN { contact_field_rows }
+        }
+    contact_field_cols:
+        12 |> HOLD contact_field_cols {
+            store.sources.tick.event.frame |> THEN { contact_field_cols }
+        }
+    contact_field_live_count:
+        72 |> HOLD contact_field_live_count {
+            store.sources.tick.event.frame
+            |> THEN {
+                Geometry/contact_live_count(
+                    x: kinematics.body_x
+                    y: kinematics.body_y
+                    dx: kinematics.body_dx
+                    dy: kinematics.body_dy
+                    initial_dx: 10
+                    initial_dy: -12
+                    body_size: 22
+                    arena_width: 1000
+                    arena_height: 700
+                    control_width: 160
+                    control_height: 18
+                    control_x: kinematics.control_x
+                    control_y: 646
+                    field_rows: 6
+                    field_columns: 12
+                    field_top: 56
+                    field_margin: 36
+                    field_gap: 8
+                    field_height: 28
+                    live_count: contact_field_live_count
+                    value_per_contact: 10
+                    contact_value: kinematics.contact_value
+                    resets_remaining: kinematics.resets_remaining
+                )
+            }
+        }
+    contact_value:
+        0 |> HOLD contact_value {
+            store.sources.tick.event.frame
+            |> THEN {
+                Geometry/contact_value(
+                    x: kinematics.body_x
+                    y: kinematics.body_y
+                    dx: kinematics.body_dx
+                    dy: kinematics.body_dy
+                    initial_dx: 10
+                    initial_dy: -12
+                    body_size: 22
+                    arena_width: 1000
+                    arena_height: 700
+                    control_width: 160
+                    control_height: 18
+                    control_x: kinematics.control_x
+                    control_y: 646
+                    field_rows: 6
+                    field_columns: 12
+                    field_top: 56
+                    field_margin: 36
+                    field_gap: 8
+                    field_height: 28
+                    live_count: kinematics.contact_field_live_count
+                    value_per_contact: 10
+                    contact_value: contact_value
+                    resets_remaining: kinematics.resets_remaining
+                )
+            }
+        }
+    resets_remaining:
+        3 |> HOLD resets_remaining {
+            store.sources.tick.event.frame
+            |> THEN {
+                Geometry/contact_resets_remaining(
+                    x: kinematics.body_x
+                    y: kinematics.body_y
+                    dx: kinematics.body_dx
+                    dy: kinematics.body_dy
+                    initial_dx: 10
+                    initial_dy: -12
+                    body_size: 22
+                    arena_width: 1000
+                    arena_height: 700
+                    control_width: 160
+                    control_height: 18
+                    control_x: kinematics.control_x
+                    control_y: 646
+                    field_rows: 6
+                    field_columns: 12
+                    field_top: 56
+                    field_margin: 36
+                    field_gap: 8
+                    field_height: 28
+                    live_count: kinematics.contact_field_live_count
+                    value_per_contact: 10
+                    contact_value: kinematics.contact_value
+                    resets_remaining: resets_remaining
+                )
+            }
+        }
 
 document:
     Document/new(

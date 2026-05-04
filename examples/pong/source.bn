@@ -12,38 +12,177 @@ game:
     title: TEXT { Pong }
 
 kinematics:
-    arena:
-        width: 1000
-        height: 700
-    body:
-        x: 84
-        y: 350
-        dx: -12
-        dy: 8
-        size: 22
-    primary_control:
-        axis: Vertical
-        position: 50
-        step: 8
-        x: 38
-        y: 0
-        width: 18
-        height: 128
-        auto_track: False
-    tracked_control:
-        axis: Vertical
-        position: 50
-        step: 8
-        x: 944
-        y: 0
-        width: 18
-        height: 128
-        auto_track: True
-
-world:
-    0 |> HOLD frame {
-        store.sources.tick.event.frame |> THEN { frame + 1 }
-    }
+    frame:
+        0 |> HOLD frame {
+            store.sources.tick.event.frame |> THEN { frame + 1 }
+        }
+    control_x:
+        50 |> HOLD control_x {
+            store.sources.tick.event.frame |> THEN { control_x }
+        }
+    control_y:
+        50 |> HOLD control_y {
+            store.sources.paddle.event.key_down.key
+            |> THEN {
+                WHEN {
+                    ArrowUp => Number/clamp(value: control_y - 8, min: 0, max: 100)
+                    ArrowLeft => Number/clamp(value: control_y - 8, min: 0, max: 100)
+                    ArrowDown => Number/clamp(value: control_y + 8, min: 0, max: 100)
+                    ArrowRight => Number/clamp(value: control_y + 8, min: 0, max: 100)
+                    __ => control_y
+                }
+            }
+        }
+    tracked_control_y:
+        50 |> HOLD tracked_control_y {
+            store.sources.tick.event.frame
+            |> THEN {
+                Geometry/track_vertical_position(
+                    body_y: kinematics.body_y
+                    body_size: 22
+                    arena_height: 700
+                    height: 128
+                )
+            }
+        }
+    body_x:
+        84 |> HOLD body_x {
+            store.sources.tick.event.frame
+            |> THEN {
+                Geometry/peer_body_x(
+                    x: body_x
+                    y: kinematics.body_y
+                    dx: kinematics.body_dx
+                    dy: kinematics.body_dy
+                    body_size: 22
+                    arena_width: 1000
+                    arena_height: 700
+                    control_width: 18
+                    control_height: 128
+                    left_x: 38
+                    right_x: 944
+                    control_y: kinematics.control_y
+                    tracked_control_y: kinematics.tracked_control_y
+                    contact_value: kinematics.contact_value
+                    resets_remaining: kinematics.resets_remaining
+                )
+            }
+        }
+    body_y:
+        350 |> HOLD body_y {
+            store.sources.tick.event.frame
+            |> THEN {
+                Geometry/peer_body_y(
+                    x: kinematics.body_x
+                    y: body_y
+                    dx: kinematics.body_dx
+                    dy: kinematics.body_dy
+                    body_size: 22
+                    arena_width: 1000
+                    arena_height: 700
+                    control_width: 18
+                    control_height: 128
+                    left_x: 38
+                    right_x: 944
+                    control_y: kinematics.control_y
+                    tracked_control_y: kinematics.tracked_control_y
+                    contact_value: kinematics.contact_value
+                    resets_remaining: kinematics.resets_remaining
+                )
+            }
+        }
+    body_dx:
+        -12 |> HOLD body_dx {
+            store.sources.tick.event.frame
+            |> THEN {
+                Geometry/peer_body_dx(
+                    x: kinematics.body_x
+                    y: kinematics.body_y
+                    dx: body_dx
+                    dy: kinematics.body_dy
+                    body_size: 22
+                    arena_width: 1000
+                    arena_height: 700
+                    control_width: 18
+                    control_height: 128
+                    left_x: 38
+                    right_x: 944
+                    control_y: kinematics.control_y
+                    tracked_control_y: kinematics.tracked_control_y
+                    contact_value: kinematics.contact_value
+                    resets_remaining: kinematics.resets_remaining
+                )
+            }
+        }
+    body_dy:
+        8 |> HOLD body_dy {
+            store.sources.tick.event.frame
+            |> THEN {
+                Geometry/peer_body_dy(
+                    x: kinematics.body_x
+                    y: kinematics.body_y
+                    dx: kinematics.body_dx
+                    dy: body_dy
+                    body_size: 22
+                    arena_width: 1000
+                    arena_height: 700
+                    control_width: 18
+                    control_height: 128
+                    left_x: 38
+                    right_x: 944
+                    control_y: kinematics.control_y
+                    tracked_control_y: kinematics.tracked_control_y
+                    contact_value: kinematics.contact_value
+                    resets_remaining: kinematics.resets_remaining
+                )
+            }
+        }
+    contact_value:
+        0 |> HOLD contact_value {
+            store.sources.tick.event.frame
+            |> THEN {
+                Geometry/peer_contact_value(
+                    x: kinematics.body_x
+                    y: kinematics.body_y
+                    dx: kinematics.body_dx
+                    dy: kinematics.body_dy
+                    body_size: 22
+                    arena_width: 1000
+                    arena_height: 700
+                    control_width: 18
+                    control_height: 128
+                    left_x: 38
+                    right_x: 944
+                    control_y: kinematics.control_y
+                    tracked_control_y: kinematics.tracked_control_y
+                    contact_value: contact_value
+                    resets_remaining: kinematics.resets_remaining
+                )
+            }
+        }
+    resets_remaining:
+        3 |> HOLD resets_remaining {
+            store.sources.tick.event.frame
+            |> THEN {
+                Geometry/peer_resets_remaining(
+                    x: kinematics.body_x
+                    y: kinematics.body_y
+                    dx: kinematics.body_dx
+                    dy: kinematics.body_dy
+                    body_size: 22
+                    arena_width: 1000
+                    arena_height: 700
+                    control_width: 18
+                    control_height: 128
+                    left_x: 38
+                    right_x: 944
+                    control_y: kinematics.control_y
+                    tracked_control_y: kinematics.tracked_control_y
+                    contact_value: kinematics.contact_value
+                    resets_remaining: resets_remaining
+                )
+            }
+        }
 
 document:
     Document/new(

@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct GridDocument {
+pub struct ExpressionBook {
     rows: usize,
     columns: usize,
     selected: (usize, usize),
@@ -13,7 +13,7 @@ pub struct GridDocument {
     functions: BTreeSet<String>,
 }
 
-impl GridDocument {
+impl ExpressionBook {
     pub fn new(rows: usize, columns: usize, functions: impl IntoIterator<Item = String>) -> Self {
         let len = rows * columns;
         Self {

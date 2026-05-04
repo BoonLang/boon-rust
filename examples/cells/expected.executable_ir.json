@@ -6,9 +6,39 @@
     "kind": "root",
     "children": [
       {
-        "id": "grid_1",
+        "id": "grid_6",
         "kind": "grid",
-        "source_path": "store.sources.viewport"
+        "source_path": "store.sources.viewport",
+        "children": [
+          {
+            "id": "list_map_1",
+            "kind": "list_map",
+            "collection_path": "grid",
+            "children": [
+              {
+                "id": "list_map_2",
+                "kind": "list_map",
+                "collection_path": "row",
+                "children": [
+                  {
+                    "id": "panel_5",
+                    "kind": "panel",
+                    "children": [
+                      {
+                        "id": "label_3",
+                        "kind": "label"
+                      },
+                      {
+                        "id": "text_input_4",
+                        "kind": "text_input"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       }
     ]
   }
