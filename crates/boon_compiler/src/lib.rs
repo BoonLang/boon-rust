@@ -208,30 +208,29 @@ pub enum IrEffect {
         state_path: String,
         expr: IrValueExpr,
     },
-    CollectionAppendTextRecord {
+    CollectionAppendRecord {
         collection_path: String,
-        text_state_path: String,
-        text_field: String,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        default_fields: Vec<IrStaticField>,
-        trim: bool,
-        skip_empty: bool,
+        fields: Vec<IrCollectionFieldAssignment>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        skip_if_empty_field: Option<String>,
     },
-    CollectionSetAllBoolFromAny {
+    CollectionUpdateAllFields {
         collection_path: String,
         field: String,
+        value: IrCollectionValueExpr,
     },
-    CollectionToggleOwnerBool {
+    CollectionUpdateOwnerField {
         collection_path: String,
         field: String,
+        value: IrCollectionValueExpr,
     },
-    CollectionRemoveOwner {
+    CollectionRemoveCurrent {
         collection_path: String,
     },
-    CollectionRemoveMatchingBool {
+    CollectionRemoveWhere {
         collection_path: String,
-        field: String,
-        remove_when: bool,
+        predicate: IrCollectionPredicate,
     },
     SetTagState {
         state_path: String,
@@ -240,6 +239,27 @@ pub enum IrEffect {
     ClearText {
         text_state_path: String,
     },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct IrCollectionFieldAssignment {
+    pub field: String,
+    pub value: IrCollectionValueExpr,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum IrCollectionValueExpr {
+    Static { value: IrStaticValue },
+    SourceText { path: String, trim: bool },
+    NotOwnerBoolField { field: String },
+    NotAllBoolField { field: String },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum IrCollectionPredicate {
+    FieldBoolEquals { field: String, value: bool },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -1129,13 +1149,14 @@ fn push_collection_handlers_from_hir_record(
                             tag: "Enter".to_string(),
                         }),
                         effects: vec![
-                            IrEffect::CollectionAppendTextRecord {
+                            IrEffect::CollectionAppendRecord {
                                 collection_path: record.key.clone(),
-                                text_state_path: text_path.clone(),
-                                text_field,
-                                default_fields,
-                                trim: true,
-                                skip_empty: true,
+                                fields: append_record_fields(
+                                    text_field.clone(),
+                                    text_path.clone(),
+                                    default_fields,
+                                ),
+                                skip_if_empty_field: Some(text_field),
                             },
                             IrEffect::ClearText {
                                 text_state_path: text_path,
@@ -1152,7 +1173,7 @@ fn push_collection_handlers_from_hir_record(
                         ir.event_handlers.push(IrEventHandler {
                             source_path: dynamic_path,
                             when: None,
-                            effects: vec![IrEffect::CollectionRemoveOwner {
+                            effects: vec![IrEffect::CollectionRemoveCurrent {
                                 collection_path: record.key.clone(),
                             }],
                         });
@@ -1162,10 +1183,12 @@ fn push_collection_handlers_from_hir_record(
                         ir.event_handlers.push(IrEventHandler {
                             source_path: static_path,
                             when: None,
-                            effects: vec![IrEffect::CollectionRemoveMatchingBool {
+                            effects: vec![IrEffect::CollectionRemoveWhere {
                                 collection_path: record.key.clone(),
-                                field,
-                                remove_when: true,
+                                predicate: IrCollectionPredicate::FieldBoolEquals {
+                                    field,
+                                    value: true,
+                                },
                             }],
                         });
                     }
@@ -1187,6 +1210,28 @@ fn append_text_sources(
     let (key_path, text_path) = submit_text_sources(producer.value.as_ref()?, sources)?;
     let (text_field, default_fields) = append_record_shape(hir, item_expr)?;
     Some((key_path, text_path, text_field, default_fields))
+}
+
+fn append_record_fields(
+    text_field: String,
+    text_path: String,
+    default_fields: Vec<IrStaticField>,
+) -> Vec<IrCollectionFieldAssignment> {
+    let mut fields = default_fields
+        .into_iter()
+        .map(|field| IrCollectionFieldAssignment {
+            field: field.key,
+            value: IrCollectionValueExpr::Static { value: field.value },
+        })
+        .collect::<Vec<_>>();
+    fields.push(IrCollectionFieldAssignment {
+        field: text_field,
+        value: IrCollectionValueExpr::SourceText {
+            path: text_path,
+            trim: true,
+        },
+    });
+    fields
 }
 
 fn append_record_shape(hir: &HirModule, expr: &HirExpr) -> Option<(String, Vec<IrStaticField>)> {
@@ -1280,14 +1325,20 @@ fn push_item_state_handlers_from_hir(
         for record in records_in_expr(&function.body) {
             for event_path in latest_then_sources(record.value.as_ref(), sources) {
                 let effects = if event_path.contains("[*]") {
-                    vec![IrEffect::CollectionToggleOwnerBool {
+                    vec![IrEffect::CollectionUpdateOwnerField {
                         collection_path: collection_path.to_string(),
                         field: record.key.clone(),
+                        value: IrCollectionValueExpr::NotOwnerBoolField {
+                            field: record.key.clone(),
+                        },
                     }]
                 } else {
-                    vec![IrEffect::CollectionSetAllBoolFromAny {
+                    vec![IrEffect::CollectionUpdateAllFields {
                         collection_path: collection_path.to_string(),
                         field: record.key.clone(),
+                        value: IrCollectionValueExpr::NotAllBoolField {
+                            field: record.key.clone(),
+                        },
                     }]
                 };
                 ir.event_handlers.push(IrEventHandler {

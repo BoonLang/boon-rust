@@ -2,10 +2,11 @@ use crate::{
     AppSnapshot, BoonApp, RuntimeClock, SourceBatch, SourceEmission, SourceInventory, SourceValue,
     StateDelta, TurnId, TurnMetrics, TurnResult,
 };
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use boon_compiler::{
-    AppIr, ExecEffect, ExecExpr, ExecutableIr, IrAppMetadata, IrEffect, IrPredicate, IrStaticField,
-    IrStaticRecord, IrStaticValue, IrValueExpr,
+    AppIr, ExecEffect, ExecExpr, ExecutableIr, IrAppMetadata, IrCollectionPredicate,
+    IrCollectionValueExpr, IrEffect, IrPredicate, IrStaticField, IrStaticRecord, IrStaticValue,
+    IrValueExpr,
 };
 use boon_render_ir::{
     DrawCommand, FrameScene, HitTarget, HitTargetAction, HostPatch, NodeId, NodeKind,
@@ -43,7 +44,7 @@ pub struct CompiledApp {
 struct RuntimeWiring {
     action_state: Option<StateEventBinding>,
     clock_state: Option<StateEventBinding>,
-    list: Option<RepeaterBinding>,
+    list: Option<CollectionSourceWiring>,
     grid: Option<GridBinding>,
     motion_frame_event: Option<String>,
     motion_control_event: Option<String>,
@@ -55,7 +56,7 @@ struct StateEventBinding {
 }
 
 #[derive(Clone, Debug)]
-struct RepeaterBinding {
+struct CollectionSourceWiring {
     family: String,
     root: String,
     text_field: String,
@@ -72,18 +73,18 @@ struct RepeaterBinding {
 }
 
 #[derive(Clone, Debug, Default)]
-struct RuntimeListView {
-    selectors: Vec<RuntimeListSelector>,
+struct CollectionView {
+    selectors: Vec<CollectionViewSelector>,
 }
 
 #[derive(Clone, Debug)]
-struct RuntimeListSelector {
+struct CollectionViewSelector {
     id: String,
-    visibility: RuntimeListVisibility,
+    visibility: CollectionViewVisibility,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-enum RuntimeListVisibility {
+enum CollectionViewVisibility {
     #[default]
     All,
     Unmarked,
@@ -135,7 +136,7 @@ impl RuntimeWiring {
                 action_state.get_or_insert(binding);
             }
         }
-        let list = RepeaterBinding::from_app_ir(inventory, app_ir);
+        let list = CollectionSourceWiring::from_app_ir(inventory, app_ir);
         let grid = app_ir
             .render_tree
             .as_ref()
@@ -156,17 +157,17 @@ impl RuntimeWiring {
     }
 }
 
-impl RepeaterBinding {
+impl CollectionSourceWiring {
     fn from_app_ir(inventory: &SourceInventory, app_ir: &AppIr) -> Option<Self> {
         if !app_ir.event_handlers.iter().any(|handler| {
             handler.effects.iter().any(|effect| {
                 matches!(
                     effect,
-                    IrEffect::CollectionAppendTextRecord { .. }
-                        | IrEffect::CollectionSetAllBoolFromAny { .. }
-                        | IrEffect::CollectionToggleOwnerBool { .. }
-                        | IrEffect::CollectionRemoveOwner { .. }
-                        | IrEffect::CollectionRemoveMatchingBool { .. }
+                    IrEffect::CollectionAppendRecord { .. }
+                        | IrEffect::CollectionUpdateAllFields { .. }
+                        | IrEffect::CollectionUpdateOwnerField { .. }
+                        | IrEffect::CollectionRemoveCurrent { .. }
+                        | IrEffect::CollectionRemoveWhere { .. }
                 )
             })
         }) {
@@ -187,9 +188,12 @@ impl RepeaterBinding {
             })?;
         let entry_text = app_ir.event_handlers.iter().find_map(|handler| {
             handler.effects.iter().find_map(|effect| match effect {
-                IrEffect::CollectionAppendTextRecord {
-                    text_state_path, ..
-                } => Some(text_state_path.clone()),
+                IrEffect::CollectionAppendRecord { fields, .. } => {
+                    fields.iter().find_map(|field| match &field.value {
+                        IrCollectionValueExpr::SourceText { path, .. } => Some(path.clone()),
+                        _ => None,
+                    })
+                }
                 _ => None,
             })
         });
@@ -198,8 +202,11 @@ impl RepeaterBinding {
             .iter()
             .find_map(|handler| {
                 handler.effects.iter().find_map(|effect| match effect {
-                    IrEffect::CollectionAppendTextRecord { text_field, .. } => {
-                        Some(text_field.clone())
+                    IrEffect::CollectionAppendRecord { fields, .. } => {
+                        fields.iter().find_map(|field| {
+                            matches!(field.value, IrCollectionValueExpr::SourceText { .. })
+                                .then(|| field.field.clone())
+                        })
                     }
                     _ => None,
                 })
@@ -213,9 +220,12 @@ impl RepeaterBinding {
             .unwrap_or_else(|| "value".to_string());
         let bool_field = app_ir.event_handlers.iter().find_map(|handler| {
             handler.effects.iter().find_map(|effect| match effect {
-                IrEffect::CollectionSetAllBoolFromAny { field, .. }
-                | IrEffect::CollectionToggleOwnerBool { field, .. }
-                | IrEffect::CollectionRemoveMatchingBool { field, .. } => Some(field.clone()),
+                IrEffect::CollectionUpdateAllFields { field, .. }
+                | IrEffect::CollectionUpdateOwnerField { field, .. } => Some(field.clone()),
+                IrEffect::CollectionRemoveWhere {
+                    predicate: IrCollectionPredicate::FieldBoolEquals { field, .. },
+                    ..
+                } => Some(field.clone()),
                 _ => None,
             })
         });
@@ -364,17 +374,17 @@ fn unique_paths(paths: Vec<String>) -> Vec<String> {
 fn first_collection_effect_path(app_ir: &AppIr) -> Option<String> {
     app_ir.event_handlers.iter().find_map(|handler| {
         handler.effects.iter().find_map(|effect| match effect {
-            IrEffect::CollectionAppendTextRecord {
+            IrEffect::CollectionAppendRecord {
                 collection_path, ..
             }
-            | IrEffect::CollectionSetAllBoolFromAny {
+            | IrEffect::CollectionUpdateAllFields {
                 collection_path, ..
             }
-            | IrEffect::CollectionToggleOwnerBool {
+            | IrEffect::CollectionUpdateOwnerField {
                 collection_path, ..
             }
-            | IrEffect::CollectionRemoveOwner { collection_path }
-            | IrEffect::CollectionRemoveMatchingBool {
+            | IrEffect::CollectionRemoveCurrent { collection_path }
+            | IrEffect::CollectionRemoveWhere {
                 collection_path, ..
             } => Some(collection_path.clone()),
             _ => None,
@@ -469,21 +479,21 @@ fn generic_source_label(path: &str) -> String {
         .replace('_', " ")
 }
 
-fn runtime_list_view_from_app_ir(app_ir: &AppIr) -> Option<RuntimeListView> {
+fn collection_view_from_app_ir(app_ir: &AppIr) -> Option<CollectionView> {
     let view = app_ir
         .static_records
         .iter()
         .find(|record| record.path == "view")?;
-    Some(RuntimeListView {
+    Some(CollectionView {
         selectors: static_record_field(view, "selectors")
             .map(|selectors| {
                 selectors
                     .iter()
-                    .map(|field| RuntimeListSelector {
+                    .map(|field| CollectionViewSelector {
                         id: field.key.clone(),
                         visibility: static_value_field(&field.value, "visibility")
                             .and_then(static_value_tag)
-                            .and_then(runtime_list_visibility_from_tag)
+                            .and_then(collection_view_visibility_from_tag)
                             .unwrap_or_default(),
                     })
                     .collect()
@@ -560,11 +570,11 @@ fn static_value_tag(value: &IrStaticValue) -> Option<&str> {
     }
 }
 
-fn runtime_list_visibility_from_tag(value: &str) -> Option<RuntimeListVisibility> {
+fn collection_view_visibility_from_tag(value: &str) -> Option<CollectionViewVisibility> {
     match value {
-        "All" => Some(RuntimeListVisibility::All),
-        "Unmarked" => Some(RuntimeListVisibility::Unmarked),
-        "Marked" => Some(RuntimeListVisibility::Marked),
+        "All" => Some(CollectionViewVisibility::All),
+        "Unmarked" => Some(CollectionViewVisibility::Unmarked),
+        "Marked" => Some(CollectionViewVisibility::Marked),
         _ => None,
     }
 }
@@ -597,17 +607,6 @@ impl RuntimeDynamicValue {
         )
     }
 
-    fn from_append_text(
-        id: u64,
-        defaults: &[IrStaticField],
-        text_field: &str,
-        text: String,
-    ) -> Self {
-        let mut value = Self::from_literal_fields(id, defaults);
-        value.set_text_field(text_field, text);
-        value
-    }
-
     fn text_field(&self, path: &str) -> String {
         self.fields
             .get(path)
@@ -627,8 +626,8 @@ impl RuntimeDynamicValue {
             .unwrap_or(false)
     }
 
-    fn set_bool_field(&mut self, path: &str, value: bool) {
-        self.fields.insert(path.to_string(), json!(value));
+    fn set_field_json(&mut self, path: &str, value: Value) {
+        self.fields.insert(path.to_string(), value);
     }
 
     fn focus_field(&self, path: &str) -> bool {
@@ -866,7 +865,7 @@ impl CompiledApp {
             std_function_names_from_static_records(&app_ir),
         );
         let motion = motion_document_from_static_records(&app_ir);
-        let initial_view_selector = runtime_list_view_from_app_ir(&app_ir).map_or_else(
+        let initial_view_selector = collection_view_from_app_ir(&app_ir).map_or_else(
             || "all".to_string(),
             |view| {
                 view.selectors
@@ -1054,64 +1053,58 @@ impl CompiledApp {
                         self.set_generic_number(&state_path, value);
                         changed.push(state_path);
                     }
-                    IrEffect::CollectionAppendTextRecord {
+                    IrEffect::CollectionAppendRecord {
                         collection_path,
-                        text_state_path,
-                        text_field,
-                        default_fields,
-                        trim,
-                        skip_empty,
+                        fields,
+                        skip_if_empty_field,
                     } => {
-                        if self.apply_generic_collection_append_text_record(
+                        if self.apply_generic_collection_append_record(
                             &collection_path,
-                            &text_state_path,
-                            &text_field,
-                            &default_fields,
-                            trim,
-                            skip_empty,
+                            &fields,
+                            skip_if_empty_field.as_deref(),
                         )? {
                             changed.extend(self.record_change_paths());
                             changed.extend(self.record_count_change_paths());
                         }
                     }
-                    IrEffect::CollectionSetAllBoolFromAny {
+                    IrEffect::CollectionUpdateAllFields {
                         collection_path,
                         field,
+                        value,
                     } => {
-                        if self.apply_generic_collection_set_all_bool_from_any(
+                        if self.apply_generic_collection_update_all_fields(
                             &collection_path,
                             &field,
-                        ) {
+                            &value,
+                        )? {
                             changed.extend(self.record_count_change_paths());
                         }
                     }
-                    IrEffect::CollectionToggleOwnerBool {
+                    IrEffect::CollectionUpdateOwnerField {
                         collection_path,
                         field,
+                        value,
                     } => {
-                        if self.apply_generic_collection_toggle_owner_bool(
+                        if self.apply_generic_collection_update_owner_field(
                             &collection_path,
                             &field,
+                            &value,
                             event,
                         )? {
                             changed.extend(self.record_count_change_paths());
                         }
                     }
-                    IrEffect::CollectionRemoveOwner { collection_path } => {
-                        if self.apply_generic_collection_remove_owner(&collection_path, event)? {
+                    IrEffect::CollectionRemoveCurrent { collection_path } => {
+                        if self.apply_generic_collection_remove_current(&collection_path, event)? {
                             changed.extend(self.record_change_paths());
                         }
                     }
-                    IrEffect::CollectionRemoveMatchingBool {
+                    IrEffect::CollectionRemoveWhere {
                         collection_path,
-                        field,
-                        remove_when,
+                        predicate,
                     } => {
-                        if self.apply_generic_collection_remove_matching_bool(
-                            &collection_path,
-                            &field,
-                            remove_when,
-                        ) {
+                        if self.apply_generic_collection_remove_where(&collection_path, &predicate)
+                        {
                             changed.extend(self.record_change_paths());
                         }
                     }
@@ -1217,71 +1210,58 @@ impl CompiledApp {
         self.generic_state.insert(state_path.to_string(), value);
     }
 
-    fn apply_generic_collection_append_text_record(
+    fn apply_generic_collection_append_record(
         &mut self,
         collection_path: &str,
-        text_state_path: &str,
-        text_field: &str,
-        default_fields: &[IrStaticField],
-        trim: bool,
-        skip_empty: bool,
+        fields: &[boon_compiler::IrCollectionFieldAssignment],
+        skip_if_empty_field: Option<&str>,
     ) -> Result<bool> {
         if self.record_root() != Some(collection_path) {
             return Ok(false);
         }
-        let mut text = if self
-            .wiring
-            .list
-            .as_ref()
-            .and_then(|sequence| sequence.entry_text.as_ref())
-            .is_some_and(|path| path == text_state_path)
-        {
-            self.entry_text.clone()
-        } else {
-            match self.source_state.get(text_state_path) {
-                Some(SourceValue::Text(value)) => value.clone(),
-                _ => String::new(),
-            }
-        };
-        if trim {
-            text = text.trim().to_string();
+        let mut record = BTreeMap::new();
+        for field in fields {
+            let value = self.eval_collection_value(&field.value, None)?;
+            record.insert(field.field.clone(), value);
         }
-        if skip_empty && text.is_empty() {
+        if skip_if_empty_field
+            .and_then(|field| record.get(field))
+            .and_then(Value::as_str)
+            .is_some_and(str::is_empty)
+        {
             return Ok(false);
         }
         self.dynamic_values
-            .push(RuntimeDynamicValue::from_append_text(
-                self.next_dynamic_value_id,
-                default_fields,
-                text_field,
-                text,
-            ));
+            .push(RuntimeDynamicValue::new(self.next_dynamic_value_id, record));
         self.next_dynamic_value_id += 1;
         Ok(true)
     }
 
-    fn apply_generic_collection_set_all_bool_from_any(
+    fn apply_generic_collection_update_all_fields(
         &mut self,
         collection_path: &str,
         field: &str,
-    ) -> bool {
+        value: &IrCollectionValueExpr,
+    ) -> Result<bool> {
         if self.record_root() != Some(collection_path) {
-            return false;
+            return Ok(false);
         }
-        let all_marked = self
+        let values = self
             .dynamic_values
             .iter()
-            .all(|record| record.bool_field(field));
-        for record in &mut self.dynamic_values {
-            record.set_bool_field(field, !all_marked);
+            .map(|record| self.eval_collection_value(value, Some(record)))
+            .collect::<Result<Vec<_>>>()?;
+        for (record, value) in self.dynamic_values.iter_mut().zip(values) {
+            record.set_field_json(field, value);
         }
-        true
+        Ok(true)
     }
 
-    fn apply_generic_collection_toggle_owner_bool(
+    fn apply_generic_collection_update_owner_field(
         &mut self,
         collection_path: &str,
         field: &str,
+        value: &IrCollectionValueExpr,
         event: &SourceEmission,
     ) -> Result<bool> {
         if self.record_root() != Some(collection_path) {
@@ -1294,18 +1274,60 @@ impl CompiledApp {
         let dynamic_value_id = owner_id
             .parse::<u64>()
             .map_err(|_| anyhow::anyhow!("dynamic value owner_id `{owner_id}` is not numeric"))?;
-        let Some(record) = self
+        let Some(index) = self
             .dynamic_values
-            .iter_mut()
-            .find(|record| record.id == dynamic_value_id)
+            .iter()
+            .position(|record| record.id == dynamic_value_id)
         else {
             return Ok(false);
         };
-        record.set_bool_field(field, !record.bool_field(field));
+        let updated = self.eval_collection_value(value, Some(&self.dynamic_values[index]))?;
+        self.dynamic_values[index].set_field_json(field, updated);
         Ok(true)
     }
 
-    fn apply_generic_collection_remove_owner(
+    fn eval_collection_value(
+        &self,
+        expr: &IrCollectionValueExpr,
+        owner: Option<&RuntimeDynamicValue>,
+    ) -> Result<Value> {
+        match expr {
+            IrCollectionValueExpr::Static { value } => Ok(literal_value_to_json(value)),
+            IrCollectionValueExpr::SourceText { path, trim } => {
+                let mut text = if self
+                    .wiring
+                    .list
+                    .as_ref()
+                    .and_then(|sequence| sequence.entry_text.as_ref())
+                    .is_some_and(|entry| entry == path)
+                {
+                    self.entry_text.clone()
+                } else {
+                    match self.source_state.get(path) {
+                        Some(SourceValue::Text(value)) => value.clone(),
+                        _ => String::new(),
+                    }
+                };
+                if *trim {
+                    text = text.trim().to_string();
+                }
+                Ok(json!(text))
+            }
+            IrCollectionValueExpr::NotOwnerBoolField { field } => {
+                let owner = owner.context("owner field expression requires an owner record")?;
+                Ok(json!(!owner.bool_field(field)))
+            }
+            IrCollectionValueExpr::NotAllBoolField { field } => {
+                let all_marked = self
+                    .dynamic_values
+                    .iter()
+                    .all(|record| record.bool_field(field));
+                Ok(json!(!all_marked))
+            }
+        }
+    }
+
+    fn apply_generic_collection_remove_current(
         &mut self,
         collection_path: &str,
         event: &SourceEmission,
@@ -1326,18 +1348,21 @@ impl CompiledApp {
         Ok(self.dynamic_values.len() != before)
     }
 
-    fn apply_generic_collection_remove_matching_bool(
+    fn apply_generic_collection_remove_where(
         &mut self,
         collection_path: &str,
-        field: &str,
-        remove_when: bool,
+        predicate: &IrCollectionPredicate,
     ) -> bool {
         if self.record_root() != Some(collection_path) {
             return false;
         }
         let before = self.dynamic_values.len();
-        self.dynamic_values
-            .retain(|record| record.bool_field(field) != remove_when);
+        match predicate {
+            IrCollectionPredicate::FieldBoolEquals { field, value } => {
+                self.dynamic_values
+                    .retain(|record| record.bool_field(field) != *value);
+            }
+        }
         self.dynamic_values.len() != before
     }
 
@@ -1357,8 +1382,8 @@ impl CompiledApp {
         );
     }
 
-    fn list_view(&self) -> Option<RuntimeListView> {
-        runtime_list_view_from_app_ir(&self.app_ir)
+    fn list_view(&self) -> Option<CollectionView> {
+        collection_view_from_app_ir(&self.app_ir)
     }
 
     fn collection_text_field(&self) -> &str {
@@ -1373,14 +1398,14 @@ impl CompiledApp {
         self.wiring
             .list
             .as_ref()
-            .and_then(RepeaterBinding::bool_field)
+            .and_then(CollectionSourceWiring::bool_field)
     }
 
     fn collection_edit_focus_field(&self) -> Option<&str> {
         self.wiring
             .list
             .as_ref()
-            .and_then(RepeaterBinding::edit_focus_field)
+            .and_then(CollectionSourceWiring::edit_focus_field)
     }
 
     fn collection_record_marked(&self, record: &RuntimeDynamicValue) -> bool {
@@ -1546,6 +1571,9 @@ impl CompiledApp {
     ) -> u32 {
         match node.kind {
             boon_compiler::IrRenderKind::Root | boon_compiler::IrRenderKind::Panel => {
+                if let Some(record) = record {
+                    return self.render_generic_record_row(scene, node, x, y, width, record);
+                }
                 let mut next_y = y;
                 for child in &node.children {
                     next_y = self.render_generic_node(scene, child, x, next_y, width, record);
@@ -1553,8 +1581,8 @@ impl CompiledApp {
                 next_y
             }
             boon_compiler::IrRenderKind::Button => {
-                push_rect(scene, x, y, width, 92, [46, 125, 166, 255]);
-                push_rect_outline(scene, x, y, width, 92, [21, 91, 128, 255]);
+                push_rect(scene, x, y, width, 64, [46, 125, 166, 255]);
+                push_rect_outline(scene, x, y, width, 64, [21, 91, 128, 255]);
                 if let Some(source_path) = node
                     .source_path
                     .as_deref()
@@ -1566,7 +1594,7 @@ impl CompiledApp {
                         x,
                         y,
                         width,
-                        92,
+                        64,
                         HitTargetAction::Press,
                         &source_path,
                         record,
@@ -1582,8 +1610,8 @@ impl CompiledApp {
                     })
                     .or_else(|| node.source_path.as_deref().map(generic_source_label))
                     .unwrap_or_default();
-                push_text(scene, x + 86, y + 36, 2, &label, [255, 255, 255, 255]);
-                y + 124
+                push_text(scene, x + 18, y + 24, 1, &label, [255, 255, 255, 255]);
+                y + 86
             }
             boon_compiler::IrRenderKind::Label
             | boon_compiler::IrRenderKind::Text
@@ -1669,6 +1697,157 @@ impl CompiledApp {
                 next_y
             }
             boon_compiler::IrRenderKind::Grid => y,
+        }
+    }
+
+    fn render_generic_record_row(
+        &self,
+        scene: &mut FrameScene,
+        node: &boon_compiler::IrRenderNode,
+        x: u32,
+        y: u32,
+        width: u32,
+        record: &RuntimeDynamicValue,
+    ) -> u32 {
+        let mut cursor = x;
+        let mut remaining = width;
+        for child in &node.children {
+            if remaining == 0 {
+                break;
+            }
+            let desired = match child.kind {
+                boon_compiler::IrRenderKind::Checkbox => 64,
+                boon_compiler::IrRenderKind::Button => 78,
+                boon_compiler::IrRenderKind::TextInput
+                | boon_compiler::IrRenderKind::Text
+                | boon_compiler::IrRenderKind::Label
+                | boon_compiler::IrRenderKind::Unknown => remaining,
+                boon_compiler::IrRenderKind::Root
+                | boon_compiler::IrRenderKind::Panel
+                | boon_compiler::IrRenderKind::ListMap
+                | boon_compiler::IrRenderKind::Grid => remaining,
+            }
+            .min(remaining);
+            self.render_generic_inline_node(scene, child, cursor, y, desired, record);
+            let step = desired.saturating_add(12).min(remaining);
+            cursor = cursor.saturating_add(step);
+            remaining = width.saturating_sub(cursor.saturating_sub(x));
+        }
+        y + 86
+    }
+
+    fn render_generic_inline_node(
+        &self,
+        scene: &mut FrameScene,
+        node: &boon_compiler::IrRenderNode,
+        x: u32,
+        y: u32,
+        width: u32,
+        record: &RuntimeDynamicValue,
+    ) {
+        match node.kind {
+            boon_compiler::IrRenderKind::Checkbox => {
+                push_rect(scene, x, y, width.min(64), 64, [255, 255, 255, 255]);
+                push_rect_outline(scene, x, y, width.min(64), 64, [188, 202, 212, 255]);
+                if self.collection_record_marked(record) {
+                    push_text(scene, x + 24, y + 24, 1, "x", [68, 146, 126, 255]);
+                }
+                if let Some(source_path) = node
+                    .source_path
+                    .as_deref()
+                    .and_then(|base| self.primary_event_source(base))
+                {
+                    self.push_generic_hit_target(
+                        scene,
+                        format!("generic_{}", node.id),
+                        x,
+                        y,
+                        width.min(64),
+                        64,
+                        HitTargetAction::Press,
+                        &source_path,
+                        Some(record),
+                    );
+                }
+            }
+            boon_compiler::IrRenderKind::Button => {
+                push_rect(scene, x, y, width, 64, [46, 125, 166, 255]);
+                push_rect_outline(scene, x, y, width, 64, [21, 91, 128, 255]);
+                if let Some(source_path) = node
+                    .source_path
+                    .as_deref()
+                    .and_then(|base| self.primary_event_source(base))
+                {
+                    self.push_generic_hit_target(
+                        scene,
+                        format!("generic_{}", node.id),
+                        x,
+                        y,
+                        width,
+                        64,
+                        HitTargetAction::Press,
+                        &source_path,
+                        Some(record),
+                    );
+                }
+                let label = node
+                    .text
+                    .as_ref()
+                    .and_then(|text| self.eval_render_text_for_record(text, record))
+                    .or_else(|| node.source_path.as_deref().map(generic_source_label))
+                    .unwrap_or_default();
+                push_text(scene, x + 12, y + 24, 1, &label, [255, 255, 255, 255]);
+            }
+            boon_compiler::IrRenderKind::TextInput => {
+                push_rect(scene, x, y, width, 64, [255, 255, 255, 255]);
+                push_rect_outline(scene, x, y, width, 64, [188, 202, 212, 255]);
+                if let Some(source_path) = node.source_path.as_deref() {
+                    let text_value = record.text_field(self.collection_text_field());
+                    self.push_generic_text_hit_target(
+                        scene,
+                        format!("generic_{}", node.id),
+                        x,
+                        y,
+                        width,
+                        64,
+                        source_path,
+                        Some(text_value.clone()),
+                        Some(record),
+                    );
+                    push_text(scene, x + 18, y + 24, 1, &text_value, [42, 58, 70, 255]);
+                }
+            }
+            boon_compiler::IrRenderKind::Text
+            | boon_compiler::IrRenderKind::Label
+            | boon_compiler::IrRenderKind::Unknown => {
+                if let Some(text) = node
+                    .text
+                    .as_ref()
+                    .and_then(|text| self.eval_render_text_for_record(text, record))
+                {
+                    push_text(scene, x, y + 24, 1, &text, [35, 55, 68, 255]);
+                }
+            }
+            boon_compiler::IrRenderKind::Root | boon_compiler::IrRenderKind::Panel => {
+                let mut cursor = x;
+                let mut remaining = width;
+                for child in &node.children {
+                    if remaining == 0 {
+                        break;
+                    }
+                    let desired = match child.kind {
+                        boon_compiler::IrRenderKind::Checkbox => 64,
+                        boon_compiler::IrRenderKind::Button => 78,
+                        _ => remaining,
+                    }
+                    .min(remaining);
+                    self.render_generic_inline_node(scene, child, cursor, y, desired, record);
+                    let step = desired.saturating_add(12).min(remaining);
+                    cursor = cursor.saturating_add(step);
+                    remaining = width.saturating_sub(cursor.saturating_sub(x));
+                }
+            }
+            boon_compiler::IrRenderKind::ListMap | boon_compiler::IrRenderKind::Grid => {}
         }
     }
 
@@ -2089,9 +2268,9 @@ impl CompiledApp {
         self.dynamic_values
             .iter()
             .filter(move |record| match visibility {
-                RuntimeListVisibility::All => true,
-                RuntimeListVisibility::Unmarked => !self.collection_record_marked(record),
-                RuntimeListVisibility::Marked => self.collection_record_marked(record),
+                CollectionViewVisibility::All => true,
+                CollectionViewVisibility::Unmarked => !self.collection_record_marked(record),
+                CollectionViewVisibility::Marked => self.collection_record_marked(record),
             })
     }
 

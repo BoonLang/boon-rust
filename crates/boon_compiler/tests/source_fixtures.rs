@@ -364,8 +364,9 @@ fn todo_append_lowers_to_generic_list_event_ir() {
     let app_ir = serde_json::to_string(&compiled.app_ir).expect("app ir serializes");
 
     assert!(
-        app_ir.contains("\"collection_append_text_record\"")
-            && app_ir.contains("\"text_field\":\"title\"")
+        app_ir.contains("\"collection_append_record\"")
+            && app_ir.contains("\"field\":\"title\"")
+            && app_ir.contains("\"source_text\"")
             && app_ir.contains("\"field\":\"completed\""),
         "todo app IR should contain source-derived collection append/toggle fields: {app_ir}"
     );

@@ -229,21 +229,29 @@
       },
       "effects": [
         {
-          "kind": "collection_append_text_record",
+          "kind": "collection_append_record",
           "collection_path": "todos",
-          "text_state_path": "store.sources.new_todo_input.text",
-          "text_field": "title",
-          "default_fields": [
+          "fields": [
             {
-              "key": "completed",
+              "field": "completed",
               "value": {
-                "kind": "bool",
-                "value": false
+                "kind": "static",
+                "value": {
+                  "kind": "bool",
+                  "value": false
+                }
+              }
+            },
+            {
+              "field": "title",
+              "value": {
+                "kind": "source_text",
+                "path": "store.sources.new_todo_input.text",
+                "trim": true
               }
             }
           ],
-          "trim": true,
-          "skip_empty": true
+          "skip_if_empty_field": "title"
         },
         {
           "kind": "clear_text",
@@ -256,7 +264,7 @@
       "when": null,
       "effects": [
         {
-          "kind": "collection_remove_owner",
+          "kind": "collection_remove_current",
           "collection_path": "todos"
         }
       ]
@@ -266,10 +274,13 @@
       "when": null,
       "effects": [
         {
-          "kind": "collection_remove_matching_bool",
+          "kind": "collection_remove_where",
           "collection_path": "todos",
-          "field": "completed",
-          "remove_when": true
+          "predicate": {
+            "kind": "field_bool_equals",
+            "field": "completed",
+            "value": true
+          }
         }
       ]
     },
@@ -311,9 +322,13 @@
       "when": null,
       "effects": [
         {
-          "kind": "collection_toggle_owner_bool",
+          "kind": "collection_update_owner_field",
           "collection_path": "todos",
-          "field": "completed"
+          "field": "completed",
+          "value": {
+            "kind": "not_owner_bool_field",
+            "field": "completed"
+          }
         }
       ]
     },
@@ -322,9 +337,13 @@
       "when": null,
       "effects": [
         {
-          "kind": "collection_set_all_bool_from_any",
+          "kind": "collection_update_all_fields",
           "collection_path": "todos",
-          "field": "completed"
+          "field": "completed",
+          "value": {
+            "kind": "not_all_bool_field",
+            "field": "completed"
+          }
         }
       ]
     }

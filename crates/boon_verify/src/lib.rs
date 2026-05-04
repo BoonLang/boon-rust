@@ -200,6 +200,7 @@ fn handwritten_rust_files(root: &Path) -> Result<Vec<String>> {
     for rel in [
         "crates/boon_compiler/src",
         "crates/boon_runtime/src",
+        "crates/boon_stdlib/src",
         "crates/boon_render_ir/src",
         "crates/boon_codegen_rust/src",
         "crates/boon_examples/build.rs",
@@ -302,6 +303,45 @@ fn boon_powered_forbidden_needles() -> Vec<(&'static str, &'static str)> {
             "example/domain model in handwritten Rust",
             "SurfaceKind::Motion",
         ),
+        (
+            "example/domain model in handwritten Rust",
+            "RepeaterBinding",
+        ),
+        (
+            "example/domain model in handwritten Rust",
+            "RuntimeListView",
+        ),
+        (
+            "example/domain model in handwritten Rust",
+            "RuntimeListSelector",
+        ),
+        ("example/domain model in handwritten Rust", "GridBinding"),
+        ("example/domain model in handwritten Rust", "GridDocument"),
+        ("example/domain model in handwritten Rust", "MotionDocument"),
+        ("example/domain model in handwritten Rust", "MotionConfig"),
+        ("example/domain model in handwritten Rust", "MotionBody"),
+        ("example/domain model in handwritten Rust", "MotionControl"),
+        ("example/domain model in handwritten Rust", "ContactGrid"),
+        (
+            "example/domain model in handwritten Rust",
+            "CollectionAppendTextRecord",
+        ),
+        (
+            "example/domain model in handwritten Rust",
+            "CollectionSetAllBoolFromAny",
+        ),
+        (
+            "example/domain model in handwritten Rust",
+            "CollectionToggleOwnerBool",
+        ),
+        (
+            "example/domain model in handwritten Rust",
+            "CollectionRemoveOwner",
+        ),
+        (
+            "example/domain model in handwritten Rust",
+            "CollectionRemoveMatchingBool",
+        ),
         ("example/domain model in handwritten Rust", "NodeKind::Game"),
         ("game business logic in handwritten Rust", "ball_x"),
         ("game business logic in handwritten Rust", "ball_y"),
@@ -328,6 +368,22 @@ fn boon_powered_forbidden_needles() -> Vec<(&'static str, &'static str)> {
         (
             "handcrafted renderer in handwritten Rust",
             "render_playfield_scene",
+        ),
+        (
+            "handcrafted renderer in handwritten Rust",
+            "render_grid_primitive",
+        ),
+        (
+            "handcrafted renderer in handwritten Rust",
+            "render_motion_primitive",
+        ),
+        (
+            "handcrafted renderer in handwritten Rust",
+            "render_motion_text",
+        ),
+        (
+            "handcrafted renderer in handwritten Rust",
+            "render_grid_text",
         ),
         ("handcrafted renderer in handwritten Rust", "draw_todomvc"),
         ("handcrafted renderer in handwritten Rust", "draw_cells"),
@@ -5202,6 +5258,7 @@ fn play_click_source(
             scene
                 .hit_targets
                 .iter()
+                .rev()
                 .find(|target| target.source_path == source_path)
                 .cloned()
         })
@@ -5226,6 +5283,7 @@ fn play_click_dynamic_source(
             scene
                 .hit_targets
                 .iter()
+                .rev()
                 .find(|target| {
                     target.source_path == source_path
                         && target.owner_id.as_deref() == Some(owner_id)
