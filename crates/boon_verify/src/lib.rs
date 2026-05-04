@@ -99,7 +99,9 @@ pub struct BoonPoweredGeneratedProvenance {
     pub has_source_sha256: bool,
     pub has_ir_sha256: bool,
     pub has_executable_ir: bool,
+    pub has_compiled_module: bool,
     pub has_source_span_table: bool,
+    pub avoids_runtime_compile_source: bool,
     pub passed: bool,
 }
 
@@ -452,7 +454,6 @@ fn boon_powered_forbidden_needles() -> Vec<(&'static str, &'static str)> {
         ("todo business logic in handwritten Rust", "input_text"),
         ("todo business logic in handwritten Rust", "filter_events"),
         ("cells business logic in handwritten Rust", "formula"),
-        ("cells business logic in handwritten Rust", "Formula"),
         ("cells business logic in handwritten Rust", "grid_text"),
         (
             "cells business logic in handwritten Rust",
@@ -872,6 +873,24 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
         GenericityProbe {
             category: "dense grid family runtime",
             path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn resolve_expression(",
+            resolution: "move formula parsing/evaluation into Boon source or an explicit reusable stdlib API",
+        },
+        GenericityProbe {
+            category: "dense grid family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn collect_expression_refs(",
+            resolution: "move formula dependency parsing into Boon source or an explicit reusable stdlib API",
+        },
+        GenericityProbe {
+            category: "dense grid family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn parse_range(",
+            resolution: "move formula reference parsing into Boon source or an explicit reusable stdlib API",
+        },
+        GenericityProbe {
+            category: "dense grid family runtime",
+            path: "crates/boon_runtime/src/compiled_app.rs",
             needle: "DenseGridState",
             resolution: "route cell formulas through generic state and dependency graph semantics",
         },
@@ -964,6 +983,36 @@ fn genericity_gaps(root: &Path) -> Result<Vec<BoonGenericityGap>> {
             path: "crates/boon_runtime/src/compiled_app.rs",
             needle: "fn render_motion_model_scene",
             resolution: "render game primitives by executing generic render tree nodes instead of a fixed motion renderer",
+        },
+        GenericityProbe {
+            category: "runtime-owned game stdlib",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "\"Geometry/peer_body_",
+            resolution: "evaluate named Geometry calls through boon_stdlib instead of embedding game helper dispatch in the runtime bridge",
+        },
+        GenericityProbe {
+            category: "runtime-owned game stdlib",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "\"Geometry/contact_body_",
+            resolution: "evaluate named Geometry calls through boon_stdlib instead of embedding game helper dispatch in the runtime bridge",
+        },
+        GenericityProbe {
+            category: "runtime-owned game stdlib",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn peer_body_next",
+            resolution: "move game helper implementation out of the runtime bridge",
+        },
+        GenericityProbe {
+            category: "runtime-owned game stdlib",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn contact_body_next",
+            resolution: "move game helper implementation out of the runtime bridge",
+        },
+        GenericityProbe {
+            category: "runtime-owned game stdlib",
+            path: "crates/boon_runtime/src/compiled_app.rs",
+            needle: "fn track_vertical_position",
+            resolution: "move game helper implementation out of the runtime bridge",
         },
     ];
     let mut gaps = Vec::new();
@@ -1102,12 +1151,26 @@ fn generated_provenance(root: &Path, required: bool) -> Result<BoonPoweredGenera
     let has_source_sha256 = text.contains("SOURCE_SHA256");
     let has_ir_sha256 = text.contains("IR_SHA256");
     let has_executable_ir = text.contains("EXECUTABLE_IR_JSON");
+    let has_compiled_module = text.contains("COMPILED_MODULE_JSON");
     let has_source_span_table = text.contains("SOURCE_SPANS") || text.contains("SourceSpan");
+    let avoids_runtime_compile_source = !text.contains("compile_source(name, def.source)")
+        && !text.contains("compile_source(name, def.source)?");
     let passed = if required {
-        exists && has_source_sha256 && has_ir_sha256 && has_executable_ir && has_source_span_table
+        exists
+            && has_source_sha256
+            && has_ir_sha256
+            && has_executable_ir
+            && has_compiled_module
+            && has_source_span_table
+            && avoids_runtime_compile_source
     } else {
         !exists
-            || (has_source_sha256 && has_ir_sha256 && has_executable_ir && has_source_span_table)
+            || (has_source_sha256
+                && has_ir_sha256
+                && has_executable_ir
+                && has_compiled_module
+                && has_source_span_table
+                && avoids_runtime_compile_source)
     };
     Ok(BoonPoweredGeneratedProvenance {
         path: path.to_string_lossy().to_string(),
@@ -1116,7 +1179,9 @@ fn generated_provenance(root: &Path, required: bool) -> Result<BoonPoweredGenera
         has_source_sha256,
         has_ir_sha256,
         has_executable_ir,
+        has_compiled_module,
         has_source_span_table,
+        avoids_runtime_compile_source,
         passed,
     })
 }

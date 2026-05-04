@@ -66,7 +66,7 @@ pub fn generate_examples_module(
     let mut code = String::new();
     code.push_str(
         r#"use anyhow::Result;
-use boon_compiler::{compile_source, ExecutableIr};
+use boon_compiler::{CompiledModule, ExecutableIr};
 use boon_runtime::SourceInventory;
 pub use boon_runtime::{CompiledApp, ExampleApp};
 use serde::{Deserialize, Serialize};
@@ -100,6 +100,14 @@ use serde::{Deserialize, Serialize};
         code.push_str(&format!(
             "    ({name:?}, {}),\n",
             rust_string_literal(&serde_json::to_string(&compiled.executable_ir)?)
+        ));
+    }
+    code.push_str("];\n\n");
+    code.push_str("pub const COMPILED_MODULE_JSON: &[(&str, &str)] = &[\n");
+    for (name, _, compiled) in &compiled_examples {
+        code.push_str(&format!(
+            "    ({name:?}, {}),\n",
+            rust_string_literal(&serde_json::to_string(compiled)?)
         ));
     }
     code.push_str("];\n\n");
@@ -166,8 +174,7 @@ pub fn definition(name: &str) -> Result<ExampleDefinition> {
 }
 
 pub fn source_inventory(name: &str) -> Result<SourceInventory> {
-    let def = definition(name)?;
-    Ok(compile_source(name, def.source)?.sources)
+    Ok(compiled_module(name)?.sources)
 }
 
 pub fn executable_ir(name: &str) -> Result<ExecutableIr> {
@@ -196,9 +203,17 @@ pub fn provenance(name: &str) -> Result<ExampleProvenance> {
     })
 }
 
+pub fn compiled_module(name: &str) -> Result<CompiledModule> {
+    let json = COMPILED_MODULE_JSON
+        .iter()
+        .find(|(example, _)| *example == name)
+        .map(|(_, json)| *json)
+        .ok_or_else(|| anyhow::anyhow!("unknown example `{name}`"))?;
+    Ok(serde_json::from_str(json)?)
+}
+
 pub fn app(name: &str) -> Result<ExampleApp> {
-    let def = definition(name)?;
-    Ok(CompiledApp::new(compile_source(name, def.source)?))
+    Ok(CompiledApp::new(compiled_module(name)?))
 }
 
 "#,

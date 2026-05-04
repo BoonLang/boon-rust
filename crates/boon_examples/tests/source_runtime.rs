@@ -639,11 +639,14 @@ fn behavior_changes_when_source_formula_function_is_removed() {
 }
 
 #[test]
-fn behavior_changes_when_source_contact_field_is_removed() {
+fn behavior_changes_when_source_contact_columns_change() {
     let source = definition("arkanoid")
         .expect("arkanoid definition")
         .source
-        .replace("    contact_field:", "    disabled_contact_field:");
+        .replace(
+            "        12 |> HOLD contact_field_cols",
+            "        0 |> HOLD contact_field_cols",
+        );
     let mut app = CompiledApp::new(
         compile_source("arkanoid_without_contact_field", &source).expect("source compiles"),
     );
@@ -660,7 +663,7 @@ fn behavior_changes_when_source_contact_field_is_removed() {
     assert_eq!(
         app.snapshot().values.get("kinematics.contact_field_cols"),
         Some(&serde_json::json!(0)),
-        "removing the contact field from Boon source must remove contact-field behavior"
+        "changing contact-field columns in Boon source must change contact-field behavior"
     );
 }
 

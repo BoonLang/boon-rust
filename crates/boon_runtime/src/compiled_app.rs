@@ -13,10 +13,7 @@ use boon_render_ir::{
 };
 use boon_shape::Shape;
 use boon_source::{SourceEntry, SourceOwner};
-use boon_stdlib::{
-    ContactGrid, ExpressionBook, MotionAxis, MotionBody, MotionConfig, MotionControl,
-    MotionDocument,
-};
+use boon_stdlib::FormulaBook;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
@@ -37,8 +34,9 @@ pub struct CompiledApp {
     source_state: BTreeMap<String, SourceValue>,
     generic_state: BTreeMap<String, i64>,
     view_selector: String,
-    grid: ExpressionBook,
-    motion: MotionDocument,
+    grid: FormulaBook,
+    grid_selected: (usize, usize),
+    grid_edit_focus: Option<(usize, usize)>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -47,8 +45,6 @@ struct RuntimeWiring {
     clock_state: Option<StateEventBinding>,
     list: Option<CollectionSourceWiring>,
     grid: Option<ElementGridWiring>,
-    motion_frame_event: Option<String>,
-    motion_control_event: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -144,16 +140,11 @@ impl RuntimeWiring {
             .is_some_and(|tree| render_node_has_kind(tree, &boon_compiler::IrRenderKind::Grid))
             .then(|| ElementGridWiring::from_inventory(inventory))
             .flatten();
-        let motion_frame_event = first_static_source_path_matching(inventory, ".event.frame");
-        let motion_control_event =
-            first_static_source_path_matching(inventory, ".event.key_down.key");
         Self {
             action_state,
             clock_state,
             list,
             grid,
-            motion_frame_event,
-            motion_control_event,
         }
     }
 }
@@ -722,131 +713,6 @@ fn collect_std_function_names_from_value(value: &IrStaticValue, names: &mut BTre
     }
 }
 
-fn motion_document_from_static_records(app_ir: &AppIr) -> MotionDocument {
-    let Some(record) = app_ir.static_records.iter().find(|record| {
-        static_record_field(record, "arena").is_some()
-            && static_record_field(record, "body").is_some()
-            && static_record_field(record, "primary_control").is_some()
-    }) else {
-        return MotionDocument::empty();
-    };
-    MotionDocument::new(MotionConfig {
-        arena_width: static_record_field(record, "arena")
-            .and_then(|fields| static_i64_value(fields, "width"))
-            .unwrap_or(1000),
-        arena_height: static_record_field(record, "arena")
-            .and_then(|fields| static_i64_value(fields, "height"))
-            .unwrap_or(700),
-        body: MotionBody {
-            x: static_record_field(record, "body")
-                .and_then(|fields| static_i64_value(fields, "x"))
-                .unwrap_or(500),
-            y: static_record_field(record, "body")
-                .and_then(|fields| static_i64_value(fields, "y"))
-                .unwrap_or(350),
-            dx: static_record_field(record, "body")
-                .and_then(|fields| static_i64_value(fields, "dx"))
-                .unwrap_or(10),
-            dy: static_record_field(record, "body")
-                .and_then(|fields| static_i64_value(fields, "dy"))
-                .unwrap_or(8),
-            size: static_record_field(record, "body")
-                .and_then(|fields| static_i64_value(fields, "size"))
-                .unwrap_or(22),
-        },
-        primary_control: motion_control_from_fields(
-            static_record_field(record, "primary_control"),
-            MotionAxis::Vertical,
-            MotionControl {
-                axis: MotionAxis::Vertical,
-                position: 50,
-                step: 8,
-                x: 38,
-                y: 0,
-                width: 18,
-                height: 128,
-                auto_track: false,
-            },
-        ),
-        tracked_control: static_record_field(record, "tracked_control").map(|fields| {
-            motion_control_from_fields(
-                Some(fields),
-                MotionAxis::Vertical,
-                MotionControl {
-                    axis: MotionAxis::Vertical,
-                    position: 50,
-                    step: 8,
-                    x: 944,
-                    y: 0,
-                    width: 18,
-                    height: 128,
-                    auto_track: true,
-                },
-            )
-        }),
-        contact_grid: static_record_field(record, "contact_field").map(|fields| ContactGrid {
-            rows: static_i64_value(fields, "rows").unwrap_or(6).max(0) as usize,
-            columns: static_i64_value(fields, "columns").unwrap_or(12).max(0) as usize,
-            top: static_i64_value(fields, "top").unwrap_or(56),
-            margin: static_i64_value(fields, "margin").unwrap_or(36),
-            gap: static_i64_value(fields, "gap").unwrap_or(8),
-            height: static_i64_value(fields, "height").unwrap_or(28),
-            value_per_contact: static_i64_value(fields, "value_per_contact").unwrap_or(10),
-        }),
-    })
-}
-
-fn motion_control_from_fields(
-    fields: Option<&[IrStaticField]>,
-    default_axis: MotionAxis,
-    default: MotionControl,
-) -> MotionControl {
-    let Some(fields) = fields else {
-        return default;
-    };
-    MotionControl {
-        axis: static_tag_value(fields, "axis")
-            .and_then(motion_axis_from_tag)
-            .unwrap_or(default_axis),
-        position: static_i64_value(fields, "position").unwrap_or(default.position),
-        step: static_i64_value(fields, "step").unwrap_or(default.step),
-        x: static_i64_value(fields, "x").unwrap_or(default.x),
-        y: static_i64_value(fields, "y").unwrap_or(default.y),
-        width: static_i64_value(fields, "width").unwrap_or(default.width),
-        height: static_i64_value(fields, "height").unwrap_or(default.height),
-        auto_track: static_bool_value(fields, "auto_track").unwrap_or(default.auto_track),
-    }
-}
-
-fn static_i64_value(fields: &[IrStaticField], field: &str) -> Option<i64> {
-    match static_record_value_field(fields, field)? {
-        IrStaticValue::Number { value } => Some(*value),
-        _ => None,
-    }
-}
-
-fn static_bool_value(fields: &[IrStaticField], field: &str) -> Option<bool> {
-    match static_record_value_field(fields, field)? {
-        IrStaticValue::Bool { value } => Some(*value),
-        _ => None,
-    }
-}
-
-fn static_tag_value<'a>(fields: &'a [IrStaticField], field: &str) -> Option<&'a str> {
-    match static_record_value_field(fields, field)? {
-        IrStaticValue::Tag { value } => Some(value.as_str()),
-        _ => None,
-    }
-}
-
-fn motion_axis_from_tag(value: &str) -> Option<MotionAxis> {
-    match value {
-        "Horizontal" => Some(MotionAxis::Horizontal),
-        "Vertical" => Some(MotionAxis::Vertical),
-        _ => None,
-    }
-}
-
 impl CompiledApp {
     pub fn new(compiled: boon_compiler::CompiledModule) -> Self {
         let inventory = compiled.sources;
@@ -860,12 +726,11 @@ impl CompiledApp {
             .map(|list| list.initial_entries.clone())
             .unwrap_or_default();
         let (grid_rows, grid_columns) = grid_dimensions_from_static_records(&app_ir);
-        let grid = ExpressionBook::new(
+        let grid = FormulaBook::new(
             grid_rows,
             grid_columns,
             std_function_names_from_static_records(&app_ir),
         );
-        let motion = motion_document_from_static_records(&app_ir);
         let initial_view_selector = collection_view_from_app_ir(&app_ir).map_or_else(
             || "all".to_string(),
             |view| {
@@ -903,7 +768,8 @@ impl CompiledApp {
             generic_state,
             view_selector: initial_view_selector,
             grid,
-            motion,
+            grid_selected: (1, 1),
+            grid_edit_focus: None,
         };
         app.next_dynamic_value_id = app.dynamic_values.len() as u64 + 1;
         app.frame_text = app.render_text();
@@ -1002,6 +868,27 @@ impl CompiledApp {
             .as_ref()
             .map(|grid| vec![format!("{}.selected", grid.root)])
             .unwrap_or_default()
+    }
+
+    fn set_grid_selected(&mut self, row: usize, col: usize) {
+        self.grid_selected = (
+            row.clamp(1, self.grid.rows()),
+            col.clamp(1, self.grid.columns()),
+        );
+    }
+
+    fn move_grid_selected(&mut self, row_delta: isize, col_delta: isize) {
+        let row = self
+            .grid_selected
+            .0
+            .saturating_add_signed(row_delta)
+            .clamp(1, self.grid.rows());
+        let col = self
+            .grid_selected
+            .1
+            .saturating_add_signed(col_delta)
+            .clamp(1, self.grid.columns());
+        self.grid_selected = (row, col);
     }
 
     fn static_text_event_matches(&self, path: &str) -> bool {
@@ -1233,44 +1120,15 @@ impl CompiledApp {
         event: &SourceEmission,
         state: &BTreeMap<String, i64>,
     ) -> Result<i64> {
-        let arg = |name: &str| -> Result<i64> {
+        boon_stdlib::eval_number_call(path, |name| {
             let value = args
                 .iter()
                 .find(|arg| arg.name == name)
-                .with_context(|| format!("missing `{name}` argument for `{path}`"))?;
+                .ok_or_else(|| format!("missing `{name}` argument for `{path}`"))?;
             self.eval_exec_number_with_state(&value.value, event, state)
-        };
-        match path {
-            "Number/min" => Ok(arg("left")?.min(arg("right")?)),
-            "Number/max" => Ok(arg("left")?.max(arg("right")?)),
-            "Number/clamp" => Ok(arg("value")?.clamp(arg("min")?, arg("max")?)),
-            "Geometry/track_vertical_position" => Ok(track_vertical_position(
-                arg("body_y")?,
-                arg("body_size")?,
-                arg("arena_height")?,
-                arg("height")?,
-            )),
-            "Geometry/peer_body_x" => Ok(peer_body_next(arg, PeerQuantity::X)?),
-            "Geometry/peer_body_y" => Ok(peer_body_next(arg, PeerQuantity::Y)?),
-            "Geometry/peer_body_dx" => Ok(peer_body_next(arg, PeerQuantity::Dx)?),
-            "Geometry/peer_body_dy" => Ok(peer_body_next(arg, PeerQuantity::Dy)?),
-            "Geometry/peer_contact_value" => Ok(peer_body_next(arg, PeerQuantity::ContactValue)?),
-            "Geometry/peer_resets_remaining" => {
-                Ok(peer_body_next(arg, PeerQuantity::ResetsRemaining)?)
-            }
-            "Geometry/contact_body_x" => Ok(contact_body_next(arg, ContactQuantity::X)?),
-            "Geometry/contact_body_y" => Ok(contact_body_next(arg, ContactQuantity::Y)?),
-            "Geometry/contact_body_dx" => Ok(contact_body_next(arg, ContactQuantity::Dx)?),
-            "Geometry/contact_body_dy" => Ok(contact_body_next(arg, ContactQuantity::Dy)?),
-            "Geometry/contact_live_count" => {
-                Ok(contact_body_next(arg, ContactQuantity::LiveCount)?)
-            }
-            "Geometry/contact_value" => Ok(contact_body_next(arg, ContactQuantity::ContactValue)?),
-            "Geometry/contact_resets_remaining" => {
-                Ok(contact_body_next(arg, ContactQuantity::ResetsRemaining)?)
-            }
-            _ => bail!("unsupported executable stdlib call `{path}`"),
-        }
+                .map_err(|err| err.to_string())
+        })
+        .map_err(|err| anyhow::anyhow!("{err}"))
     }
 
     fn set_generic_number(&mut self, state_path: &str, value: i64) {
@@ -1480,20 +1338,8 @@ impl CompiledApp {
             .is_some_and(|field| record.bool_field(field))
     }
 
-    fn motion_root(&self) -> Option<&str> {
-        self.app_ir
-            .static_records
-            .iter()
-            .find(|record| {
-                static_record_field(record, "arena").is_some()
-                    && static_record_field(record, "body").is_some()
-                    && static_record_field(record, "primary_control").is_some()
-            })
-            .map(|record| record.path.as_str())
-    }
-
     fn spatial_source_enabled(&self) -> bool {
-        self.motion.is_enabled() || self.spatial_state_path("body_x").is_some()
+        self.spatial_state_path("body_x").is_some()
     }
 
     fn spatial_i64(&self, key: &str, fallback: i64) -> i64 {
@@ -1519,7 +1365,6 @@ impl CompiledApp {
     fn spatial_contact_mode(&self) -> bool {
         self.spatial_state_path("contact_field_live_count")
             .is_some()
-            || self.motion.config().contact_grid.is_some()
     }
 
     fn has_render_kind(&self, kind: boon_compiler::IrRenderKind) -> bool {
@@ -1547,7 +1392,7 @@ impl CompiledApp {
         if self.has_render_kind(boon_compiler::IrRenderKind::Grid) {
             self.render_slot_text()
         } else if self.spatial_source_enabled() {
-            self.render_motion_text()
+            self.render_spatial_text()
         } else if self.can_render_generic_scene() {
             self.render_generic_text()
         } else {
@@ -1565,7 +1410,7 @@ impl CompiledApp {
         if self.has_render_kind(boon_compiler::IrRenderKind::Grid) {
             self.render_element_grid_scene(&mut scene);
         } else if self.spatial_source_enabled() {
-            self.render_motion_primitive(&mut scene);
+            self.render_spatial_scene(&mut scene);
         } else if self.can_render_generic_scene() {
             self.render_generic_scene(&mut scene);
         }
@@ -2088,8 +1933,8 @@ impl CompiledApp {
         push_rect(scene, 0, 0, 1000, 1000, [248, 249, 250, 255]);
         let selected = format!(
             "{}{}",
-            column_name(self.grid.selected().1),
-            self.grid.selected().0
+            column_name(self.grid_selected.1),
+            self.grid_selected.0
         );
         push_text(scene, 48, 34, 2, &self.program.title, [31, 46, 60, 255]);
         push_rect(scene, 48, 82, 904, 50, [255, 255, 255, 255]);
@@ -2100,7 +1945,7 @@ impl CompiledApp {
             142,
             100,
             1,
-            self.slot_text(self.grid.selected().0, self.grid.selected().1),
+            self.slot_text(self.grid_selected.0, self.grid_selected.1),
             [35, 50, 64, 255],
         );
         let origin_x = 48;
@@ -2136,7 +1981,7 @@ impl CompiledApp {
             );
             for col in 1..=visible_cols {
                 let x = origin_x + 52 + (col - 1) * col_w;
-                let selected_slot = self.grid.selected() == (row as usize, col as usize);
+                let selected_slot = self.grid_selected == (row as usize, col as usize);
                 push_rect(
                     scene,
                     x,
@@ -2197,41 +2042,16 @@ impl CompiledApp {
         }
     }
 
-    fn render_motion_primitive(&self, scene: &mut FrameScene) {
+    fn render_spatial_scene(&self, scene: &mut FrameScene) {
         if !self.spatial_source_enabled() {
             return;
         }
-        let motion = self.motion.config();
         let contact_mode = self.spatial_contact_mode();
-        let arena_width = if self.motion.is_enabled() {
-            motion.arena_width
-        } else {
-            1000
-        };
-        let arena_height = if self.motion.is_enabled() {
-            motion.arena_height
-        } else {
-            700
-        };
-        let body_size = if self.motion.is_enabled() {
-            motion.body.size
-        } else {
-            22
-        };
-        let control_width = if self.motion.is_enabled() {
-            motion.primary_control.width
-        } else if contact_mode {
-            160
-        } else {
-            18
-        };
-        let control_height = if self.motion.is_enabled() {
-            motion.primary_control.height
-        } else if contact_mode {
-            18
-        } else {
-            128
-        };
+        let arena_width = 1000;
+        let arena_height = 700;
+        let body_size = 22;
+        let control_width = if contact_mode { 160 } else { 18 };
+        let control_height = if contact_mode { 18 } else { 128 };
         push_rect(scene, 0, 0, 1000, 1000, [18, 24, 32, 255]);
         push_text(scene, 38, 28, 2, &self.program.title, [231, 241, 247, 255]);
         push_text(
@@ -2241,9 +2061,9 @@ impl CompiledApp {
             1,
             &format!(
                 "frame {} contact_value {} resets_remaining {}",
-                self.spatial_i64("frame", self.motion.frame_index() as i64),
-                self.spatial_i64("contact_value", self.motion.contact_value()),
-                self.spatial_i64("resets_remaining", self.motion.resets_remaining())
+                self.spatial_i64("frame", 0),
+                self.spatial_i64("contact_value", 0),
+                self.spatial_i64("resets_remaining", 3)
             ),
             [153, 183, 198, 255],
         );
@@ -2263,26 +2083,19 @@ impl CompiledApp {
         let sh = |value: i64| ((value.max(1) as u32) * h / arena_height.max(1) as u32).max(1);
 
         if contact_mode {
-            let rows = motion.contact_grid.as_ref().map_or(6, |field| field.rows);
-            let columns = motion
-                .contact_grid
-                .as_ref()
-                .map_or(12, |field| field.columns);
-            let top = motion.contact_grid.as_ref().map_or(56, |field| field.top);
-            let margin = motion
-                .contact_grid
-                .as_ref()
-                .map_or(36, |field| field.margin);
-            let gap = motion.contact_grid.as_ref().map_or(8, |field| field.gap);
-            let height = motion
-                .contact_grid
-                .as_ref()
-                .map_or(28, |field| field.height);
+            let rows = usize::try_from(self.spatial_i64("contact_field_rows", 6).max(0))
+                .unwrap_or_default();
+            let columns =
+                usize::try_from(self.spatial_i64("contact_field_cols", 12).max(1)).unwrap_or(12);
+            let top = 56;
+            let margin = 36;
+            let gap = 8;
+            let height = 28;
             let live_count = self
                 .spatial_state_path("contact_field_live_count")
                 .and_then(|path| self.generic_state.get(&path).copied())
                 .and_then(|value| usize::try_from(value).ok())
-                .unwrap_or_else(|| self.motion.live_contact_count());
+                .unwrap_or(rows.saturating_mul(columns));
             let contact_w = (arena_width - margin * 2 - (columns.saturating_sub(1) as i64 * gap))
                 / columns.max(1) as i64;
             for row in 0..rows {
@@ -2303,21 +2116,17 @@ impl CompiledApp {
             }
         }
 
-        let control_x = self.spatial_i64("control_x", self.motion.control_x());
-        let control_y = self.spatial_i64("control_y", self.motion.control_y());
+        let control_x = self.spatial_i64("control_x", 50);
+        let control_y = self.spatial_i64("control_y", 50);
         let primary_x = if contact_mode {
             controller_left_from_position(control_x, arena_width, control_width)
-        } else if motion.primary_control.axis == MotionAxis::Horizontal {
-            controller_left_from_position(control_x, arena_width, control_width)
         } else {
-            motion.primary_control.x
+            38
         };
         let primary_y = if contact_mode {
             646
-        } else if motion.primary_control.axis == MotionAxis::Vertical {
-            controller_top_from_position(control_y, arena_height, control_height)
         } else {
-            motion.primary_control.y
+            controller_top_from_position(control_y, arena_height, control_height)
         };
         push_rect(
             scene,
@@ -2328,20 +2137,11 @@ impl CompiledApp {
             [85, 212, 230, 255],
         );
         if !contact_mode {
-            let tracked_x = motion
-                .tracked_control
-                .as_ref()
-                .map_or(944, |control| control.x);
-            let tracked_h = motion
-                .tracked_control
-                .as_ref()
-                .map_or(128, |control| control.height);
-            let tracked_w = motion
-                .tracked_control
-                .as_ref()
-                .map_or(18, |control| control.width);
+            let tracked_x = 944;
+            let tracked_h = 128;
+            let tracked_w = 18;
             let tracked_y = controller_top_from_position(
-                self.spatial_i64("tracked_control_y", self.motion.tracked_control_y()),
+                self.spatial_i64("tracked_control_y", 50),
                 arena_height,
                 tracked_h,
             );
@@ -2356,50 +2156,43 @@ impl CompiledApp {
         }
         push_rect(
             scene,
-            sx(self.spatial_i64("body_x", self.motion.body_x())),
-            sy(self.spatial_i64("body_y", self.motion.body_y())),
+            sx(self.spatial_i64("body_x", 500)),
+            sy(self.spatial_i64("body_y", 350)),
             sw(body_size),
             sh(body_size),
             [250, 250, 250, 255],
         );
     }
 
-    fn render_motion_text(&self) -> String {
-        let frame_source = self
-            .wiring
-            .motion_frame_event
-            .as_deref()
-            .unwrap_or("frame source");
+    fn render_spatial_text(&self) -> String {
+        let frame_source = first_static_source_path_matching(&self.inventory, ".event.frame")
+            .unwrap_or_else(|| "frame source".to_string());
         format!(
-            "{}\nsurface: motion\nmotion_mode: {}\nframe: {}\ncontrol_y: {}\ncontrol_x: {}\ntracked_control_y: {}\nbody_x: {}\nbody_y: {}\nbody_dx: {}\nbody_dy: {}\ncontact_field_rows: {}\ncontact_field_cols: {}\ncontact_field_live: {}\ncontact_value: {}\nresets_remaining: {}\ndeterministic input source: {}",
+            "{}\nsurface: spatial_scene\nspatial_mode: {}\nframe: {}\ncontrol_y: {}\ncontrol_x: {}\ntracked_control_y: {}\nbody_x: {}\nbody_y: {}\nbody_dx: {}\nbody_dy: {}\ncontact_field_rows: {}\ncontact_field_cols: {}\ncontact_field_live: {}\ncontact_value: {}\nresets_remaining: {}\ndeterministic input source: {}",
             self.program.title,
             if self.spatial_contact_mode() {
                 "contact-grid"
             } else {
                 "tracked-control"
             },
-            self.spatial_i64("frame", self.motion.frame_index() as i64),
-            self.spatial_i64("control_y", self.motion.control_y()),
-            self.spatial_i64("control_x", self.motion.control_x()),
-            self.spatial_i64("tracked_control_y", self.motion.tracked_control_y()),
-            self.spatial_i64("body_x", self.motion.body_x()),
-            self.spatial_i64("body_y", self.motion.body_y()),
-            self.spatial_i64("body_dx", self.motion.body_dx()),
-            self.spatial_i64("body_dy", self.motion.body_dy()),
-            self.spatial_i64("contact_field_rows", self.motion.contact_rows() as i64),
-            self.spatial_i64("contact_field_cols", self.motion.contact_columns() as i64),
+            self.spatial_i64("frame", 0),
+            self.spatial_i64("control_y", 50),
+            self.spatial_i64("control_x", 50),
+            self.spatial_i64("tracked_control_y", 50),
+            self.spatial_i64("body_x", 500),
+            self.spatial_i64("body_y", 350),
+            self.spatial_i64("body_dx", 10),
+            self.spatial_i64("body_dy", 8),
+            self.spatial_i64("contact_field_rows", 0),
+            self.spatial_i64("contact_field_cols", 0),
             self.spatial_state_path("contact_field_live_count")
                 .and_then(|path| self.generic_state.get(&path).copied())
                 .map(|value| value.to_string())
-                .unwrap_or_else(|| self.motion.live_contact_indices()),
-            self.spatial_i64("contact_value", self.motion.contact_value()),
-            self.spatial_i64("resets_remaining", self.motion.resets_remaining()),
+                .unwrap_or_else(|| "0".to_string()),
+            self.spatial_i64("contact_value", 0),
+            self.spatial_i64("resets_remaining", 3),
             frame_source
         )
-    }
-
-    fn advance_motion_step(&mut self) {
-        self.motion.advance_frame();
     }
 
     fn visible_dynamic_values(&self) -> impl Iterator<Item = &RuntimeDynamicValue> {
@@ -2427,16 +2220,16 @@ impl CompiledApp {
             "surface: grid_primitive".to_string(),
             format!(
                 "selected: {}{}",
-                column_name(self.grid.selected().1),
-                self.grid.selected().0
+                column_name(self.grid_selected.1),
+                self.grid_selected.0
             ),
             format!(
                 "expression: {}",
-                self.slot_text(self.grid.selected().0, self.grid.selected().1)
+                self.slot_text(self.grid_selected.0, self.grid_selected.1)
             ),
             format!(
                 "value: {}",
-                self.slot_value(self.grid.selected().0, self.grid.selected().1)
+                self.slot_value(self.grid_selected.0, self.grid_selected.1)
             ),
             "columns: A B C D E F ... Z".to_string(),
         ];
@@ -2621,7 +2414,7 @@ impl BoonApp for CompiledApp {
                     .as_deref()
                     .map(|owner_id| self.parse_grid_owner(owner_id))
                     .transpose()?
-                    .unwrap_or(self.grid.selected());
+                    .unwrap_or(self.grid_selected);
                 self.grid.set_text(row, col, value);
             }
         }
@@ -2692,9 +2485,9 @@ impl BoonApp for CompiledApp {
                     .as_deref()
                     .map(|owner_id| self.parse_grid_owner(owner_id))
                     .transpose()?
-                    .unwrap_or(self.grid.selected());
-                self.grid.set_selected(row, col);
-                self.grid.set_edit_focus(Some((row, col)));
+                    .unwrap_or(self.grid_selected);
+                self.set_grid_selected(row, col);
+                self.grid_edit_focus = Some((row, col));
                 results.push(self.emit_frame_owned(self.grid_change_paths(), metrics));
             } else if self
                 .wiring
@@ -2704,7 +2497,7 @@ impl BoonApp for CompiledApp {
                 .is_some_and(|path| event.path == *path)
             {
                 if matches!(event.value, SourceValue::Tag(ref key) if key == "Enter") {
-                    self.grid.set_edit_focus(None);
+                    self.grid_edit_focus = None;
                 }
                 results.push(self.emit_frame_owned(self.grid_change_paths(), metrics));
             } else if self
@@ -2716,40 +2509,14 @@ impl BoonApp for CompiledApp {
             {
                 if let SourceValue::Tag(key) = &event.value {
                     match key.as_str() {
-                        "ArrowUp" => self.grid.move_selected(-1, 0),
-                        "ArrowDown" => self.grid.move_selected(1, 0),
-                        "ArrowLeft" => self.grid.move_selected(0, -1),
-                        "ArrowRight" => self.grid.move_selected(0, 1),
+                        "ArrowUp" => self.move_grid_selected(-1, 0),
+                        "ArrowDown" => self.move_grid_selected(1, 0),
+                        "ArrowLeft" => self.move_grid_selected(0, -1),
+                        "ArrowRight" => self.move_grid_selected(0, 1),
                         _ => {}
                     }
                 }
                 results.push(self.emit_frame_owned(self.grid_selection_change_paths(), metrics));
-            } else if self
-                .wiring
-                .motion_control_event
-                .as_ref()
-                .is_some_and(|path| event.path == *path)
-            {
-                if let SourceValue::Tag(key) = &event.value {
-                    self.motion.apply_key(key);
-                }
-                let changed = self
-                    .motion_root()
-                    .map(|root| vec![format!("{root}.control")])
-                    .unwrap_or_default();
-                results.push(self.emit_frame_owned(changed, metrics));
-            } else if self
-                .wiring
-                .motion_frame_event
-                .as_ref()
-                .is_some_and(|path| event.path == *path)
-            {
-                self.advance_motion_step();
-                let changed = self
-                    .motion_root()
-                    .map(|root| vec!["frame".to_string(), format!("{root}.body")])
-                    .unwrap_or_else(|| vec!["frame".to_string()]);
-                results.push(self.emit_frame_owned(changed, metrics));
             }
         }
         if results.is_empty() && !changed_paths.is_empty() {
@@ -2855,64 +2622,56 @@ impl BoonApp for CompiledApp {
         }
         if self.spatial_source_enabled() {
             let root = self
-                .motion_root()
-                .map(str::to_string)
-                .or_else(|| self.spatial_source_root())
+                .spatial_source_root()
                 .unwrap_or_else(|| "spatial".to_string());
-            values.insert(
-                format!("{root}.frame"),
-                json!(self.spatial_i64("frame", self.motion.frame_index() as i64)),
-            );
+            values.insert(format!("{root}.frame"), json!(self.spatial_i64("frame", 0)));
             values.insert(
                 format!("{root}.control_y"),
-                json!(self.spatial_i64("control_y", self.motion.control_y())),
+                json!(self.spatial_i64("control_y", 50)),
             );
             values.insert(
                 format!("{root}.control_x"),
-                json!(self.spatial_i64("control_x", self.motion.control_x())),
+                json!(self.spatial_i64("control_x", 50)),
             );
             values.insert(
                 format!("{root}.tracked_control_y"),
-                json!(self.spatial_i64("tracked_control_y", self.motion.tracked_control_y())),
+                json!(self.spatial_i64("tracked_control_y", 50)),
             );
             values.insert(
                 format!("{root}.body_x"),
-                json!(self.spatial_i64("body_x", self.motion.body_x())),
+                json!(self.spatial_i64("body_x", 500)),
             );
             values.insert(
                 format!("{root}.body_y"),
-                json!(self.spatial_i64("body_y", self.motion.body_y())),
+                json!(self.spatial_i64("body_y", 350)),
             );
             values.insert(
                 format!("{root}.body_dx"),
-                json!(self.spatial_i64("body_dx", self.motion.body_dx())),
+                json!(self.spatial_i64("body_dx", 10)),
             );
             values.insert(
                 format!("{root}.body_dy"),
-                json!(self.spatial_i64("body_dy", self.motion.body_dy())),
+                json!(self.spatial_i64("body_dy", 8)),
             );
             values.insert(
                 format!("{root}.contact_field_rows"),
-                json!(self.spatial_i64("contact_field_rows", self.motion.contact_rows() as i64)),
+                json!(self.spatial_i64("contact_field_rows", 0)),
             );
             values.insert(
                 format!("{root}.contact_field_cols"),
-                json!(self.spatial_i64("contact_field_cols", self.motion.contact_columns() as i64)),
+                json!(self.spatial_i64("contact_field_cols", 0)),
             );
             values.insert(
                 format!("{root}.contact_field_live_count"),
-                json!(self.spatial_i64(
-                    "contact_field_live_count",
-                    self.motion.live_contact_count() as i64
-                )),
+                json!(self.spatial_i64("contact_field_live_count", 0)),
             );
             values.insert(
                 format!("{root}.contact_value"),
-                json!(self.spatial_i64("contact_value", self.motion.contact_value())),
+                json!(self.spatial_i64("contact_value", 0)),
             );
             values.insert(
                 format!("{root}.resets_remaining"),
-                json!(self.spatial_i64("resets_remaining", self.motion.resets_remaining())),
+                json!(self.spatial_i64("resets_remaining", 3)),
             );
         }
         let grid_root = self
@@ -2938,25 +2697,24 @@ impl BoonApp for CompiledApp {
         }
         values.insert(
             format!("{grid_root}.selected_expression"),
-            json!(self.slot_text(self.grid.selected().0, self.grid.selected().1)),
+            json!(self.slot_text(self.grid_selected.0, self.grid_selected.1)),
         );
         values.insert(
             format!("{grid_root}.selected_value"),
-            json!(self.slot_value(self.grid.selected().0, self.grid.selected().1)),
+            json!(self.slot_value(self.grid_selected.0, self.grid_selected.1)),
         );
         values.insert(
             format!("{grid_root}.selected"),
             json!(format!(
                 "{}{}",
-                column_name(self.grid.selected().1),
-                self.grid.selected().0
+                column_name(self.grid_selected.1),
+                self.grid_selected.0
             )),
         );
         values.insert(
             format!("{grid_root}.edit_focus"),
             json!(
-                self.grid
-                    .edit_focus()
+                self.grid_edit_focus
                     .map(|(row, col)| format!("{}{}", column_name(col), row))
             ),
         );
@@ -3041,215 +2799,6 @@ fn controller_top_from_position(position: i64, arena_h: i64, controller_h: i64) 
 fn controller_left_from_position(position: i64, arena_w: i64, controller_w: i64) -> i64 {
     ((arena_w - controller_w).max(0) * position.clamp(0, 100) / 100)
         .clamp(0, arena_w - controller_w)
-}
-
-fn track_vertical_position(body_y: i64, body_size: i64, arena_h: i64, control_h: i64) -> i64 {
-    if arena_h <= control_h {
-        0
-    } else {
-        let top = body_y + body_size / 2 - control_h / 2;
-        (top.clamp(0, arena_h - control_h) * 100 / (arena_h - control_h)).clamp(0, 100)
-    }
-}
-
-#[derive(Clone, Copy)]
-enum PeerQuantity {
-    X,
-    Y,
-    Dx,
-    Dy,
-    ContactValue,
-    ResetsRemaining,
-}
-
-fn peer_body_next<F>(mut arg: F, quantity: PeerQuantity) -> Result<i64>
-where
-    F: FnMut(&str) -> Result<i64>,
-{
-    let arena_w = arg("arena_width")?;
-    let arena_h = arg("arena_height")?;
-    let body_size = arg("body_size")?;
-    let control_w = arg("control_width")?;
-    let control_h = arg("control_height")?;
-    let left_x = arg("left_x")?;
-    let right_x = arg("right_x")?;
-    let control_y = arg("control_y")?;
-    let tracked_control_y = arg("tracked_control_y")?;
-    let mut x = arg("x")? + arg("dx")?;
-    let mut y = arg("y")? + arg("dy")?;
-    let mut dx = arg("dx")?;
-    let mut dy = arg("dy")?;
-    let mut contact_value = arg("contact_value")?;
-    let mut resets_remaining = arg("resets_remaining")?;
-
-    if y <= 0 {
-        y = 0;
-        dy = dy.abs();
-    } else if y + body_size >= arena_h {
-        y = arena_h - body_size;
-        dy = -dy.abs();
-    }
-
-    let left_y = controller_top_from_position(control_y, arena_h, control_h);
-    let right_y = controller_top_from_position(tracked_control_y, arena_h, control_h);
-    if dx < 0
-        && x <= left_x + control_w
-        && x + body_size >= left_x
-        && ranges_intersect(y, y + body_size, left_y, left_y + control_h)
-    {
-        x = left_x + control_w;
-        dx = dx.abs();
-        dy = (dy + ((y + body_size / 2) - (left_y + control_h / 2)) / 18).clamp(-18, 18);
-        contact_value += 1;
-    }
-    if dx > 0
-        && x + body_size >= right_x
-        && x <= right_x + control_w
-        && ranges_intersect(y, y + body_size, right_y, right_y + control_h)
-    {
-        x = right_x - body_size;
-        dx = -dx.abs();
-        dy = (dy + ((y + body_size / 2) - (right_y + control_h / 2)) / 18).clamp(-18, 18);
-        contact_value += 1;
-    }
-    if x < -body_size || x > arena_w + body_size {
-        x = arena_w / 2;
-        y = arena_h / 2;
-        dx = if dx < 0 { 12 } else { -12 };
-        dy = 8;
-        resets_remaining = (resets_remaining - 1).max(0);
-    }
-
-    Ok(match quantity {
-        PeerQuantity::X => x,
-        PeerQuantity::Y => y,
-        PeerQuantity::Dx => dx,
-        PeerQuantity::Dy => dy,
-        PeerQuantity::ContactValue => contact_value,
-        PeerQuantity::ResetsRemaining => resets_remaining,
-    })
-}
-
-#[derive(Clone, Copy)]
-enum ContactQuantity {
-    X,
-    Y,
-    Dx,
-    Dy,
-    LiveCount,
-    ContactValue,
-    ResetsRemaining,
-}
-
-fn contact_body_next<F>(mut arg: F, quantity: ContactQuantity) -> Result<i64>
-where
-    F: FnMut(&str) -> Result<i64>,
-{
-    let arena_w = arg("arena_width")?;
-    let arena_h = arg("arena_height")?;
-    let body_size = arg("body_size")?;
-    let control_w = arg("control_width")?;
-    let control_h = arg("control_height")?;
-    let control_y = arg("control_y")?;
-    let margin = arg("field_margin")?;
-    let top = arg("field_top")?;
-    let gap = arg("field_gap")?;
-    let cell_h = arg("field_height")?;
-    let rows = arg("field_rows")?.max(0);
-    let columns = arg("field_columns")?.max(1);
-    let value_per_contact = arg("value_per_contact")?;
-    let mut x = arg("x")? + arg("dx")?;
-    let mut y = arg("y")? + arg("dy")?;
-    let mut dx = arg("dx")?;
-    let mut dy = arg("dy")?;
-    let mut live_count = arg("live_count")?.clamp(0, rows * columns);
-    let mut contact_value = arg("contact_value")?;
-    let mut resets_remaining = arg("resets_remaining")?;
-
-    if x <= 0 {
-        x = 0;
-        dx = dx.abs();
-    } else if x + body_size >= arena_w {
-        x = arena_w - body_size;
-        dx = -dx.abs();
-    }
-    if y <= 0 {
-        y = 0;
-        dy = dy.abs();
-    }
-
-    if dy < 0 && live_count > 0 {
-        let cell_w = (arena_w - margin * 2 - gap * (columns - 1)) / columns;
-        let mut hit = false;
-        'scan: for row in 0..rows {
-            for column in 0..columns {
-                let index = row * columns + column;
-                if index >= live_count {
-                    continue;
-                }
-                let bx = margin + column * (cell_w + gap);
-                let by = top + row * (cell_h + gap);
-                if rectangles_intersect(x, y, body_size, body_size, bx, by, cell_w, cell_h) {
-                    hit = true;
-                    break 'scan;
-                }
-            }
-        }
-        if hit {
-            live_count -= 1;
-            dy = dy.abs();
-            contact_value += value_per_contact;
-        }
-    }
-
-    let control_x = controller_left_from_position(arg("control_x")?, arena_w, control_w);
-    if dy > 0
-        && rectangles_intersect(
-            x, y, body_size, body_size, control_x, control_y, control_w, control_h,
-        )
-    {
-        y = control_y - body_size;
-        dy = -dy.abs();
-        dx = (dx + ((x + body_size / 2) - (control_x + control_w / 2)) / 18).clamp(-18, 18);
-    }
-    if y > arena_h {
-        x = control_x + control_w / 2 - body_size / 2;
-        y = control_y - body_size - 2;
-        dx = arg("initial_dx")?;
-        dy = arg("initial_dy")?;
-        resets_remaining = (resets_remaining - 1).max(0);
-    }
-    if live_count == 0 {
-        live_count = rows * columns;
-    }
-
-    Ok(match quantity {
-        ContactQuantity::X => x,
-        ContactQuantity::Y => y,
-        ContactQuantity::Dx => dx,
-        ContactQuantity::Dy => dy,
-        ContactQuantity::LiveCount => live_count,
-        ContactQuantity::ContactValue => contact_value,
-        ContactQuantity::ResetsRemaining => resets_remaining,
-    })
-}
-
-fn ranges_intersect(a_start: i64, a_end: i64, b_start: i64, b_end: i64) -> bool {
-    a_start < b_end && b_start < a_end
-}
-
-#[allow(clippy::too_many_arguments)]
-fn rectangles_intersect(
-    ax: i64,
-    ay: i64,
-    aw: i64,
-    ah: i64,
-    bx: i64,
-    by: i64,
-    bw: i64,
-    bh: i64,
-) -> bool {
-    ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by
 }
 
 fn source_state_key(emission: &SourceEmission) -> String {
